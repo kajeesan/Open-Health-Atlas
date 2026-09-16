@@ -4,6 +4,8 @@
 
 Created by **[Kajeesan Jeevendra](https://github.com/kajeesan)** · [MIT licensed](LICENSE)
 
+[![Repository checks](https://github.com/kajeesan/Open-Health-Atlas/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/kajeesan/Open-Health-Atlas/actions/workflows/checks.yml)
+
 Open Health Atlas brings sleep, training, mood, nutrition and other health
 records into one local application. Compare periods and inspect the sources,
 units and calculations behind the results.

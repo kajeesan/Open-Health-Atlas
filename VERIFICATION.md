@@ -648,7 +648,7 @@ mutated/relocated rejection and a deleted historical copy at an unapproved
 path. Community YAML and Markdown structure, workflow syntax, routing cases,
 guide links and copyable configuration were independently checked. These are
 internal engineering checks, not external-user feedback. Actual GitHub/Linux
-workflow results are recorded once the configured workflow executes.
+workflow results follow below.
 
 The [first GitHub/Linux run](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35154303321)
 passed inventory/privacy checks and 1,941 application tests, with 22 failures
@@ -664,6 +664,40 @@ workout fixture converts its local time correctly across seasons. Assertions,
 installer guards and production date handling are retained. Twenty-three
 installer tests passed in 13.70s; 33 date-related tests passed in 13.89s with
 the host clock set to UTC and the application set to the example timezone.
-These checks address the observed failures; a fresh complete GitHub run is
-still required. Individual live-clock tests can still race if their own
+These checks address the observed failures; the complete GitHub rerun below
+verifies the corrected candidate. Individual live-clock tests can still race if their own
 execution crosses midnight.
+
+### Passing hosted verification and publication
+
+[GitHub run 35156999775](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35156999775)
+passed at `6be7d75656bf0a7a34ba8c1b7d2ea1936189dfa2` on Ubuntu 24.04 and
+Python 3.11. The disjoint partitions passed all **1,983 retained tests**, with
+no test failures or skips:
+
+| Partition | Passed | Time |
+| --- | ---: | ---: |
+| Application, including scanner, native and JavaScript checks | 1,963 | 1,392.76s |
+| Fictional end-to-end journeys | 15 | 608.92s |
+| Actual optional MCP client/server | 5 | 9.50s |
+
+Dependency consistency, MCP SDK 1.30.0 import, the 406-entry manifest and full
+history privacy scan passed. The source scan covered 407 files and reported
+zero findings. Test-data and job cleanup completed successfully. Workflow
+steps for the alternative documentation-only route were intentionally not
+selected; they are not skipped application tests.
+
+[Pull request #3](https://github.com/kajeesan/Open-Health-Atlas/pull/3) was
+merged to public `main` at that exact reviewed commit. GitHub recognized the
+conduct policy, contribution guide, PR template and MIT license and reported
+100% on its community-file checklist. Its signed-in issue chooser displayed
+both Bug report and Feature request forms and the private reporting route.
+This measures repository-file presence, not product quality or adoption.
+
+The two bounded starter issues are [persistent form labels](https://github.com/kajeesan/Open-Health-Atlas/issues/1)
+and [selected export-format state](https://github.com/kajeesan/Open-Health-Atlas/issues/2).
+Both are unassigned and labelled `good first issue` and `accessibility`.
+Private vulnerability reporting remains enabled. No external feedback was
+collected and no people were contacted or assigned. The final follow-up only
+records these results and adds the live workflow badge; runtime and tests
+remain the verified bytes above.
