@@ -10,7 +10,8 @@ import pathlib
 import sqlite3
 import subprocess
 import sys
-from datetime import date, timedelta
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -40,8 +41,12 @@ def run(db, *args, expect_ok=True):
     return r.stderr
 
 
+def today():
+    return datetime.now(ZoneInfo(os.environ["HERMES_TIMEZONE"])).date()
+
+
 def d_ago(n):
-    return (date.today() - timedelta(days=n)).isoformat()
+    return (today() - timedelta(days=n)).isoformat()
 
 
 def sql(db, stmt, rows):
@@ -115,15 +120,18 @@ def test_dose_uses_first_configured_medication_dose_in_minutes(db):
 
 def test_workout_expected_only_on_scheduled_days(db):
     run(db, "planned-time-set", "workout", "17:00")    # ±60
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = today() - timedelta(days=1)
     weekdays = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     wd = weekdays[yesterday.weekday()]
     sql(db, "INSERT INTO training_schedule(weekday, routine_name) VALUES(?,?)",
         [(w, "Push A" if w == wd else "Rest") for w in weekdays])
-    # trained yesterday at 17:30 CANON (15:30 UTC in July, CEST=UTC+2)
+    # Preserve 17:30 in the configured civil time zone throughout the year.
+    start = datetime.combine(
+        yesterday, time(17, 30), ZoneInfo(os.environ["HERMES_TIMEZONE"])
+    ).astimezone(timezone.utc).isoformat()
     sql(db, "INSERT INTO hevy_sets(date, exercise_title, start_time, set_type, weight_kg, reps, source)"
             " VALUES(?,?,?,?,?,?, 'hevy')",
-        [(yesterday.isoformat(), "Front Squat", f"{yesterday.isoformat()}T15:30:00Z", "normal", 80, 5)])
+        [(yesterday.isoformat(), "Front Squat", start, "normal", 80, 5)])
     m = run(db, "timing-adherence", "--days", "7")["metrics"]["workout"]
     assert m["days_expected"] == 1                     # one scheduled day in the window
     assert m["done"] == {"days": 1, "rate": 1.0}
@@ -133,7 +141,7 @@ def test_workout_expected_only_on_scheduled_days(db):
 
 def test_workout_unparseable_time_counts_done_not_timed(db):
     run(db, "planned-time-set", "workout", "17:00")
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = today() - timedelta(days=1)
     weekdays = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     sql(db, "INSERT INTO training_schedule(weekday, routine_name) VALUES(?,?)",
         [(w, "Push A") for w in weekdays])
@@ -149,6 +157,6 @@ def test_workout_unparseable_time_counts_done_not_timed(db):
 def test_window_excludes_today(db):
     run(db, "planned-time-set", "wake", "07:00")
     sql(db, "INSERT INTO sleep_log(date, wake_time) VALUES(?,?)",
-        [(date.today().isoformat(), "07:00")])         # today only — in progress
+        [(today().isoformat(), "07:00")])            # today only — in progress
     m = run(db, "timing-adherence", "--days", "7")["metrics"]["wake"]
     assert m["status"] == "insufficient_data"          # nothing in the complete-day window

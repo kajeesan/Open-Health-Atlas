@@ -8,7 +8,8 @@ import pathlib
 import sqlite3
 import subprocess
 import sys
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -41,7 +42,7 @@ def run(db, *args, stdin=None, expect_ok=True):
 
 
 def test_journal_appends_verbatim_never_overwrites(vault):
-    d = date.today().isoformat()
+    d = datetime.now(ZoneInfo(os.environ["HERMES_TIMEZONE"])).date().isoformat()
     r = run(vault, "journal-capture", "--time", "09:15", stdin="Rough morning — slept 5h.")
     assert r["created"] is True and r["file"] == f"raw/journal/{d}.md"
     r = run(vault, "journal-capture", "--time", "21:40", stdin="Better evening.\nGym done.")

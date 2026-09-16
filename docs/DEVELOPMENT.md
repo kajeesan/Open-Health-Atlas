@@ -76,6 +76,7 @@ they do not call a model. Without the optional dependency, that test module is
 skipped. For a full run including MCP:
 
 ```bash
+export TZ=Europe/Paris HERMES_TIMEZONE=Europe/Paris
 "$oha_dev_env/bin/python" -m pytest -q -p no:cacheprovider
 ```
 
@@ -93,6 +94,9 @@ compiled native-kernel and actual optional MCP SDK checks. The consumed seed
 file `docs/authored-submuscle-map.md` also triggers that suite. Manual workflow
 runs request the full suite; generated test data and the native library remain
 outside the checkout.
+CI uses a unique directory beneath `/tmp` for installer-test safety and aligns
+the test clocks with the retained example timezone. Completed runs report the
+slowest tests so long statistical checks can be distinguished from a stall.
 
 ## Find the code and prepare a contribution
 

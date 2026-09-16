@@ -16,6 +16,7 @@ python3 -m venv "$oha_test_env"
 "$oha_test_env/bin/python" -m pip install -r requirements-dev.txt
 export PATH="$oha_test_env/bin:$PATH"
 export PYTHONDONTWRITEBYTECODE=1
+export TZ=Europe/Paris HERMES_TIMEZONE=Europe/Paris
 "$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider
 ```
 
@@ -32,6 +33,10 @@ full command. A base-only run must report the optional module's skip.
 
 The environment and all fixture data stay outside the release checkout. Disable
 pytest caches in focused runs too (`-p no:cacheprovider`).
+The retained fixtures use the example `Europe/Paris` civil timezone; the host
+test clock and application clock should agree. If supplying `--basetemp`, use a
+directory beneath the operating system's temporary root, because installer
+tests deliberately reject deployment paths outside those roots.
 
 Unix-socket bridge tests require a platform that permits local `AF_UNIX`
 sockets. They do not connect to a live broker, account, or health database.

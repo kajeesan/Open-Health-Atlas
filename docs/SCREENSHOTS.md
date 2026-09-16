@@ -23,5 +23,7 @@ no text or EXIF metadata. Its reviewed SHA-256 is:
 
 The release manifest verifies the file bytes. The privacy scanner accepts only
 this reviewed binary path/hash combination; other binary content still fails
-closed. A replacement screenshot needs fictional-data visual review and an
-explicit scanner/manifest update.
+closed. A future screenshot needs fictional-data visual review, a new versioned
+filename and an explicit scanner/manifest update. Keep earlier approved
+path/hash entries in the scanner because the history check still inspects
+those older images.

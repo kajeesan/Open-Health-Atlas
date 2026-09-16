@@ -649,3 +649,21 @@ path. Community YAML and Markdown structure, workflow syntax, routing cases,
 guide links and copyable configuration were independently checked. These are
 internal engineering checks, not external-user feedback. Actual GitHub/Linux
 workflow results are recorded once the configured workflow executes.
+
+The [first GitHub/Linux run](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35154303321)
+passed inventory/privacy checks and 1,941 application tests, with 22 failures
+in 1,405.84s. Eleven installer tests rejected the runner's non-system temporary
+directory; eleven date tests exposed collection-time midnight staleness or a
+runner/application timezone mismatch. Later E2E/MCP steps were skipped after
+that failure, so this run is not a passing full-suite result.
+
+The correction uses a unique system temporary directory and matching example
+test timezones. Existing profile tests now read the date at test execution;
+journal and timing expectations use the configured civil timezone, and the
+workout fixture converts its local time correctly across seasons. Assertions,
+installer guards and production date handling are retained. Twenty-three
+installer tests passed in 13.70s; 33 date-related tests passed in 13.89s with
+the host clock set to UTC and the application set to the example timezone.
+These checks address the observed failures; a fresh complete GitHub run is
+still required. Individual live-clock tests can still race if their own
+execution crosses midnight.
