@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import hashlib
 import ipaddress
 import json
 import os
@@ -44,21 +45,31 @@ ALLOWED_URL_HOSTS = {
     "api.open-meteo.com",
     "api.telegram.org",
     "cdn.jsdelivr.net",
+    "creativecommons.org",
+    "docs.github.com",
     "doi.org",
     "example.invalid",
     "github.com",
     "health.googleapis.com",
     "localhost",
+    "kajeesan.com",
     "myaccount.google.com",
     "oauth2.googleapis.com",
     "openrouter.ai",
     "pubmed.ncbi.nlm.nih.gov",
     "registry.npmjs.org",
     "repository.up.ac.za",
+    "www.contributor-covenant.org",
     "www.googleapis.com",
     "www.w3.org",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}
+# Visually reviewed fictional documentation assets only. Replacement bytes or
+# another path require a fresh review; this is not a general binary allowance.
+REVIEWED_BINARY_ASSETS: dict[str, str] = {
+    "docs/assets/fictional-dashboard.png":
+        "3f396a93f70120e599004c981a73aa52f35a3bd11c4a29a272990aa4638b7d0f",
+}
 DOCUMENTATION_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
     "192.0.2.0/24",
     "198.51.100.0/24",
@@ -211,8 +222,16 @@ def _text_findings(text: str, relative: str) -> list[Finding]:
     return findings
 
 
-def _scan_blob(data: bytes, relative: str) -> list[Finding]:
+def _scan_blob(
+    data: bytes, relative: str, *, repository_path: str | None = None,
+) -> list[Finding]:
     findings = _path_findings(relative)
+    asset_path = relative if repository_path is None else repository_path
+    reviewed_digest = REVIEWED_BINARY_ASSETS.get(asset_path)
+    if reviewed_digest is not None:
+        if hashlib.sha256(data).hexdigest() != reviewed_digest:
+            findings.append(Finding("reviewed_binary_digest_mismatch", relative))
+        return findings
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
@@ -283,33 +302,35 @@ def _tree_scan(root: Path) -> tuple[list[Finding], int, int]:
 
 def _history_scan(root: Path) -> tuple[list[Finding], int]:
     findings: list[Finding] = []
-    objects = _git(root, "rev-list", "--objects", "--all").decode(
-        "utf-8", errors="strict"
-    )
-    seen: set[str] = set()
-    blob_count = 0
-    for line in objects.splitlines():
-        object_id, separator, relative = line.partition(" ")
-        if not separator or object_id in seen:
-            continue
-        seen.add(object_id)
-        object_type = _git(root, "cat-file", "-t", object_id).strip()
-        if object_type != b"blob":
-            continue
-        blob_count += 1
-        findings.extend(_scan_blob(
-            _git(root, "cat-file", "-p", object_id),
-            f"history/{relative}",
-        ))
-    trees = _git(root, "rev-list", "--all").decode("ascii").splitlines()
-    for commit in trees:
-        listing = _git(root, "ls-tree", "-r", commit).decode(
-            "utf-8", errors="replace"
-        )
-        if any(line.startswith("160000 ") for line in listing.splitlines()):
-            findings.append(Finding("historical_git_submodule", "history/<git-tree>"))
-        if any(line.startswith("120000 ") for line in listing.splitlines()):
-            findings.append(Finding("historical_symlink", "history/<git-tree>"))
+    # One blob may have appeared at multiple paths. Check every historical
+    # (blob, path) pair so a reviewed image cannot authorize an unreviewed copy.
+    seen: set[tuple[str, str]] = set()
+    blobs: dict[str, bytes] = {}
+    commits = _git(root, "rev-list", "--all").decode("ascii").splitlines()
+    for commit in commits:
+        listing = _git(root, "ls-tree", "-r", "-z", commit)
+        for entry in listing.split(b"\0"):
+            if not entry:
+                continue
+            metadata, path_bytes = entry.split(b"\t", 1)
+            mode, kind, object_bytes = metadata.split()
+            if mode == b"160000":
+                findings.append(Finding("historical_git_submodule", "history/<git-tree>"))
+            if mode == b"120000":
+                findings.append(Finding("historical_symlink", "history/<git-tree>"))
+            if kind != b"blob":
+                continue
+            object_id = object_bytes.decode("ascii")
+            relative = path_bytes.decode("utf-8")
+            pair = (object_id, relative)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            if object_id not in blobs:
+                blobs[object_id] = _git(root, "cat-file", "-p", object_id)
+            findings.extend(_scan_blob(
+                blobs[object_id], f"history/{relative}", repository_path=relative,
+            ))
     metadata = _git(
         root,
         "log",
@@ -323,7 +344,7 @@ def _history_scan(root: Path) -> tuple[list[Finding], int]:
         root, "for-each-ref", "--format=%(refname)"
     ).decode("utf-8", errors="replace")
     findings.extend(_text_findings(references, "history/<references>"))
-    return findings, blob_count
+    return findings, len(blobs)
 
 
 def _deduplicate(findings: Iterable[Finding]) -> list[Finding]:

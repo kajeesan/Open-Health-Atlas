@@ -46,6 +46,7 @@ def _kind(relative: str) -> str:
         ".js": "javascript",
         ".json": "json",
         ".md": "documentation",
+        ".png": "image",
         ".py": "python",
         ".service": "systemd-service",
         ".sql": "sql",

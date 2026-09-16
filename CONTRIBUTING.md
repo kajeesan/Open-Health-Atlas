@@ -21,24 +21,22 @@ material. Security reports must use the private process in
 - Add unfinished product behavior to `UNIMPLEMENTED.md` instead of shipping a
   placeholder as a completed feature.
 
-## Development setup
+## Get started
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python -m pytest -q
-```
+- [Try the fictional demo](docs/TRY_DEMO.md) to explore the product.
+- [Connect a local MCP client](docs/LOCAL_MCP.md) to use the deterministic tools.
+- [Development setup](docs/DEVELOPMENT.md) to install dependencies and change code.
+- [Testing](docs/TESTING.md) for focused checks and the optional MCP tests.
 
-Keep development databases outside the checkout. `scripts/devserver.py` creates
-a fictional local environment and a development-only session route; never
-deploy that script.
+Keep development databases and environments outside the checkout.
+`scripts/devserver.py` creates a fictional local environment with working
+brokers and a development-only sign-in; never deploy that script.
 
 ## Changes
 
 1. State the user-visible behavior and trust boundary.
-2. Add positive, invalid, boundary, failure, and idempotency tests where
-   relevant.
+2. Reuse relevant tests. Add tests for a distinct retained behavior or an
+   uncovered regression; do not create assertions for incidental wording or CSS.
 3. For a schema change, add a checksum-validated forward migration, exact-shape
    preflight, foreign-key/quick-check evidence, and a non-destructive recovery
    procedure.
@@ -48,8 +46,9 @@ deploy that script.
    medication safety, terminal behavior, and persistence atomicity.
 6. Update the feature-retention/limitation documentation when public behavior
    changes.
-7. Run the relevant partitions in [docs/TESTING.md](docs/TESTING.md), then the
-   full suite.
+7. Run the relevant checks in [docs/TESTING.md](docs/TESTING.md). Broaden to the
+   full suite when the runtime change requires it; documentation-only changes
+   need command, link and privacy verification.
 8. Scan the entire diff for privacy, secrets, paths, binaries, and third-party
    material before review.
 

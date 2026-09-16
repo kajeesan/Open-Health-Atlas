@@ -47,3 +47,11 @@ The optional local MCP server uses the official
 [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk), pinned in
 `requirements-mcp.txt` and licensed under the MIT License. It is not installed
 by the ordinary panel/runtime requirements, and no SDK source is vendored here.
+
+## Contributor Covenant
+
+`CODE_OF_CONDUCT.md` adapts Contributor Covenant 2.0, licensed under
+Creative Commons Attribution 4.0 International. Its source attribution,
+license link and description of the reporting-section adaptation are retained
+in that document. This documentation license does not change the MIT license
+for original project code.

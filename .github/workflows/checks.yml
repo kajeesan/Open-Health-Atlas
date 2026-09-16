@@ -1,0 +1,129 @@
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  checks:
+    name: Privacy, manifest and relevant tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Scan the contributor's commits, excluding GitHub's synthetic merge.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify release inventory and privacy
+        run: |
+          python scripts/release_manifest.py verify
+          python scripts/release_scan.py --history
+
+      - name: Select checks for changed files
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import PurePosixPath
+          import subprocess
+
+          with open(os.environ['GITHUB_EVENT_PATH']) as handle:
+              event = json.load(handle)
+          kind = os.environ['EVENT_NAME']
+          base = (event['pull_request']['base']['sha'] if kind == 'pull_request'
+                  else event.get('before'))
+          head = (event['pull_request']['head']['sha'] if kind == 'pull_request'
+                  else event.get('after'))
+
+          def repository_only(path):
+              # This Markdown file is also an input to database initialization.
+              if path == 'docs/authored-submuscle-map.md':
+                  return False
+              part = PurePosixPath(path)
+              return (
+                  (len(part.parts) == 1 and part.suffix == '.md')
+                  or (path.startswith('docs/') and part.suffix == '.md')
+                  or path.startswith('docs/assets/')
+                  or path.startswith('.github/ISSUE_TEMPLATE/')
+                  or path.lower() == '.github/pull_request_template.md'
+                  or path in {
+                      'LICENSE', 'NOTICE', 'CITATION.cff', 'RELEASE_MANIFEST.tsv',
+                      'scripts/release_scan.py', 'scripts/release_manifest.py',
+                      'tests/test_release_scan.py',
+                  }
+              )
+
+          application = True
+          if kind != 'workflow_dispatch' and base and head and set(base) != {'0'}:
+              comparison = f'{base}...{head}' if kind == 'pull_request' else f'{base}..{head}'
+              result = subprocess.run(
+                  ['git', 'diff', '--name-only', '--no-renames', '-z', comparison],
+                  capture_output=True, check=False,
+              )
+              if result.returncode == 0:
+                  paths = result.stdout.decode().rstrip('\0').split('\0')
+                  application = not paths or any(not repository_only(path) for path in paths)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as handle:
+              handle.write(f'application={str(application).lower()}\n')
+          print('Application and protocol tests required.' if application
+                else 'Repository-only changes: release and scanner checks required.')
+          PY
+
+      - name: Install scanner test dependency
+        if: steps.scope.outputs.application == 'false'
+        run: python -m pip install pytest==9.0.3
+
+      - name: Test repository privacy checks
+        if: steps.scope.outputs.application == 'false'
+        # The global test setup imports the application, which is unnecessary here.
+        run: python -m pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/oha-scanner-tests" --noconftest tests/test_release_scan.py
+
+      - name: Install application and optional protocol dependencies
+        if: steps.scope.outputs.application == 'true'
+        run: |
+          python -m pip install -r requirements-dev.txt -r requirements-mcp.txt
+          python -m pip check
+          python -c "import mcp; from importlib.metadata import version; print('MCP SDK', version('mcp'))"
+
+      - name: Prepare existing native and JavaScript tests
+        if: steps.scope.outputs.application == 'true'
+        run: |
+          echo "HEALTH_DB=$RUNNER_TEMP/unused-health.db" >> "$GITHUB_ENV"
+          node --version
+          cc --version
+          python scripts/build_native_stats.py --output "$RUNNER_TEMP/oha-native/liboha_stats.so"
+          echo "OHA_TEST_NATIVE_LIBRARY=$RUNNER_TEMP/oha-native/liboha_stats.so" >> "$GITHUB_ENV"
+
+      - name: Test retained application behavior
+        if: steps.scope.outputs.application == 'true'
+        run: python -m pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/oha-application-tests" --ignore=tests/e2e --ignore=tests/test_local_mcp.py
+
+      - name: Test fictional end-to-end journeys
+        if: steps.scope.outputs.application == 'true'
+        run: python -m pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/oha-journey-tests" tests/e2e
+
+      - name: Test actual optional MCP client and server
+        if: steps.scope.outputs.application == 'true'
+        run: python -m pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/oha-protocol-tests" tests/test_local_mcp.py

@@ -1,5 +1,8 @@
 """Release scanner fails closed without echoing matched sensitive values."""
 
+import hashlib
+import subprocess
+
 from scripts import release_scan
 
 
@@ -74,3 +77,55 @@ def test_path_classifier_rejects_data_secrets_caches_and_submodule_metadata():
         assert category in {
             item.category for item in release_scan._path_findings(path)
         }
+
+
+def test_reviewed_binary_requires_exact_bytes_and_repository_path(monkeypatch):
+    path = "docs/assets/fictional.png"
+    data = b"\x89PNG\r\n\x1a\nfictional review fixture"
+    monkeypatch.setattr(release_scan, "REVIEWED_BINARY_ASSETS", {
+        path: hashlib.sha256(data).hexdigest(),
+    })
+    assert release_scan._scan_blob(data, path) == []
+    assert release_scan._scan_blob(
+        data, f"history/{path}", repository_path=path,
+    ) == []
+    for changed in (data + b"changed", b"replacement text"):
+        assert [item.category for item in release_scan._scan_blob(changed, path)] == [
+            "reviewed_binary_digest_mismatch",
+        ]
+    for relocated in ("docs/assets/other.png", f"history/{path}"):
+        assert [item.category for item in release_scan._scan_blob(data, relocated)] == [
+            "unexplained_binary",
+        ]
+
+
+def test_history_checks_unapproved_path_even_for_same_reviewed_blob(tmp_path, monkeypatch):
+    approved = "docs/assets/fictional.png"
+    unapproved = "unreviewed.png"
+    data = b"\x89PNG\r\n\x1a\nfictional review fixture"
+    monkeypatch.setattr(release_scan, "REVIEWED_BINARY_ASSETS", {
+        approved: hashlib.sha256(data).hexdigest(),
+    })
+
+    def git(*args):
+        subprocess.run(
+            ["git", "-C", str(tmp_path), *args],
+            check=True, capture_output=True,
+        )
+
+    git("init", "--quiet")
+    git("config", "user.name", "Fictional Contributor")
+    git("config", "user.email", "contributor@example.invalid")
+    (tmp_path / approved).parent.mkdir(parents=True)
+    (tmp_path / approved).write_bytes(data)
+    (tmp_path / unapproved).write_bytes(data)
+    git("add", approved, unapproved)
+    git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Fictional assets")
+    git("rm", "--quiet", unapproved)
+    git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Remove unreviewed copy")
+
+    findings, blob_count = release_scan._history_scan(tmp_path)
+    assert blob_count == 1
+    assert [item.as_dict() for item in findings] == [{
+        "category": "unexplained_binary", "path": f"history/{unapproved}",
+    }]

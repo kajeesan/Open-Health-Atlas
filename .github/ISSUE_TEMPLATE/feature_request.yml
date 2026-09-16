@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a focused improvement to Open Health Atlas.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [known limitations](https://github.com/kajeesan/Open-Health-Atlas/blob/main/UNIMPLEMENTED.md) and existing issues first.
+        Use fictional examples. Never include health records, credentials, tokens, private paths, or live deployment details.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe a concrete workflow and who needs it, using fictional or redacted examples.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome
+      description: What should a user be able to do? Include any useful workaround or alternative.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I used fictional or redacted examples and included no health records, credentials, tokens, private paths, or deployment details.
+          required: true

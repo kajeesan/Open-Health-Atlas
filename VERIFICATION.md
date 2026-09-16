@@ -620,3 +620,32 @@ privacy checks report zero findings. The public copy is initialized from one
 clean source snapshot, with no inherited Git parents; its full manifest and
 history are checked before publication. These release checks supplement the
 existing 1,981 passing tests without rerunning them for metadata changes.
+
+## Repository onboarding checks
+
+The repository/community batch adds documentation, a reviewed fictional UI
+screenshot, community templates and GitHub Actions. Application/toolkit code,
+dependencies and vendor files remain unchanged. The privacy scanner changes
+are isolated to reviewed asset handling and complete historical path checking;
+two distinct regressions increase the retained inventory to 1,983 tests.
+
+Local verification used a fresh isolated Python 3.14.6 environment. Dependency
+installation and `pip check` passed. Thirteen existing initialization,
+scripted-demo and actual MCP subprocess tests passed in 96.88s, including a
+successful full-range analysis and verified evidence replay. Separate execution
+of the documented initialization, schema check, fixed-anchor demo generation
+and scripted demonstration passed. The scripted flow used no external service
+or model and returned successful authenticated dashboard/metrics checks.
+
+The current local fictional dashboard was opened in a browser, its analysis
+completed, and the All-time filter was selected through the UI. The screenshot
+and its exact hash are documented in `docs/SCREENSHOTS.md`. No image pixels or
+numerical results were fabricated. The public hosted preview was checked
+separately and remains labelled as an older read-only snapshot.
+
+Seven scanner regressions passed locally, including exact screenshot identity,
+mutated/relocated rejection and a deleted historical copy at an unapproved
+path. Community YAML and Markdown structure, workflow syntax, routing cases,
+guide links and copyable configuration were independently checked. These are
+internal engineering checks, not external-user feedback. Actual GitHub/Linux
+workflow results are recorded once the configured workflow executes.

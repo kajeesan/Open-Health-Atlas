@@ -7,15 +7,28 @@ fixtures are empty or fictional.
 
 ## Fresh environment
 
+From the repository root, use Python 3.11 or newer on macOS or Linux.
+For clone instructions, see [Development](DEVELOPMENT.md).
+
 ```bash
 oha_test_env="$(mktemp -d)/venv"
 python3 -m venv "$oha_test_env"
-"$oha_test_env/bin/python" -m pip install --upgrade pip
 "$oha_test_env/bin/python" -m pip install -r requirements-dev.txt
 export PATH="$oha_test_env/bin:$PATH"
 export PYTHONDONTWRITEBYTECODE=1
 "$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider
 ```
+
+This runs the base suite. The actual local MCP protocol module is skipped
+unless the optional SDK is installed. To include it:
+
+```bash
+"$oha_test_env/bin/python" -m pip install -r requirements-mcp.txt
+"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider tests/test_local_mcp.py
+```
+
+For a complete suite including MCP, install both requirements files before the
+full command. A base-only run must report the optional module's skip.
 
 The environment and all fixture data stay outside the release checkout. Disable
 pytest caches in focused runs too (`-p no:cacheprovider`).
@@ -59,7 +72,7 @@ a three-day-per-week full-body program, logged sets and cardio, wearable and
 sleep records, subjective recovery and soreness, recipes and meals, hydration,
 micronutrients, supplements, skincare, habits, body metrics, vitals, labs,
 pain/rehabilitation, assessments, weather, air quality, and deliberate gaps.
-Acceptance checks verify the current migration v6, refusal to overwrite, fictional
+Acceptance checks verify the current schema version, refusal to overwrite, fictional
 identities, reproducible normalized records, successful governed feature frames
 for sleep/wearable/training/recovery/subjective, and fixed-date recovery output.
 Analysis, finding, hypothesis, synthesis, and notification tables must remain
