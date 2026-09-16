@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# §6 voice pipeline: local ARM transcription via whisper.cpp — audio never
+# leaves the server. Prints the transcript to STDOUT; the caller (the coach
+# agent) pipes it into `health.py transcript-capture <audio-name>` so the raw
+# text is preserved verbatim BEFORE any extraction.
+#
+# Flow (agent-side, no new write surface):
+#   1. Telegram voice memo arrives -> agent saves it to the configured voice inbox
+#   2. transcribe-voice <file.ogg>  ->  transcript on stdout
+#   3. health.py transcript-capture <file.ogg>  (stdin = transcript)
+#   4. agent extracts fields via the validated `log subjective_daily ...` +
+#      `journal-capture` paths — raw always survives an extraction bug.
+#
+# INSTALL (one-time, explicit administrator step):
+#   sudo apt-get install -y build-essential cmake ffmpeg
+#   git clone https://github.com/ggml-org/whisper.cpp /opt/whisper.cpp
+#   cmake -B /opt/whisper.cpp/build /opt/whisper.cpp && cmake --build /opt/whisper.cpp/build -j
+#   /opt/whisper.cpp/models/download-ggml-model.sh base /opt/whisper.cpp/models
+set -euo pipefail
+
+AUDIO="${1:?usage: transcribe-voice <audio-file>}"
+WHISPER_BIN="${WHISPER_BIN:-/opt/whisper.cpp/build/bin/whisper-cli}"
+MODEL="${WHISPER_MODEL:-/opt/whisper.cpp/models/ggml-base.bin}"
+
+[ -x "$WHISPER_BIN" ] || { echo "whisper.cpp not installed (see header)" >&2; exit 1; }
+[ -f "$MODEL" ] || { echo "model missing: $MODEL" >&2; exit 1; }
+[ -f "$AUDIO" ] || { echo "no such audio file: $AUDIO" >&2; exit 1; }
+
+# Telegram voice notes are OGG/Opus; whisper.cpp wants 16 kHz WAV.
+# The WAV is private medical audio: the trap must ALWAYS reap it — on normal
+# exit AND on SIGINT/SIGTERM (an agent timeout mid-transcription must not
+# leave a voice memo lying in /tmp). No `exec` for the same reason: exec
+# replaces the shell and the EXIT trap would never fire.
+TMP="$(mktemp --suffix=.wav)"
+trap 'rm -f "$TMP"' EXIT INT TERM
+# -nostdin: ffmpeg otherwise polls stdin for interactive commands and can eat
+# bytes meant for the caller (or abort on a stray 'q') when run by the agent.
+ffmpeg -nostdin -loglevel error -y -i "$AUDIO" -ar 16000 -ac 1 "$TMP"
+
+# -nt: no timestamps — the transcript is journal text, not subtitles.
+# transcript -> stdout, info/progress -> stderr (verified vs cli.cpp).
+"$WHISPER_BIN" -m "$MODEL" -f "$TMP" -nt --no-prints

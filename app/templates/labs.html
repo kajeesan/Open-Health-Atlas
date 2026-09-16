@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Labs{% endblock %}
+{% block content %}
+{# §labs: read-only bloodwork, Hi-Fi design (v-labs). Panel-grouped latest
+   results in one .ltab table + per-test trend with the reference band.
+   Range flags come from the report's own interval (health.py computes them);
+   ingestion (photo/PDF → local OCR → validated write) is the coach path. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Labs</h1>
+      <span class="muted micro">bloodwork · periodic — a page, not a ring</span>
+    </div>
+    <div class="dd" data-dd="labs">
+      <button class="ddbtn" type="button">Year <span class="cv">▾</span></button>
+      <div class="ddmenu">
+        <button type="button" data-val="Day">Day</button>
+        <button type="button" data-val="Week">Week</button>
+        <button type="button" data-val="Month">Month</button>
+        <button type="button" data-val="Year" class="on">Year</button>
+        <button type="button" data-val="All">All time</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-5">
+    <div class="card col-3">
+      <div class="row between mb-2">
+        <h3 class="card-title" id="lab-results-title">Results</h3>
+        <div class="row gap-2">
+          <span class="flag in">in range</span>
+          <span class="flag out">out</span>
+        </div>
+      </div>
+      <div id="lab-panels"><p class="muted note-txt">Loading…</p></div>
+    </div>
+
+    <div class="card col-2">
+      <div class="row between mb-2">
+        <h3 class="card-title" id="lab-trend-name">Trend — select a test</h3>
+      </div>
+      <div id="lab-chart" class="h220"></div>
+      <div class="muted micro center">shaded = reference band · dot color = in / out</div>
+      <p class="muted micro m0 mt-2" id="lab-trend-note"></p>
+      <div class="row wrap mt-3 gap-2" id="lab-chips"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/labs.js') }}" defer></script>
+{% endblock %}

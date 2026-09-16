@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Models &amp; spend{% endblock %}
+{% block content %}
+{# Models & spend settings page (design v-models), in design chrome. Keeps the
+   REAL substance the design mocks can't: a free-text model switch with
+   server-side auto-rollback (richer than the mock's Balanced/Fast/Deep tabs),
+   live OpenRouter spend vs a budget cap, and the Fitbit re-auth card. The
+   design's fictional furniture is omitted per owner ground rules: the Requests
+   and Avg-latency KPIs and the monthly-spend series chart. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Models &amp; spend</h1>
+      <span class="muted micro">which model runs your insights, and what it costs</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title mb-2">Active model</h3>
+      <dl class="env">
+        <div><dt>Model</dt><dd id="mo-model">—</dd></div>
+        <div><dt>Provider</dt><dd id="mo-provider">—</dd></div>
+        <div><dt>Coach gateway</dt><dd id="mo-gateway">—</dd></div>
+      </dl>
+      <div class="add-ex mt-3">
+        <input id="mo-new" class="grow" type="text" placeholder="new model id, e.g. z-ai/glm-5.2" maxlength="80">
+        <button id="mo-set" class="save-btn" type="button">Switch model</button>
+      </div>
+      <p class="field-hint">Restarts the Telegram coach gateway. If it doesn't come back healthy
+      within 30 s, hermesctl automatically rolls back to the current model.</p>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <h3 class="card-title mb-2">OpenRouter spend</h3>
+        <span class="chip" id="sp-badge">—</span>
+      </div>
+      <div class="barbg mt-1"><div class="barfill" id="sp-bar"></div></div>
+      <dl class="env mt-3">
+        <div><dt>Used (key total)</dt><dd id="sp-usage">—</dd></div>
+        <div><dt>Today / this week</dt><dd id="sp-recent">—</dd></div>
+        <div><dt>Key limit remaining</dt><dd id="sp-remaining">—</dd></div>
+      </dl>
+      <div class="add-ex mt-3">
+        <input id="sp-budget" type="number" placeholder="monthly budget $" min="0" max="10000" step="0.5">
+        <button id="sp-save" class="save-btn" type="button">Set budget</button>
+      </div>
+      <p class="field-hint" id="sp-note">Budget is your own monthly cap — the badge turns red when
+      projected monthly spend exceeds it.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title mb-2">Fitbit / Google Health token</h3>
+    <p id="fb-status" class="muted micro">Checking…</p>
+    <ol id="fb-steps" class="plain-list muted micro"></ol>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" aria-live="polite"></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/models.js') }}" defer></script>
+{% endblock %}

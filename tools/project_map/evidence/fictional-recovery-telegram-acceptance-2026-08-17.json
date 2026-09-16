@@ -1,0 +1,61 @@
+{
+  "contract": "openhealthatlas-fictional-recovery-telegram-acceptance-v1",
+  "data_class": "fictional",
+  "fixture_id": "comprehensive-persona-v1",
+  "range_from": "2026-03-02",
+  "range_to": "2026-06-30",
+  "transport": "existing Telegram bot",
+  "reasoning_authority": "genuine Hermes on Oracle VPS",
+  "deterministic_authority": "OpenHealthAtlas",
+  "turn_id": "[REDACTED runtime-turn 03]",
+  "receipt_phase": 2,
+  "selected_focus": "training",
+  "tool_sequence": [
+    "openhealthatlas_recovery_snapshot",
+    "openhealthatlas_recovery_detail"
+  ],
+  "telegram_acceptance": {
+    "snapshot_returned": true,
+    "bounded_follow_up_offered": true,
+    "user_selected_follow_up": true,
+    "detail_returned": true,
+    "deterministic_evidence_visibly_separated": true,
+    "hermes_coaching_visibly_separated": true,
+    "heuristic_limit_acknowledged": true
+  },
+  "deterministic_result": {
+    "anchor_date": "2026-06-30",
+    "result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+    "score": 58,
+    "band": "warn",
+    "component_scores": {
+      "sleep": 92,
+      "hrv": 27,
+      "rhr": 55
+    },
+    "muscle_groups_returned": 7,
+    "sore_groups": [
+      "Legs",
+      "Glutes"
+    ],
+    "training_performance_delta_pct": -0.8
+  },
+  "receipt_checks": {
+    "same_turn_id_for_snapshot_and_detail": true,
+    "executions": 2,
+    "all_envelopes_fictional": true,
+    "selected_focus_matches_user_choice": true,
+    "model_interpretation_stored": false
+  },
+  "observed_wording_limit": "Hermes said 'Trainable, but not a performance day.' This is a coaching judgment, not a deterministic fact; the later text appropriately qualified the small performance signal as heuristic and avoided claiming that it alone decided the session.",
+  "proof_level": "genuine two-turn Telegram acceptance",
+  "does_not_prove": [
+    "the coaching recommendation is medical or exercise-safety advice",
+    "the recovery score is a complete measure of whole-person readiness",
+    "the observed signals cause the recovery outcome",
+    "private-data operation works or is authorized",
+    "browser chat works",
+    "other health domains work",
+    "the general Hermes-callable tool surface exists"
+  ]
+}

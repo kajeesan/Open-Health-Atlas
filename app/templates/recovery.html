@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Recovery{% endblock %}
+{% block content %}
+{# Recovery pillar (design v-recovery): sleep + HRV/RHR KPIs and trends —
+   real, from daily_metrics via /api/dash/metrics (apple-preferred per date,
+   same perDateEntries rule mind.js uses). HR/RHR live HERE per owner
+   decision (deliberately dropped from Body). task-48: the Readiness KPI is
+   now real too — /api/recovery/readiness (the T48 engine), score + band
+   chip, honest insufficient-data reason when the engine can't compute one
+   yet. task-30: each KPI label drills to /recovery/<metric> (sleep/hrv/rhr/
+   readiness all real). Sleep
+   quality/stages come from sleep_log (/api/dash/sleep), which is empty on
+   the demo DB (Fitbit sleep-stage sync awaits) — honest empty; the cards
+   light up on their own once real rows land. Cross-links card is
+   BUILD-LATER — honest placeholder, no engine, no drill link. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Recovery</h1>
+      <span class="muted micro">sleep + readiness</span>
+    </div>
+    <div class="dd" data-dd="recovery">
+      <button class="ddbtn" type="button">Week <span class="cv">▾</span></button>
+      <div class="ddmenu">
+        <button type="button" data-val="Day">Day</button>
+        <button type="button" data-val="Week" class="on">Week</button>
+        <button type="button" data-val="Month">Month</button>
+        <button type="button" data-val="Year">Year</button>
+        <button type="button" data-val="All">All time</button>
+      </div>
+    </div>
+  </div>
+
+  {# task-30: each KPI label is a drill link ("›") to its /recovery/<metric>
+     breakdown sub-page — sleep/hrv/rhr/readiness are all real-data pages
+     (task-48 wired the readiness engine). #}
+  <div class="kpis-4">
+    <div class="card">
+      <a class="label drill" href="{{ url_for('core.recovery_detail', metric='sleep') }}">Sleep <span class="chev">›</span></a>
+      <div class="kv mt-1"><span class="n" id="rkSleep">—</span><span class="kv-u">h avg</span></div>
+      <span class="flag mt-1" id="rkSleepFlag" hidden></span>
+      {# owner-review r2: the dashboard's Sleep score ring moved here — the
+         engine score.sleep value, honest-hidden when insufficient_data #}
+      <span class="chip mt-1" id="rkSleepScore" hidden></span>
+    </div>
+    <div class="card">
+      <a class="label drill" href="{{ url_for('core.recovery_detail', metric='readiness') }}">Readiness <span class="chev">›</span></a>
+      <div class="kv mt-1"><span class="n" id="rkReadiness">—</span></div>
+      <span class="chip mt-1" id="rkReadinessChip" hidden></span>
+      <span class="muted micro mt-1" id="rkReadinessScope" hidden></span>
+    </div>
+    <div class="card">
+      <a class="label drill" href="{{ url_for('core.recovery_detail', metric='hrv') }}">HRV <span class="chev">›</span></a>
+      <div class="kv mt-1"><span class="n" id="rkHrv">—</span><span class="kv-u">ms</span></div>
+      <span class="flag mt-1" id="rkHrvFlag" hidden></span>
+    </div>
+    <div class="card">
+      <a class="label drill" href="{{ url_for('core.recovery_detail', metric='rhr') }}">Resting HR <span class="chev">›</span></a>
+      <div class="kv mt-1"><span class="n" id="rkRhr">—</span><span class="kv-u">bpm</span></div>
+      <span class="flag mt-1" id="rkRhrFlag" hidden></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">Sleep hours &amp; quality</h3>
+      <div id="rSleep" class="h210"></div>
+      <p class="muted micro m0" id="rSleepNote"></p>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Sleep stages</h3>
+      <div id="rStages" class="h210"></div>
+      <p class="muted micro m0 center">deep · REM · light · awake</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      {# T55 flag 2: HRV algorithm varies by source (apple=SDNN, fitbit=RMSSD
+         — see toolkit/SCHEMA.sql daily_metrics.hrv_ms), one honest caption
+         per page. #}
+      <h3 class="card-title">HRV &amp; resting HR <span class="muted micro">HRV ms · SDNN/RMSSD varies by source</span></h3>
+      <div id="rHrv" class="h200"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title mb-1">Cross-links</h3>
+      <p class="muted note-txt m0">The readiness score above is real now (see the › drill for
+        what's dragging it down). Still pending: cross-pillar linking — connecting that score to
+        dose timing, screen time, alcohol and training load.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/recovery.js') }}" defer></script>
+{% endblock %}

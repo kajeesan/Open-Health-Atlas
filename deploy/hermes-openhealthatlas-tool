@@ -1,0 +1,829 @@
+#!/usr/bin/env python3
+"""Audited, bounded Hermes -> OpenHealthAtlas deterministic tool adapter.
+
+The adapter contains no model and performs no interpretation. It exposes only
+the existing fixed journeys and the closed generic health surface, returns
+their exact structured result to Hermes, and records command/result hashes as
+a same-turn execution receipt for acceptance review.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+from typing import Any
+
+
+CONTRACT = "openhealthatlas-hermes-tool-v1"
+SCRIPT = Path(__file__).resolve()
+SOURCE_TEST_FLAG_ENV = "OPENHEALTHATLAS_SOURCE_TEST"
+SOURCE_TEST_CONFIG_ENV = "OPENHEALTHATLAS_TEST_CONFIG"
+SOURCE_CONFIG_MARKER = SCRIPT.with_name(
+    "hermes-openhealthatlas-tool-config.json"
+)
+SOURCE_TEST_CAPABLE = (
+    SCRIPT.parent.name == "deploy"
+    and SOURCE_CONFIG_MARKER.is_file()
+    and not SOURCE_CONFIG_MARKER.is_symlink()
+)
+MAX_STDIN_BYTES = 131_072
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+TURN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,79}$")
+FIXTURE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
+SURFACE_STATUS = frozenset({
+    "ok", "insufficient_data", "unsupported", "refused",
+})
+SURFACE_CONTRACT = "openhealthatlas-hermes-surface-v1"
+SURFACE_ENVELOPE_FIELDS = frozenset({
+    "contract", "operation", "data_class", "fixture_id", "status", "range",
+    "registry_id", "engine_id", "result_id", "coverage", "facts", "findings",
+    "limitations", "evidence_refs",
+})
+SURFACE_COMMANDS = {
+    "health-catalog": "health_catalog",
+    "health-query": "health_query",
+    "health-analyze": "health_analyze",
+    "health-evidence": "health_evidence",
+}
+NO_VALUE_FLAGS = frozenset({"--all", "--include-provenance", "--stdin"})
+ALLOWED_FLAGS = {
+    "feature-registry": frozenset(),
+    "feature-frame": frozenset({
+        "--from", "--to", "--days", "--all", "--family",
+        "--include-provenance",
+    }),
+    "data-readiness": frozenset({
+        "--from", "--to", "--days", "--all", "--outcome",
+    }),
+    "analysis-refresh": frozenset({
+        "--kind", "--outcome", "--mode", "--from", "--to", "--days",
+        "--all", "--anchor",
+    }),
+    "finding-evidence": frozenset({
+        "--outcome", "--finding-id", "--input-fingerprint", "--from",
+        "--to", "--days", "--all",
+    }),
+    "synthesis-prepare": frozenset({"--batch-id"}),
+    "synthesis-record": frozenset({"--stdin"}),
+    "readiness": frozenset({"--from", "--anchor"}),
+    **{command: frozenset() for command in SURFACE_COMMANDS},
+}
+
+
+class Refused(ValueError):
+    """The model requested an operation outside the bounded tool contract."""
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return "sha256:" + hashlib.sha256(value).hexdigest()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
+def _regular_path(raw: object, label: str, *, must_exist: bool = True) -> Path:
+    if isinstance(raw, Path):
+        path = raw
+    elif isinstance(raw, str):
+        path = Path(raw)
+    else:
+        raise Refused(f"{label} must be an absolute path")
+    if not path.is_absolute() or path.is_symlink():
+        raise Refused(f"{label} must be an absolute non-symlink path")
+    if must_exist and not path.is_file():
+        raise Refused(f"{label} must be a regular file")
+    try:
+        resolved = path.resolve(strict=must_exist)
+    except OSError as exc:
+        raise Refused(f"{label} cannot be resolved") from exc
+    if resolved != path:
+        raise Refused(f"{label} must not traverse a symlink")
+    return path
+
+
+def _directory_path(raw: object, label: str) -> Path:
+    path = _regular_path(raw, label, must_exist=False)
+    if not path.is_dir():
+        raise Refused(f"{label} must be a directory")
+    return path
+
+
+def _configuration_path() -> tuple[Path, bool]:
+    """Select the installed config or an explicit source-test override."""
+
+    test_flag = os.environ.get(SOURCE_TEST_FLAG_ENV)
+    test_config = os.environ.get(SOURCE_TEST_CONFIG_ENV)
+    if test_flag is None and test_config is None:
+        return SCRIPT.with_name("tool-config.json"), False
+    if test_flag != "1" or test_config is None:
+        raise Refused(
+            "source test config requires OPENHEALTHATLAS_SOURCE_TEST=1 "
+            "and OPENHEALTHATLAS_TEST_CONFIG"
+        )
+    if not SOURCE_TEST_CAPABLE:
+        raise Refused("source test config is unavailable for the installed tool")
+    return Path(test_config), True
+
+
+def _configuration() -> dict[str, Any]:
+    selected, source_test = _configuration_path()
+    path = _regular_path(selected, "tool config")
+    details = path.stat()
+    if not source_test and (
+        details.st_uid != 0 or stat.S_IMODE(details.st_mode) & 0o022
+    ):
+        raise Refused("installed tool config must be root-owned and not writable")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Refused("tool config is unreadable") from exc
+    expected = {
+        "contract", "health_cli", "health_db", "audit", "data_class",
+        "fixture_id", "health_vault", "data_dir", "timezone",
+        "range_from", "range_to", "timeout_seconds",
+        "synthesis_writeback_enabled", "readiness_fixture_lane",
+        "readiness_ancestry_sidecar",
+    }
+    if not isinstance(value, dict) or set(value) != expected:
+        raise Refused("tool config has the wrong fields")
+    if value["contract"] != CONTRACT or value["data_class"] != "fictional":
+        raise Refused("tool config must bind the fictional tool contract")
+    if value["timezone"] != "UTC":
+        raise Refused("fictional tool config must use UTC")
+    if type(value["synthesis_writeback_enabled"]) is not bool:
+        raise Refused("synthesis writeback gate must be true or false")
+    lane = value["readiness_fixture_lane"]
+    if lane not in {"accepted-v5", "development-v6", "development-v7"}:
+        raise Refused("readiness fixture lane is invalid")
+    sidecar = value["readiness_ancestry_sidecar"]
+    if lane == "accepted-v5":
+        value["readiness_ancestry_sidecar"] = _regular_path(
+            sidecar, "readiness ancestry sidecar"
+        )
+    elif sidecar is not None:
+        raise Refused(f"{lane} must not configure an ancestry sidecar")
+    if not isinstance(value["fixture_id"], str) or FIXTURE_ID_RE.fullmatch(
+        value["fixture_id"]
+    ) is None:
+        raise Refused("tool config fixture identifier is invalid")
+    start = _date(value["range_from"], "configured range_from")
+    end = _date(value["range_to"], "configured range_to")
+    if start > end:
+        raise Refused("tool config fictional range is invalid")
+    timeout = value["timeout_seconds"]
+    if type(timeout) is not int or not 1 <= timeout <= 90:
+        raise Refused("tool config timeout must be between 1 and 90 seconds")
+    value["health_cli"] = _regular_path(value["health_cli"], "health CLI")
+    health_details = value["health_cli"].stat()
+    if not source_test and (
+        health_details.st_uid != 0 or stat.S_IMODE(health_details.st_mode) & 0o022
+    ):
+        raise Refused("installed health CLI must be root-owned and not writable")
+    value["health_db"] = _regular_path(value["health_db"], "fictional database")
+    value["health_vault"] = _directory_path(
+        value["health_vault"], "fictional health vault",
+    )
+    value["data_dir"] = _directory_path(
+        value["data_dir"], "fictional data directory",
+    )
+    if value["health_db"].parent != value["data_dir"]:
+        raise Refused("fictional database must be inside the configured data directory")
+    if value["health_vault"].parent != value["data_dir"]:
+        raise Refused("fictional vault must be inside the configured data directory")
+    value["audit"] = _regular_path(
+        value["audit"], "tool audit", must_exist=False,
+    )
+    return value
+
+
+def _validate_fixture_scope(
+    command: str, args: list[str], config: dict[str, Any],
+) -> None:
+    if command == "readiness":
+        flags = _parse_flags(command, args)
+        if (
+            flags.get("--from") != config["range_from"]
+            or flags.get("--anchor") != config["range_to"]
+        ):
+            raise Refused("readiness range must equal the trusted fixture range")
+        return
+    if command not in {
+        "feature-frame", "data-readiness", "analysis-refresh",
+        "finding-evidence",
+    }:
+        return
+    flags = _parse_flags(command, args)
+    if "--from" not in flags or "--to" not in flags:
+        raise Refused("fictional tools require the trusted bounded date range")
+    start = _date(flags["--from"], "--from")
+    end = _date(flags["--to"], "--to")
+    if start < config["range_from"] or end > config["range_to"]:
+        raise Refused("requested range is outside the configured fictional fixture")
+    if command == "analysis-refresh" and flags.get("--anchor") != end:
+        raise Refused("analysis anchor must equal the trusted range end")
+
+
+def _surface_request(
+    command: str, raw: bytes, config: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Validate the closed protocol before it reaches the deterministic facade."""
+
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Refused("generic tool stdin must be valid UTF-8 JSON") from exc
+    operation = SURFACE_COMMANDS[command]
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"operation", "arguments"}
+        or value.get("operation") != operation
+        or not isinstance(value.get("arguments"), dict)
+    ):
+        raise Refused("generic tool request has the wrong closed protocol shape")
+    arguments = value["arguments"]
+    _validate_surface_arguments(operation, arguments, config)
+    return operation, arguments
+
+
+def _closed_fields(
+    value: dict[str, Any], allowed: set[str], required: set[str], label: str,
+) -> None:
+    if not required <= set(value) or not set(value) <= allowed:
+        raise Refused(f"{label} has unsupported or missing fields")
+
+
+def _bounded_string(
+    value: object, label: str, *, maximum: int = 128, optional: bool = False,
+) -> str | None:
+    if value is None and optional:
+        return None
+    if not isinstance(value, str) or not value or len(value) > maximum:
+        raise Refused(f"{label} must be a bounded non-empty string")
+    return value
+
+
+def _optional_text(value: object, label: str, *, maximum: int) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        raise Refused(
+            f"{label} must be non-empty text no longer than {maximum} characters"
+        )
+    return value
+
+
+def _bounded_strings(
+    value: object, label: str, *, minimum: int = 0, maximum: int = 32,
+) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or not minimum <= len(value) <= maximum
+        or any(
+            not isinstance(item, str) or not item or len(item) > 128
+            for item in value
+        )
+        or len(set(value)) != len(value)
+    ):
+        raise Refused(f"{label} must contain {minimum} to {maximum} unique strings")
+    return value
+
+
+def _surface_range(value: object, config: dict[str, Any]) -> None:
+    if not isinstance(value, dict) or set(value) != {"from", "to"}:
+        raise Refused("range must contain exactly from and to")
+    start = _date(value["from"], "range.from")
+    end = _date(value["to"], "range.to")
+    if start > end:
+        raise Refused("range.from must not be after range.to")
+    if (date.fromisoformat(end) - date.fromisoformat(start)).days + 1 > 366:
+        raise Refused("range must not exceed 366 inclusive days")
+    if start < config["range_from"] or end > config["range_to"]:
+        raise Refused("requested range is outside the configured fictional fixture")
+
+
+def _validate_surface_arguments(
+    operation: str, value: dict[str, Any], config: dict[str, Any],
+) -> None:
+    """Defense in depth for the model-facing, read-only generic surface."""
+
+    if operation == "health_catalog":
+        _closed_fields(
+            value,
+            {"search", "domains", "roles", "availability", "cursor", "limit"},
+            set(),
+            operation,
+        )
+        if "search" in value:
+            _optional_text(value["search"], "search", maximum=80)
+        if "domains" in value:
+            _bounded_strings(value["domains"], "domains", maximum=12)
+        if "roles" in value:
+            roles = _bounded_strings(value["roles"], "roles", maximum=5)
+            if not set(roles) <= {
+                "exposure", "outcome", "confounder", "readiness", "display",
+            }:
+                raise Refused("catalog role is unsupported")
+        if "availability" in value:
+            availability = _bounded_strings(
+                value["availability"], "availability", maximum=4,
+            )
+            if not set(availability) <= {
+                "connected", "not_connected", "implemented", "not_implemented",
+            }:
+                raise Refused("catalog availability is unsupported")
+        if "cursor" in value:
+            cursor = value["cursor"]
+            if (
+                not isinstance(cursor, str)
+                or not cursor.isascii()
+                or not cursor.isdigit()
+                or len(cursor) > 9
+            ):
+                raise Refused("catalog cursor must be a non-negative string integer")
+        limit = value.get("limit", 20)
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise Refused("catalog limit must be between 1 and 50")
+        return
+
+    if operation == "health_query":
+        _closed_fields(
+            value,
+            {"feature_keys", "range", "view", "grain", "aggregates"},
+            {"feature_keys", "range", "view"},
+            operation,
+        )
+        _bounded_strings(value["feature_keys"], "feature_keys", minimum=1, maximum=32)
+        _surface_range(value["range"], config)
+        if value["view"] not in {
+            "latest", "series", "summary", "period_compare",
+        }:
+            raise Refused("query view is unsupported")
+        if value.get("grain", "day") != "day":
+            raise Refused("the bounded query surface supports day grain only")
+        if "aggregates" in value:
+            aggregates = _bounded_strings(
+                value["aggregates"], "aggregates", maximum=8,
+            )
+            if not set(aggregates) <= {
+                "count", "sum", "mean", "median", "min", "max", "stddev",
+            }:
+                raise Refused("query aggregate is unsupported")
+        return
+
+    if operation == "health_analyze":
+        _closed_fields(
+            value,
+            {
+                "outcome_key", "exposure_keys", "range", "mode",
+                "interactions", "min_n", "top",
+            },
+            {
+                "outcome_key", "exposure_keys", "range", "mode",
+                "interactions", "min_n", "top",
+            },
+            operation,
+        )
+        _bounded_string(value["outcome_key"], "outcome_key")
+        _bounded_strings(
+            value["exposure_keys"], "exposure_keys", minimum=1, maximum=32,
+        )
+        _surface_range(value["range"], config)
+        if not isinstance(value["mode"], str) or value["mode"] not in {
+            "all", "ordinal", "green-vs-non-green", "red-vs-non-red",
+        }:
+            raise Refused("analysis mode is unsupported")
+        if type(value["interactions"]) is not bool:
+            raise Refused("interactions must be true or false")
+        min_n = value["min_n"]
+        if type(min_n) is not int or not 30 <= min_n <= 500:
+            raise Refused("min_n is outside the supported range")
+        top = value["top"]
+        if type(top) is not int or not 1 <= top <= 20:
+            raise Refused("top must be between 1 and 20")
+        return
+
+    if operation == "health_evidence":
+        _closed_fields(
+            value,
+            {"evidence_refs", "detail"},
+            {"evidence_refs", "detail"},
+            operation,
+        )
+        refs = value["evidence_refs"]
+        if not isinstance(refs, list) or not 1 <= len(refs) <= 20:
+            raise Refused("evidence_refs must contain one to 20 references")
+        for ref in refs:
+            if not isinstance(ref, dict):
+                raise Refused("each evidence reference must be an object")
+            _closed_fields(
+                ref,
+                {"contract", "operation", "arguments", "result_id", "finding_id"},
+                {"contract", "operation", "arguments", "result_id"},
+                "evidence reference",
+            )
+            if ref["contract"] != "openhealthatlas-evidence-ref-v1":
+                raise Refused("evidence reference contract is unsupported")
+            referenced_operation = ref["operation"]
+            if referenced_operation not in {
+                "health_catalog", "health_query", "health_analyze",
+            }:
+                raise Refused("evidence reference operation is unsupported")
+            if not isinstance(ref["arguments"], dict):
+                raise Refused("evidence reference arguments must be an object")
+            _validate_surface_arguments(
+                referenced_operation, ref["arguments"], config,
+            )
+            if (
+                not isinstance(ref["result_id"], str)
+                or SHA256_RE.fullmatch(ref["result_id"]) is None
+            ):
+                raise Refused("evidence reference result_id is invalid")
+            if "finding_id" in ref and (
+                referenced_operation != "health_analyze"
+                or
+                not isinstance(ref["finding_id"], str)
+                or SHA256_RE.fullmatch(ref["finding_id"]) is None
+            ):
+                raise Refused("evidence reference finding_id is invalid")
+        if value.get("detail", "summary") not in {"summary", "lineage"}:
+            raise Refused("evidence detail is unsupported")
+        return
+
+    raise Refused("generic health operation is unavailable")
+
+
+def _validate_surface_result(
+    value: dict[str, Any], operation: str, config: dict[str, Any],
+) -> None:
+    if (
+        set(value) != SURFACE_ENVELOPE_FIELDS
+        or value.get("contract") != SURFACE_CONTRACT
+        or value.get("operation") != operation
+        or value.get("data_class") != "fictional"
+        or value.get("fixture_id") != config["fixture_id"]
+        or value.get("status") not in SURFACE_STATUS
+        or any(
+            not isinstance(value.get(key), str)
+            or SHA256_RE.fullmatch(value[key]) is None
+            for key in ("registry_id", "engine_id", "result_id")
+        )
+        or not isinstance(value.get("coverage"), dict)
+        or any(
+            not isinstance(value.get(key), list)
+            for key in ("facts", "findings", "limitations", "evidence_refs")
+        )
+    ):
+        raise Refused("generic health surface returned an invalid envelope")
+    range_value = value.get("range")
+    if operation in {"health_query", "health_analyze"}:
+        _surface_range(range_value, config)
+    elif operation == "health_catalog":
+        if range_value is not None:
+            raise Refused("catalog result must not claim a data range")
+    elif range_value is not None:
+        _surface_range(range_value, config)
+
+
+def _database(path: Path) -> Path:
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise Refused("configured fictional database is unavailable")
+    return path
+
+
+def _parse_flags(command: str, args: list[str]) -> dict[str, str | bool]:
+    allowed = ALLOWED_FLAGS[command]
+    flags: dict[str, str | bool] = {}
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token not in allowed or token in flags:
+            raise Refused(f"unsupported or repeated flag for {command}: {token}")
+        if token in NO_VALUE_FLAGS:
+            flags[token] = True
+        else:
+            index += 1
+            if index >= len(args) or args[index].startswith("--"):
+                raise Refused(f"missing value for {token}")
+            flags[token] = args[index]
+        index += 1
+    return flags
+
+
+def _date(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise Refused(f"{label} must be an ISO date")
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise Refused(f"{label} must be an ISO date") from exc
+    if parsed.isoformat() != value:
+        raise Refused(f"{label} must be a canonical ISO date")
+    return value
+
+
+def _range(flags: dict[str, str | bool]) -> None:
+    forms = int("--all" in flags) + int("--days" in flags) + int(
+        "--from" in flags or "--to" in flags
+    )
+    if forms != 1 or (("--from" in flags) != ("--to" in flags)):
+        raise Refused("exactly one complete range is required")
+    if "--days" in flags:
+        raw = flags["--days"]
+        if (
+            not isinstance(raw, str)
+            or not raw.isascii()
+            or not raw.isdigit()
+            or not 1 <= int(raw) <= 36500
+        ):
+            raise Refused("--days is outside the supported range")
+    if "--from" in flags:
+        start = _date(flags["--from"], "--from")
+        end = _date(flags["--to"], "--to")
+        if start > end:
+            raise Refused("--from must not be after --to")
+
+
+def _validate(
+    command: str, args: list[str], *, synthesis_writeback_enabled: bool,
+) -> None:
+    if command not in ALLOWED_FLAGS:
+        raise Refused(f"command is not available to Hermes: {command}")
+    if command == "synthesis-record" and not synthesis_writeback_enabled:
+        raise Refused(
+            "synthesis-record is disabled by the owner-controlled writeback gate"
+        )
+    flags = _parse_flags(command, args)
+    if command == "feature-registry":
+        if flags:
+            raise Refused("feature-registry does not accept arguments")
+    elif command == "feature-frame":
+        _range(flags)
+        if flags.get("--family") != "subjective" or not flags.get(
+            "--include-provenance"
+        ):
+            raise Refused(
+                "feature-frame requires --family subjective and --include-provenance"
+            )
+    elif command == "data-readiness":
+        _range(flags)
+        if flags.get("--outcome") != "subjective.day_rating":
+            raise Refused("data-readiness is limited to subjective.day_rating")
+    elif command == "analysis-refresh":
+        _range(flags)
+        if flags.get("--kind") != "manual":
+            raise Refused("analysis-refresh is limited to --kind manual")
+        if flags.get("--outcome") != "subjective.day_rating":
+            raise Refused("analysis-refresh is limited to subjective.day_rating")
+        if flags.get("--mode") != "green-vs-non-green":
+            raise Refused(
+                "analysis-refresh requires --mode green-vs-non-green"
+            )
+        if "--anchor" in flags:
+            _date(flags["--anchor"], "--anchor")
+    elif command == "finding-evidence":
+        _range(flags)
+        if flags.get("--outcome") != "subjective.day_rating":
+            raise Refused("finding-evidence is limited to subjective.day_rating")
+        for key in ("--finding-id", "--input-fingerprint"):
+            if not isinstance(flags.get(key), str) or not SHA256_RE.fullmatch(
+                flags[key]
+            ):
+                raise Refused(f"{key} must be a canonical SHA-256 identifier")
+    elif command == "synthesis-prepare":
+        value = flags.get("--batch-id")
+        if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+            raise Refused("--batch-id must be a canonical SHA-256 identifier")
+    elif command == "synthesis-record" and flags != {"--stdin": True}:
+        raise Refused("synthesis-record requires exactly --stdin")
+    elif command == "readiness":
+        if set(flags) != {"--from", "--anchor"}:
+            raise Refused("readiness requires exactly --from and --anchor")
+        start = _date(flags["--from"], "--from")
+        _date(flags["--anchor"], "--anchor")
+        if start > flags["--anchor"]:
+            raise Refused("--from must not be after --anchor")
+
+
+def _evidence_ids(value: object) -> list[str]:
+    found: set[str] = set()
+
+    def walk(item: object, key: str | None = None) -> None:
+        if isinstance(item, dict):
+            for child_key, child in item.items():
+                walk(child, child_key)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child, key)
+        elif (
+            isinstance(item, str)
+            and SHA256_RE.fullmatch(item)
+            and key is not None
+            and (
+                key.endswith("_id")
+                or key.endswith("_sha256")
+                or key in {"input_fingerprint", "evidence_fingerprint"}
+            )
+        ):
+            found.add(item)
+
+    walk(value)
+    return sorted(found)
+
+
+def _append_audit(audit: Path, record: dict[str, Any]) -> None:
+    if not audit.is_absolute() or audit.is_symlink():
+        raise Refused("tool audit path must be an absolute non-symlink path")
+    audit.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(audit, flags, 0o600)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or stat.S_IMODE(opened.st_mode) & 0o077:
+            raise Refused("tool audit must be a private regular file")
+        os.write(descriptor, (_canonical(record) + "\n").encode("utf-8"))
+    finally:
+        os.close(descriptor)
+
+
+def _turn_id() -> str:
+    value = os.environ.get("OPENHEALTHATLAS_HERMES_TURN_ID", "standalone")
+    if TURN_ID_RE.fullmatch(value) is None:
+        raise Refused("Hermes turn identifier is invalid")
+    return value
+
+
+def main() -> int:
+    command = sys.argv[1] if len(sys.argv) > 1 else ""
+    args = sys.argv[2:]
+    try:
+        config = _configuration()
+        _validate(
+            command,
+            args,
+            synthesis_writeback_enabled=config["synthesis_writeback_enabled"],
+        )
+        _validate_fixture_scope(command, args, config)
+        database = _database(config["health_db"])
+        health = config["health_cli"]
+        audit = config["audit"]
+        stdin = None
+        stdin_sha256 = None
+        stdin_bytes = 0
+        surface_operation = None
+        if command == "synthesis-record" or command in SURFACE_COMMANDS:
+            raw = sys.stdin.buffer.read(MAX_STDIN_BYTES + 1)
+            if not raw or len(raw) > MAX_STDIN_BYTES:
+                raise Refused("tool stdin is empty or too large")
+            if command in SURFACE_COMMANDS:
+                surface_operation, surface_arguments = _surface_request(
+                    command, raw, config,
+                )
+                stdin = _canonical({
+                    "operation": surface_operation,
+                    "arguments": surface_arguments,
+                })
+            else:
+                try:
+                    stdin = raw.decode("utf-8")
+                    json.loads(stdin)
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise Refused(
+                        "synthesis-record stdin must be valid UTF-8 JSON"
+                    ) from exc
+            executed_stdin = stdin.encode("utf-8")
+            stdin_sha256 = _sha256_bytes(executed_stdin)
+            stdin_bytes = len(executed_stdin)
+        db_before = _file_sha256(database)
+        if surface_operation is not None:
+            argv = [sys.executable, "-m", "hermes_insights.hermes_surface"]
+        else:
+            argv = [sys.executable, str(health), command, *args]
+        turn_id = _turn_id()
+        data_class = config["data_class"]
+        fixture_id = config["fixture_id"]
+        _append_audit(audit, {
+            "contract": CONTRACT,
+            "phase": "intent",
+            "turn_id": turn_id,
+            "data_class": data_class,
+            "fixture_id": fixture_id,
+            "command": argv,
+            "surface_operation": surface_operation,
+            "stdin_bytes": stdin_bytes,
+            "stdin_sha256": stdin_sha256,
+            "database_before_sha256": db_before,
+        })
+        health_environment = {
+            "HEALTH_DB": str(database),
+            "HEALTH_VAULT": str(config["health_vault"]),
+            "HERMES_DATA_DIR": str(config["data_dir"]),
+            "HERMES_TIMEZONE": config["timezone"],
+            "HERMES_DEPLOYED_MANIFEST": str(
+                config["health_cli"].parent / "DEPLOYED.manifest"
+            ),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+        }
+        if command == "readiness":
+            health_environment["OPENHEALTHATLAS_READINESS_FIXTURE_LANE"] = (
+                config["readiness_fixture_lane"]
+            )
+            if config["readiness_ancestry_sidecar"] is not None:
+                health_environment[
+                    "OPENHEALTHATLAS_READINESS_ANCESTRY_SIDECAR"
+                ] = str(config["readiness_ancestry_sidecar"])
+        if surface_operation is not None:
+            health_environment["PYTHONPATH"] = str(health.parent)
+            health_environment["OPENHEALTHATLAS_DATA_CLASS"] = data_class
+            health_environment["OPENHEALTHATLAS_FIXTURE_ID"] = fixture_id
+        completed = subprocess.run(
+            argv,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=config["timeout_seconds"],
+            env=health_environment,
+        )
+        try:
+            result = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise Refused("deterministic health engine returned non-JSON output") from exc
+        if not isinstance(result, dict):
+            raise Refused("deterministic health engine returned the wrong JSON shape")
+        if surface_operation is not None:
+            if completed.returncode == 0:
+                _validate_surface_result(result, surface_operation, config)
+        assessment_state = None
+        if command == "synthesis-prepare":
+            assessment_state = result.get("assessment_state")
+            if assessment_state not in {"assessed", "insufficient_data"}:
+                raise Refused(
+                    "synthesis-prepare returned an invalid assessment state"
+                )
+        canonical_result = _canonical(result).encode("utf-8")
+        db_after = _file_sha256(database)
+        if surface_operation is not None and db_after != db_before:
+            raise Refused("generic health surface modified the fictional database")
+        record = {
+            "contract": CONTRACT,
+            "phase": "result",
+            "turn_id": turn_id,
+            "data_class": data_class,
+            "fixture_id": fixture_id,
+            "command": argv,
+            "surface_operation": surface_operation,
+            "stdin_bytes": stdin_bytes,
+            "stdin_sha256": stdin_sha256,
+            "database_before_sha256": db_before,
+            "database_after_sha256": db_after,
+            "result_sha256": _sha256_bytes(canonical_result),
+            "evidence_ids": _evidence_ids(result),
+            "returncode": completed.returncode,
+        }
+        if assessment_state is not None:
+            record["assessment_state"] = assessment_state
+        _append_audit(audit, record)
+        envelope = {
+            "ok": completed.returncode == 0,
+            "tool_contract": CONTRACT,
+            "turn_id": record["turn_id"],
+            "data_class": record["data_class"],
+            "fixture_id": record["fixture_id"],
+            "selected_command": argv,
+            "result_sha256": record["result_sha256"],
+            "evidence_ids": record["evidence_ids"],
+            "result": result,
+        }
+        if completed.stderr.strip():
+            envelope["stderr"] = completed.stderr.strip()[:500]
+        print(_canonical(envelope))
+        return 0 if completed.returncode == 0 else 1
+    except (OSError, Refused, subprocess.TimeoutExpired) as exc:
+        print(_canonical({
+            "ok": False,
+            "tool_contract": CONTRACT,
+            "error": str(exc),
+        }))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

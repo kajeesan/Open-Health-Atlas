@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# §labs ingestion: LOCAL extraction of a lab report — the image/PDF never leaves
+# the server. Prints the extracted TEXT to STDOUT; the caller (the coach agent)
+# preserves the raw file and pipes the text into health.py for validated write.
+# Text-layer PDFs are read with pdftotext; images and scanned PDFs fall back to
+# tesseract. The OCR language is configurable and defaults to English.
+#
+# Flow (agent-side, no new write surface — the panel never writes labs):
+#   1. The user supplies a lab photo/PDF -> save it to a temporary path.
+#   2. cat <file> | health.py lab-capture <YYYY-MM-DD-name.ext>   (raw preserved,
+#      verbatim + immutable in raw/labs/ — the source of truth)
+#   3. labs-ocr <file>  ->  extracted text on stdout
+#   4. cat <text> | health.py lab-capture <YYYY-MM-DD-name.txt>   (cache the
+#      extraction verbatim so a parser bug never forces a re-OCR)
+#   5. health.py lab-ingest --date YYYY-MM-DD   (stdin = text)  -> DRY-RUN report;
+#      agent shows the user the auto/blocked tiers, then re-runs with --commit
+#      [--confirm "<canonical>" …] once the user confirms flagged rows.
+#
+# INSTALL (one-time, explicit administrator step):
+#   sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng
+#   Install another tesseract language pack when reports use another language,
+#   then set HERMES_OCR_LANG to that language code.
+set -euo pipefail
+
+SRC="${1:?usage: labs-ocr <lab-photo-or-pdf>}"
+[ -f "$SRC" ] || { echo "no such file: $SRC" >&2; exit 1; }
+# minimum characters that count as a usable text layer; below this we OCR
+MIN_TEXT_CHARS="${LABS_MIN_TEXT_CHARS:-40}"
+OCR_LANG="${HERMES_OCR_LANG:-eng}"
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "$1 not installed (see header)" >&2; exit 1; }; }
+
+lower="$(printf '%s' "$SRC" | tr '[:upper:]' '[:lower:]')"
+case "$lower" in
+  *.pdf)
+    need pdftotext
+    # 1) try the embedded text layer (deterministic, no OCR error)
+    text="$(pdftotext -layout "$SRC" - 2>/dev/null || true)"
+    if [ "$(printf '%s' "$text" | tr -cd '[:alnum:]' | wc -c)" -ge "$MIN_TEXT_CHARS" ]; then
+      printf '%s\n' "$text"
+      exit 0
+    fi
+    # 2) scanned PDF: rasterise each page and OCR it locally
+    need pdftoppm; need tesseract
+    TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT INT TERM
+    pdftoppm -r 300 -png "$SRC" "$TMP/page" >/dev/null
+    for img in "$TMP"/page*.png; do
+      tesseract "$img" - -l "$OCR_LANG" --psm 6 2>/dev/null
+    done
+    ;;
+  *.png|*.jpg|*.jpeg|*.tif|*.tiff|*.bmp|*.heic|*.webp)
+    need tesseract
+    src="$SRC"
+    # tesseract can't read HEIC/WebP directly — convert to PNG first if needed
+    case "$lower" in
+      *.heic|*.webp)
+        need magick 2>/dev/null || need convert
+        TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT INT TERM
+        (command -v magick >/dev/null 2>&1 && magick "$SRC" "$TMP/in.png") \
+          || convert "$SRC" "$TMP/in.png"
+        src="$TMP/in.png"
+        ;;
+    esac
+    tesseract "$src" - -l "$OCR_LANG" --psm 6 2>/dev/null
+    ;;
+  *)
+    echo "unsupported file type: $SRC (expected a PDF or image)" >&2
+    exit 1
+    ;;
+esac

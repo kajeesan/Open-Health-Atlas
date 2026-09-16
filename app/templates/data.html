@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Data{% endblock %}
+{% block content %}
+{# Data Explorer (design v-data): restyle-only per configuration rule — the real page
+   is richer than the mock (design's v-data is a fictional 6-chart placeholder
+   with mock categories/sources), so we keep every real feature (provenance
+   apple-solid/fitbit-dashed, gap-breaking, dual-axis body/safety charts, BP
+   markLines, env card, activity feed, range+source filters) and swap only
+   the chrome. Same endpoints as before (v2.1 note: dashboard stays a
+   consolidated scoreboard, this page is raw trends). The design's "Category"
+   chips were replaced with a real Category dropdown (owner round 2) that
+   filters by metric group; Source stays real apple/fitbit. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Data</h1>
+      <span class="muted micro">Raw trends — every point as recorded</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap gap-3">
+      <div class="row gap-2 wrap">
+        <span class="label">Range</span>
+        {# task-50 item 3: swap the native pill row for the standard .dd
+           widget (consistency with every other page's range control) —
+           pure widget swap, zero functional change. Labels are renamed to
+           the standard Week/Month/Quarter/Year/All set but map to the EXACT
+           same day windows the pills used (7/30/90/365/all): "Quarter"
+           keeps the 90d window rather than dropping it. This is about
+           making the WIDGET consistent, not the option-label vocabulary —
+           see data.js's RANGE_DAYS. #}
+        <div class="dd" data-dd="range">
+          <button class="ddbtn" type="button">Quarter <span class="cv">▾</span></button>
+          <div class="ddmenu">
+            <button type="button" data-val="Week">Week</button>
+            <button type="button" data-val="Month">Month</button>
+            <button type="button" data-val="Quarter" class="on">Quarter</button>
+            <button type="button" data-val="Year">Year</button>
+            <button type="button" data-val="All">All</button>
+          </div>
+        </div>
+      </div>
+      <div class="row gap-2">
+        <span class="label">Source</span>
+        <select id="source-filter" class="select" aria-label="Data source">
+          <option value="all">All sources</option>
+          <option value="apple">Apple</option>
+          <option value="fitbit">Fitbit</option>
+        </select>
+      </div>
+      <div class="row gap-2">
+        <span class="label">Category</span>
+        {# Filters which cards are visible by pillar — purely client-side
+           (data for every card is already loaded), composes with range/source
+           above. Mapping: Body = body-composition/activity, Mind = mood/focus
+           + medication/vitals context (mind.html already treats that chart as
+           part of Mind), Recovery = sleep/HR/HRV, Environment = weather/air
+           + the activity feed (neither is a pillar; both are page-local
+           context, grouped together as "everything else"). #}
+        <div class="dd" data-dd="category">
+          <button class="ddbtn" type="button">All <span class="cv">▾</span></button>
+          <div class="ddmenu">
+            <button type="button" data-val="All" class="on">All</button>
+            <button type="button" data-val="Body">Body</button>
+            <button type="button" data-val="Mind">Mind</button>
+            <button type="button" data-val="Recovery">Recovery</button>
+            <button type="button" data-val="Environment">Environment</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Resting HR <span class="muted micro">bpm</span></h3>
+      <div id="ch-rhr" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      {# T55 flag 2: same column, two algorithms — apple=SDNN, fitbit=RMSSD
+         (see toolkit/SCHEMA.sql daily_metrics.hrv_ms) — so the caption is
+         algorithm-honest; the source filter above compares like with like. #}
+      <h3 class="card-title">HRV <span class="muted micro">ms · SDNN/RMSSD varies by source</span></h3>
+      <div id="ch-hrv" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Sleep <span class="muted micro">h</span></h3>
+      <div id="ch-sleep" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Steps</h3>
+      <div id="ch-steps" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Weight &amp; waist <span class="muted micro">kg / cm</span></h3>
+      <div id="ch-body" class="h230"></div>
+    </div>
+    <div class="card" data-cat="mind">
+      <h3 class="card-title">Mood · Energy · Focus <span class="muted micro">1–5</span></h3>
+      <div id="ch-mood" class="h230"></div>
+    </div>
+  </div>
+
+  <div class="card" data-cat="mind">
+    <div class="row between wrap mb-2">
+      <h3 class="card-title">Medication and vitals — BP · resting HR · dose <span class="muted micro">mmHg · bpm · mg</span></h3>
+      <span class="chip">watch: ≥135 / ≥85 mmHg</span>
+    </div>
+    <div id="ch-safety" class="h300"></div>
+  </div>
+
+  {# task-52: raw-data gallery — every remaining daily_metrics/body_metrics/
+     sleep_log/intake/workouts/hevy_sets/subjective_daily/weather/air_quality
+     column gets its own chart (owner: "each of them has their own graph...
+     not everything is a line"). Grouped only where the existing convention
+     already combines one measurement family (weight+waist above; hr min/avg/
+     max and the 5 tape measurements below). Category buckets match the
+     dropdown above. #}
+  <div class="grid-2">
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Heart rate range <span class="muted micro">bpm · min/avg/max</span></h3>
+      <div id="ch-hrrange" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Respiratory rate <span class="muted micro">breaths/min</span></h3>
+      <div id="ch-resp" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">SpO2 <span class="muted micro">%</span></h3>
+      <div id="ch-spo2" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Walking HR avg <span class="muted micro">bpm</span></h3>
+      <div id="ch-walkhr" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Active energy <span class="muted micro">kcal</span></h3>
+      <div id="ch-activekcal" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Basal energy <span class="muted micro">kcal</span></h3>
+      <div id="ch-basalkcal" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Exercise minutes <span class="muted micro">min</span></h3>
+      <div id="ch-exercise" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Distance <span class="muted micro">km</span></h3>
+      <div id="ch-distance" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Flights climbed</h3>
+      <div id="ch-flights" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Body fat % <span class="muted micro">%</span></h3>
+      <div id="ch-bodyfat" class="h230"></div>
+    </div>
+    <div class="card" data-cat="mind">
+      <h3 class="card-title">Day rating <span class="muted micro">1–3</span></h3>
+      <div id="ch-dayrating" class="h230"></div>
+    </div>
+    <div class="card" data-cat="environment">
+      <h3 class="card-title">Air quality <span class="muted micro">European AQI</span></h3>
+      <div id="ch-air" class="h230"></div>
+    </div>
+  </div>
+
+  <div class="card" data-cat="body">
+    <h3 class="card-title">Measurements <span class="muted micro">cm</span></h3>
+    <div id="ch-measurements" class="h300"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Sleep stages <span class="muted micro">sleep_log</span></h3>
+      <div id="ch-sleepstages" class="h230"></div>
+    </div>
+    <div class="card" data-cat="recovery">
+      <h3 class="card-title">Time asleep <span class="muted micro">h · sleep_log</span></h3>
+      <div id="ch-timeasleep" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Water intake <span class="muted micro">ml</span></h3>
+      <div id="ch-water" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Workouts <span class="muted micro">min by type</span></h3>
+      <div id="ch-workouts" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Workouts <span class="muted micro">kcal by type</span></h3>
+      <div id="ch-workoutskcal" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Workouts <span class="muted micro">km by type</span></h3>
+      <div id="ch-workoutskm" class="h230"></div>
+    </div>
+    <div class="card" data-cat="body">
+      <h3 class="card-title">Training volume <span class="muted micro">kg · sets</span></h3>
+      <div id="ch-hevyvol" class="h230"></div>
+    </div>
+  </div>
+
+  <div class="card" data-cat="environment">
+    <h3 class="card-title">Weather <span class="muted micro">°C · UV</span></h3>
+    <div id="ch-weather" class="h230"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" data-cat="environment">
+      <h3 class="card-title mb-2">Today outside</h3>
+      <div class="vstack gap-2" id="env-card">
+        <div class="row between"><span class="muted micro">Weather</span><span id="env-weather">—</span></div>
+        <div class="row between"><span class="muted micro">UV / sun</span><span id="env-uv">—</span></div>
+        <div class="row between"><span class="muted micro">Air quality</span><span id="env-aqi">—</span></div>
+        <div class="row between"><span class="muted micro">Pollen</span><span id="env-pollen">—</span></div>
+      </div>
+    </div>
+    <div class="card" data-cat="environment">
+      <h3 class="card-title mb-2">Recent activity</h3>
+      <ul class="feed" id="activity-feed"><li class="dim">Nothing logged yet.</li></ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/data.js') }}" defer></script>
+{% endblock %}

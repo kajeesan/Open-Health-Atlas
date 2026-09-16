@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ name or "Recipe" }}{% endblock %}
+{% block content %}
+{# Recipe detail sub-page (T33). Standard .crumb header (back → Recipes)
+   + the design's two-card-over-full-width layout, all from REAL data via
+   /api/nutrition/recipe/<rid>:
+   - Photo: honest dashed placeholder — no photo storage exists.
+   - Stats + MACROS/PORTION bars: real (per-portion math from recipe_nutrients).
+   - Micronutrients: rows for whatever non-macro nutrients truly exist. The demo
+     recipe has none → honest-empty. Since T47 each row also shows its real
+     "% of daily target" from the T44 targets engine (floor-banded per T45);
+     honest "—" when the engine is insufficient or the nutrient has no
+     matching target — never a fabricated %. See recipe_detail.js.
+   - Ingredients: validated structured sidecar under personal/recipes,
+     captured through health.py's agent-only recipe-ingredients-set command.
+   The header chip shows real batch metadata ("makes N") only; batch-logging
+   lives on the Recipes tab (single source), so there is no duplicate control
+   here. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.nutrition') }}">◱ Recipes</a>
+      <h1 class="page-title" id="rdTitle">{{ name or rid }}</h1>
+    </div>
+    <span class="chip" id="rdMakes" hidden></span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="photo-ph">photo — add via chat later</div>
+      <div class="stat-row mt-2">
+        <div class="stat"><span class="stat-label">CALORIES</span><span class="stat-value" id="rdKcal">—</span></div>
+        <div class="stat"><span class="stat-label">PORTION</span><span class="stat-value" id="rdPortion">—</span></div>
+        <div class="stat"><span class="stat-label">IN FREEZER</span><span class="stat-value" id="rdFreezer">—</span></div>
+      </div>
+      <p class="stat-label mt-3 mb-1">MACROS / PORTION</p>
+      <div class="goals-list" id="rdMacros"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">Micronutrients</h3>
+        <span class="muted micro">amount / portion</span>
+      </div>
+      <div id="rdMicros"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap mb-1">
+      <h3 class="card-title">Ingredients</h3>
+      <span class="muted micro">batch amounts</span>
+    </div>
+    <div id="rdIngredients"><p class="muted note-txt m0">Loading…</p></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/recipe_detail.js') }}" defer></script>
+{% endblock %}

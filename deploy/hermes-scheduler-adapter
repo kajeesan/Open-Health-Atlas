@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""Stable autonomous-job adapter for a compatible external scheduler.
+
+The supported scheduler API generates opaque job IDs and exposes create/update/pause/resume
+operations.  The autonomous-insight installer uses stable logical IDs and a
+small list/upsert/enable contract.  This adapter maps each stable ID to the
+same-named Hermes job while mutating jobs only through Hermes's public
+``cron.jobs`` functions; it never reads or writes jobs.json directly.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import pwd
+import sys
+from typing import Any
+
+
+DEFAULT_AGENT_ROOT = Path(
+    os.environ.get("HERMES_SCHEDULER_AGENT_ROOT", "/opt/hermes-agent")
+)
+DEFAULT_CONTRACT = Path(
+    os.environ.get(
+        "HERMES_AUTONOMOUS_JOBS_FILE",
+        "/opt/hermes/deploy/hermes-autonomous-jobs.example.json",
+    )
+)
+DEFAULT_CONTEXT_SCRIPT = Path(
+    os.environ.get(
+        "HERMES_AUTONOMOUS_CONTEXT_SCRIPT",
+        "/etc/hermes/autonomous-context.sh",
+    )
+)
+DEFAULT_HERMES_PYTHON = Path(os.environ.get(
+    "HERMES_SCHEDULER_PYTHON",
+    str(DEFAULT_AGENT_ROOT / "venv/bin/python"),
+))
+SERVICE_USER = os.environ.get("HERMES_SERVICE_USER", "hermes")
+
+
+def fail(message: str) -> "NoReturn":
+    print(json.dumps({"ok": False, "error": message}, sort_keys=True), file=sys.stderr)
+    raise SystemExit(1)
+
+
+def _drop_privileges() -> None:
+    if os.environ.get("HERMES_AUTONOMOUS_TEST_MODE") == "1":
+        return
+    account = pwd.getpwnam(SERVICE_USER)
+    if os.geteuid() == 0:
+        os.initgroups(account.pw_name, account.pw_gid)
+        os.setgid(account.pw_gid)
+        os.setuid(account.pw_uid)
+    if os.geteuid() != account.pw_uid:
+        fail(f"scheduler adapter must run as root or {SERVICE_USER}")
+    os.environ["HOME"] = account.pw_dir
+    os.environ["USER"] = account.pw_name
+    os.environ["LOGNAME"] = account.pw_name
+
+
+def _ensure_hermes_runtime() -> None:
+    """Re-exec under Hermes's dependency-complete interpreter in production."""
+
+    if os.environ.get("HERMES_AUTONOMOUS_TEST_MODE") == "1":
+        return
+    try:
+        expected = DEFAULT_HERMES_PYTHON.resolve(strict=True)
+        current = Path(sys.executable).resolve(strict=True)
+    except OSError as exc:
+        fail(f"Hermes scheduler interpreter is unavailable: {exc}")
+    if current != expected:
+        os.execve(
+            str(DEFAULT_HERMES_PYTHON),
+            [
+                str(DEFAULT_HERMES_PYTHON),
+                str(Path(__file__).resolve()),
+                *sys.argv[1:],
+            ],
+            os.environ.copy(),
+        )
+
+
+def _configured_path(environment_key: str, default: Path) -> Path:
+    override = os.environ.get(environment_key)
+    path = Path(override) if override else default
+    if override and not path.is_absolute():
+        fail(f"{environment_key} must be an absolute path")
+    try:
+        return path.resolve(strict=True)
+    except OSError:
+        fail(f"required scheduler adapter path is unavailable: {path}")
+
+
+def _load_contract(path: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot load autonomous job contract: {exc}")
+    if (
+        not isinstance(value, dict)
+        or value.get("contract_version") != "hermes-autonomous-jobs-v1"
+        or not isinstance(value.get("owner"), str)
+        or not isinstance(value.get("jobs"), list)
+    ):
+        fail("autonomous job contract is invalid")
+    desired: dict[str, dict[str, Any]] = {}
+    for item in value["jobs"]:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            fail("autonomous job contract contains an invalid job")
+        desired[item["id"]] = item
+    expected_ids = {
+        "hermes-autonomous-weekly-v1",
+        "hermes-autonomous-monthly-v1",
+        "hermes-autonomous-trigger-v1",
+    }
+    if set(desired) != expected_ids or len(value["jobs"]) != len(expected_ids):
+        fail("autonomous job contract IDs are invalid")
+    return value, desired
+
+
+def _schedule_expression(job: dict[str, Any]) -> str | None:
+    schedule = job.get("schedule")
+    if not isinstance(schedule, dict) or schedule.get("kind") != "cron":
+        return None
+    expression = schedule.get("expr", schedule.get("expression"))
+    return expression if isinstance(expression, str) else None
+
+
+def _owner(job: dict[str, Any]) -> Any:
+    origin = job.get("origin")
+    return origin.get("owner") if isinstance(origin, dict) else None
+
+
+def _find_actual(
+    jobs: list[dict[str, Any]],
+    logical_id: str,
+) -> list[dict[str, Any]]:
+    return [
+        job for job in jobs
+        if job.get("name") == logical_id or job.get("id") == logical_id
+    ]
+
+
+def _logical_row(
+    actual: dict[str, Any],
+    expected: dict[str, Any],
+    context_script: Path,
+) -> dict[str, Any]:
+    expression = _schedule_expression(actual)
+    schedule = (
+        expected["schedule"]
+        if expression == expected["schedule"]["expression"]
+        else {
+            "kind": actual.get("schedule", {}).get("kind")
+            if isinstance(actual.get("schedule"), dict) else None,
+            "expression": expression,
+            "timezone": "UTC",
+            "local_disclosure": None,
+        }
+    )
+    context_from = (
+        expected["context_from"]
+        if actual.get("script") == str(context_script)
+        else actual.get("script")
+    )
+    delivery = None if actual.get("deliver") == "local" else actual.get("deliver")
+    return {
+        "id": expected["id"],
+        "owner": _owner(actual) if actual.get("name") == expected["id"] else None,
+        "enabled": actual.get("enabled"),
+        "schedule": schedule,
+        "workdir": actual.get("workdir"),
+        "context_from": context_from,
+        "model": actual.get("model"),
+        "provider": actual.get("provider"),
+        "delivery": delivery,
+        "task": actual.get("prompt"),
+    }
+
+
+def _validate_payload(
+    payload: Any,
+    desired: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    if not isinstance(payload, dict) or payload.get("id") not in desired:
+        fail("upsert payload has an unknown logical job ID")
+    expected = dict(desired[payload["id"]])
+    if type(payload.get("enabled")) is not bool:
+        fail("upsert payload enabled state must be boolean")
+    expected["enabled"] = payload["enabled"]
+    if payload != expected:
+        fail("upsert payload differs from the repository job contract")
+    return payload
+
+
+def main() -> int:
+    _ensure_hermes_runtime()
+    _drop_privileges()
+    agent_root = _configured_path("HERMES_SCHEDULER_AGENT_ROOT", DEFAULT_AGENT_ROOT)
+    contract_path = _configured_path(
+        "HERMES_AUTONOMOUS_JOBS_FILE", DEFAULT_CONTRACT,
+    )
+    context_script = _configured_path(
+        "HERMES_AUTONOMOUS_CONTEXT_SCRIPT", DEFAULT_CONTEXT_SCRIPT,
+    )
+    sys.path.insert(0, str(agent_root))
+    try:
+        from cron.jobs import (  # type: ignore[import-not-found]
+            create_job,
+            list_jobs,
+            pause_job,
+            resume_job,
+            update_job,
+        )
+    except Exception as exc:
+        fail(f"cannot import Hermes scheduler API: {exc}")
+
+    contract, desired = _load_contract(contract_path)
+    args = sys.argv[1:]
+
+    if args == ["cron", "list", "--json"]:
+        jobs = list_jobs(include_disabled=True)
+        rows: list[dict[str, Any]] = []
+        consumed: set[int] = set()
+        for logical_id, expected in desired.items():
+            matches = _find_actual(jobs, logical_id)
+            for item in matches:
+                consumed.add(id(item))
+                rows.append(_logical_row(item, expected, context_script))
+        rows.extend(job for job in jobs if id(job) not in consumed)
+        print(json.dumps({"jobs": rows}, sort_keys=True))
+        return 0
+
+    if args == ["cron", "upsert", "--stdin"]:
+        try:
+            payload = json.load(sys.stdin)
+        except json.JSONDecodeError as exc:
+            fail(f"upsert payload is not valid JSON: {exc}")
+        payload = _validate_payload(payload, desired)
+        jobs = list_jobs(include_disabled=True)
+        matches = _find_actual(jobs, payload["id"])
+        if len(matches) > 1:
+            fail("duplicate logical Hermes scheduler job")
+        if matches and _owner(matches[0]) != contract["owner"]:
+            fail("same-ID/different-owner Hermes scheduler collision")
+        if matches:
+            actual = matches[0]
+            updated = update_job(
+                actual["id"],
+                {
+                    "name": payload["id"],
+                    "prompt": payload["task"],
+                    "schedule": payload["schedule"]["expression"],
+                    "deliver": "local",
+                    "origin": {
+                        "platform": "hermes-autonomous",
+                        "owner": payload["owner"],
+                    },
+                    "model": None,
+                    "provider": None,
+                    "provider_snapshot": None,
+                    "model_snapshot": None,
+                    "base_url": None,
+                    "script": str(context_script),
+                    "context_from": None,
+                    "workdir": payload["workdir"],
+                    "no_agent": False,
+                },
+            )
+            if not updated:
+                fail("Hermes scheduler update did not return a job")
+            actual_id = updated["id"]
+        else:
+            created = create_job(
+                prompt=payload["task"],
+                schedule=payload["schedule"]["expression"],
+                name=payload["id"],
+                deliver="local",
+                origin={
+                    "platform": "hermes-autonomous",
+                    "owner": payload["owner"],
+                },
+                model=None,
+                provider=None,
+                script=str(context_script),
+                context_from=None,
+                workdir=payload["workdir"],
+                no_agent=False,
+            )
+            actual_id = created["id"]
+        snapshots = update_job(
+            actual_id,
+            {"provider_snapshot": None, "model_snapshot": None},
+        )
+        if not snapshots:
+            fail("Hermes scheduler inference inheritance update failed")
+        changed = (
+            resume_job(actual_id)
+            if payload["enabled"]
+            else pause_job(actual_id, reason="installed disabled by owner gate")
+        )
+        if not changed:
+            fail("Hermes scheduler state transition failed")
+        print(json.dumps({"ok": True, "id": payload["id"]}, sort_keys=True))
+        return 0
+
+    if len(args) == 3 and args[:2] == ["cron", "enable"]:
+        logical_id = args[2]
+        if logical_id not in desired:
+            fail("enable requested for an unknown logical job ID")
+        jobs = list_jobs(include_disabled=True)
+        matches = _find_actual(jobs, logical_id)
+        if len(matches) != 1:
+            fail("logical Hermes scheduler job is missing or duplicated")
+        logical = _logical_row(matches[0], desired[logical_id], context_script)
+        expected = dict(desired[logical_id])
+        expected["enabled"] = logical["enabled"]
+        if logical != expected or _owner(matches[0]) != contract["owner"]:
+            fail("logical Hermes scheduler job differs from its contract")
+        if not resume_job(matches[0]["id"]):
+            fail("Hermes scheduler enable failed")
+        print(json.dumps({"ok": True, "id": logical_id}, sort_keys=True))
+        return 0
+
+    fail("usage: hermes-scheduler-adapter cron (list --json|upsert --stdin|enable ID)")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

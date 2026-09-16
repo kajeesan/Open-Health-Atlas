@@ -1,0 +1,64 @@
+{
+  "contract": "openhealthatlas-project-map-runtime-evidence-v1",
+  "data_class": "fictional",
+  "fixture_id": "green-days-actionable-v1",
+  "range_from": "2026-05-17",
+  "range_to": "2026-06-30",
+  "transport": "existing Telegram bot",
+  "reasoning_authority": "genuine Hermes on Oracle VPS",
+  "deterministic_authority": "OpenHealthAtlas",
+  "turn_id": "[REDACTED runtime-turn 04]",
+  "receipt_phase": 6,
+  "commands": [
+    "feature-frame",
+    "data-readiness",
+    "analysis-refresh",
+    "feature-registry",
+    "finding-evidence",
+    "finding-evidence",
+    "finding-evidence",
+    "synthesis-prepare"
+  ],
+  "tool_calls": 8,
+  "audit_intents": 8,
+  "audit_results": 8,
+  "all_envelopes_fictional": true,
+  "green_days": 25,
+  "day_count": 45,
+  "input_fingerprint": "sha256:17be9e3253a016e7a88cbaf11e8222cd8df36849918b842ec6abf3ad0af6609c",
+  "batch_id": "sha256:247ed00ad7ea6fef9fa38913f85128d6cde42a3d7c1d22f68dfc7bbb07c50723",
+  "selected_findings": [
+    {
+      "label": "same-day resting HR",
+      "finding_id": "sha256:e74cf0146348d01aad07eab0481c7ab838266285b8399e2927b8922174caa69e",
+      "evidence_fingerprint": "sha256:8842354df1c6526ed2152dc40ea1882c034a1d8d485a6c0b8b329301db69dcaa",
+      "result_sha256": "sha256:52fd7c662222a89c51b642e8c9d614909958a6d02cf8d5f778c604fe3cb81ae7"
+    },
+    {
+      "label": "previous-day caffeine amount",
+      "finding_id": "sha256:532640d344c6c9e04bd628cdd20c0fe98e99294fc2837f2dfd85c004050a6331",
+      "evidence_fingerprint": "sha256:7467691702a700d9342b5f020f86ee109e39dc74201ede6240049c2487fa4246",
+      "result_sha256": "sha256:ad5fc4d1a5ca917a9290afdee08fb150b0080af0e70a9ebd1f1ff2b08ff48e32"
+    },
+    {
+      "label": "three-day bedtime-minute mean",
+      "finding_id": "sha256:3b24153984c7ded41795cac36ab516538001024d6c2ee8e4304db3374e504e59",
+      "evidence_fingerprint": "sha256:1d6b10c4c0c2ecc7f770960d127577b9e31906a5af186b841bbf61786cb77fc3",
+      "result_sha256": "sha256:683ecd7496cf9b2106568432e15daccf227e9e78a83e75c0ef4c3c0f882b1667"
+    }
+  ],
+  "synthesis_evidence_fingerprint": "sha256:8e04fb43134452da49f53abb3360d6f062448fc4f0fc9d838a5a873b11b13e95",
+  "synthesis_result_sha256": "sha256:17532932d99a1428c06c5cc57ee9ec7837f0cd58f73d71e51569c3521fc8aebd",
+  "synthesis_model_invoked": false,
+  "model_interpretation_stored": false,
+  "synthesis_storage_rows": 0,
+  "private_checkout_path_present": false,
+  "fixture_audit_chain_verified": true,
+  "gateway_active_after_restart": true,
+  "tools_rediscovered_after_restart": 6,
+  "limits": [
+    "This proves only the bounded fictional Telegram journey.",
+    "It does not prove private-data operation, browser chat, other health domains, or follow-up continuity.",
+    "The localhost project map reads this sanitized snapshot; it has no live VPS or health-database connection."
+  ]
+}

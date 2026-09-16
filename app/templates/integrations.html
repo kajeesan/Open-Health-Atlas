@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Integrations &amp; privacy{% endblock %}
+{% block content %}
+{# Integrations & privacy settings page (design image 31, task-36). Real
+   status from /api/integrations/sources (db_read + the existing
+   hermes-status/fitbit-status bridge reads — no new bridge subcommands, no
+   duplicated controls: the Fitbit re-auth flow stays on Models & spend).
+   Every chip is a DETERMINISTIC derivation (see integrations.js + that
+   route's docstring) — stale or missing data says so, never a hardcoded
+   "Connected". The privacy card states only what's true of THIS system,
+   in-repo-verifiable (CLAUDE.md determinism law). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Integrations &amp; privacy</h1>
+      <span class="muted micro">connected data sources</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title mb-2">Connected sources</h3>
+    <div id="src-list"></div>
+    <p class="muted micro mt-2">
+      Connected = data seen within 14 days (Hevy) / 3 days (Wearable). Telegram bot reflects
+      the coach gateway's live health check, not a data date. Bloodwork lab is manual-upload
+      by design — its date is informational, not a freshness judgment.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title mb-2">Privacy</h3>
+    <p class="muted note-txt m0">
+      This is a single-user app — sign-in is passkey (WebAuthn) only, no shared accounts.
+      The health vault is mounted read-only to this panel, which holds no ability to write it
+      directly. Every change (logging, notes, program edits) goes through a validated
+      health.py command over a local broker socket — the same path the Telegram coach uses,
+      never raw SQL. The vault itself is never sent off-device. Two services do handle slices
+      of this data: agent chat goes through the configured model provider (currently
+      OpenRouter), and the coach loop's messages travel through Telegram's bot API. The
+      connected sources above read in; nothing else goes out.
+    </p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/integrations.js') }}" defer></script>
+{% endblock %}

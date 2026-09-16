@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Brain-dump{% endblock %}
+{% block content %}
+{# task-31 brain-dump drill sub-page (design image 27). REAL data: every
+   subjective_daily.brain_dump entry, newest first, from /api/dash/subjective
+   (days=all) — no new endpoint. The header chip is the deterministic current
+   streak (charts-common streakToToday). Entries render VERBATIM (mental-health
+   surface — never summarized or judged). Honest empty state when none. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.mind') }}">◱ Mind</a>
+      <h1 class="page-title">Brain-dump</h1>
+      <span class="muted micro">every entry, newest first</span>
+    </div>
+    <span class="chip" id="bd-streak" hidden></span>
+  </div>
+
+  <div class="card">
+    <div class="vstack gap-2" id="bd-list"><p class="muted note-txt m0">Loading…</p></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/mind_braindump.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,125 @@
+{
+  "contract": "openhealthatlas-general-health-surface-vps-deployment-v1",
+  "recorded_on": "2026-08-19",
+  "status": "fictional_candidate_active_exact_twelve_tools_generic_smoke_passed",
+  "supersedes_candidate_record": {
+    "path": "tools/project_map/evidence/general-health-surface-candidate-2026-08-19.json",
+    "record_commit": "a9bc91c2d9f9b42c829ad75adc657926c5008ea7",
+    "sha256": "sha256:2075af184175f294804aa64079f3896ca663eec5137bb35b5524abae98afc98f",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "fictional_only_deployment": true,
+    "one_gateway_restart": true,
+    "direct_read_only_smoke": true,
+    "telegram_message_sent_by_codex": false,
+    "fault_injection": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "deployed_candidates": {
+    "openhealthatlas": "1ee909775abe2ae61eb0b34969e08d5865cab151",
+    "openhealthatlas_tree": "7043d64dd6c7e12211dcc30e20267e1e93079768",
+    "external_hermes": "2602962029603d552dad4d5372999b41666edb8a",
+    "external_hermes_tree": "9e00ab0f182d67eac54c0320b81e5dad6e73c3e1",
+    "openhealthatlas_archive_sha256": "sha256:d5dc340f2f3afc28d80b40bcd0f7b41b5f5df38c8c697beab8a92b20e6a9c2a0",
+    "external_hermes_archive_sha256": "sha256:67b62706084809691278f7b70549ab4821453a3f9ba4ad2da9130554a66c3a73",
+    "uploaded_hashes_matched": true,
+    "archive_file_sets_verified": true
+  },
+  "fresh_rollback": {
+    "backup_id": "general-health-20260819T093233Z",
+    "backup_root": "[REDACTED backup-location 02]",
+    "archive_sha256": "sha256:31960fa272dfd47d27db56a03d499410af4dad75b65aecdb7d4b0f2fab0788de",
+    "inventory_sha256": "sha256:a88724f4f7975d029b05cdbfa8aa1cdd150b9db1d1737a4f6cc74dbc89fcd4bf",
+    "inventory_files": 423,
+    "rollback_base": "accepted-v13",
+    "new_release_prechange_state": "absent",
+    "isolated_restore_rehearsal": "passed",
+    "retained": true,
+    "rollback_triggered": false
+  },
+  "runtime": {
+    "gateway_unit": "hermes-gateway.service",
+    "restart_count": 1,
+    "main_pid": 693017,
+    "started_at": "2026-08-19T09:46:04Z",
+    "working_directory": "[REDACTED release-location 01]",
+    "active_state": "active",
+    "sub_state": "running",
+    "loopback_health": "ok",
+    "gateway_active_agents": 0,
+    "plugin_discovery": {
+      "found": 52,
+      "enabled": 44,
+      "current_start_failure_marker": false
+    }
+  },
+  "mcp_registry": {
+    "alias": "openhealthatlas_fictional",
+    "registered_tool_count": 12,
+    "exact_set_verified": true,
+    "current_start_marker_at": "2026-08-19T09:46:08.752Z",
+    "current_start_marker_source": "<redacted-local-artifact-1>",
+    "tool_names": [
+      "mcp_openhealthatlas_fictional_openhealthatlas_analysis_refresh",
+      "mcp_openhealthatlas_fictional_openhealthatlas_data_readiness",
+      "mcp_openhealthatlas_fictional_openhealthatlas_feature_frame",
+      "mcp_openhealthatlas_fictional_openhealthatlas_feature_registry",
+      "mcp_openhealthatlas_fictional_openhealthatlas_finding_evidence",
+      "mcp_openhealthatlas_fictional_openhealthatlas_health_analyze",
+      "mcp_openhealthatlas_fictional_openhealthatlas_health_catalog",
+      "mcp_openhealthatlas_fictional_openhealthatlas_health_evidence",
+      "mcp_openhealthatlas_fictional_openhealthatlas_health_query",
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_detail",
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_snapshot",
+      "mcp_openhealthatlas_fictional_openhealthatlas_synthesis_prepare"
+    ]
+  },
+  "generic_smoke": {
+    "catalog_status": "ok",
+    "query_status": "ok",
+    "query_feature_keys": [
+      "nutrition.logged.protein_g",
+      "sleep.duration_hours"
+    ],
+    "analysis_status": "ok",
+    "analysis_finding_id": "sha256:b2649dc59abdf6fffa1e4d871b13b9b287cb34cd8a7d4a41c092e8b95bf6b4f9",
+    "evidence_status": "ok",
+    "evidence_result_id": "sha256:b45f33a0bb138bdcfaea3caa77fd42243ce009eb8761ccf6583150a13f462467",
+    "verified_references": 2,
+    "post_restart": true,
+    "telegram_transport_used": false
+  },
+  "continuity": {
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "schema_version": 5,
+    "database_sha256_before_and_after": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "database_metadata_unchanged": true,
+    "sqlite_companions_absent": true,
+    "ancestry_sidecar_sha256_before_and_after": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "ancestry_sidecar_metadata_unchanged": true,
+    "synthesis_runs": 0,
+    "interpretation_writeback": "disabled",
+    "real_data_activation": "disabled"
+  },
+  "verification_note": {
+    "initial_registry_probe": "systemd_journal_source_had_no_matching_marker",
+    "candidate_service_failure": false,
+    "repeat_restart_performed": false,
+    "bounded_resolution": "one current-start marker was found in the configured agent log and its exact twelve-name set was validated",
+    "postcheck_passed": true
+  },
+  "remaining_acceptance": {
+    "genuine_hermes_generic_tool_selection": "Unverified",
+    "live_telegram_generic_delivery": "Unverified",
+    "real_data": "disabled_not_in_scope",
+    "interpretation_writeback": "disabled_not_in_scope"
+  },
+  "next_user_action": {
+    "send_in_telegram": "Using only the OpenHealthAtlas fictional fixture, compare the fictional person's sleep and protein intake during June 2026. Tell me what changed, what remains uncertain, and cite the deterministic evidence.",
+    "expected_behavior": "Hermes discovers or selects registered features, queries them, finalizes through health_evidence, and Telegram shows trusted deterministic disclosure before qualitative Hermes interpretation without repeating numbers in model prose."
+  }
+}

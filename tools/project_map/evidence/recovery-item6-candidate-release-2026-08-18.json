@@ -1,0 +1,261 @@
+{
+  "contract": "openhealthatlas-recovery-item6-candidate-release-record-v1",
+  "recorded_on": "2026-08-18",
+  "status": "pushed_candidate_not_deployed",
+  "scope": {
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "range_from": "2026-03-02",
+    "range_to": "2026-06-30",
+    "anchor_date": "2026-06-30",
+    "private_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false,
+    "browser_chat_required": false
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/recovery-item6-evidence-v2",
+      "base_commit": "3e44cad0d2995150f390062be2fed90e1cb2e799",
+      "candidate_commit": "9ee8a6f816e8430554766d5bd6f9402e316c2057",
+      "git_tree_id": "8acbeab3852b1e21ee664e2369539290265f01df",
+      "pushed_remote_matches_candidate": true
+    },
+    "external_hermes": {
+      "repository": "https://github.com/kajeesan/hermes-agent.git",
+      "branch": "codex/oha-recovery-delivery-contract",
+      "base_commit": "a6b9597d5fb92969d605a858d5f14536e805553a",
+      "candidate_commit": "19a8429bdad0803a4168c27326c5ae82a82fd7be",
+      "git_tree_id": "daa9acafd8672b3a4545a0c0a21641a0d74548f8",
+      "pushed_remote_matches_candidate": true
+    }
+  },
+  "artifact_sha256": {
+    "openhealthatlas": {
+      "RELEASE_MANIFEST.tsv": "sha256:81c52ca6f7f6efc6c3385077331b13053e28819d8bad0c8e5e7c8db3f110835c",
+      "app/routes/recovery.py": "sha256:4b3fcaf417245373a9975109b8a8884f1e7d25b09de810a75fc25944e755330f",
+      "deploy/hermes-openhealthatlas-delivery-plugin/__init__.py": "sha256:f8d2944ab8f9d3a83f7852db7092162a5d9b7ec6faed4072af4a8aacd866662c",
+      "deploy/hermes-openhealthatlas-mcp": "sha256:53ba75b8513a01ca23ffa5f0e08e0b997f052aaebb5c2c9a91e61f0298ff5770",
+      "deploy/hermes-openhealthatlas-tool": "sha256:c8c06c5716ec99c1bd27ba494dc1459f1fe6d7abd77384595c7874d9451c6290",
+      "deploy/openhealthatlas-real-data-governance.json": "sha256:49e60eaaf6aea1f727a8f1980de3d23f574855f852d28cbb8974dc0d4a746ec8",
+      "deploy/recovery-item6-deployment-runbook.md": "sha256:cb1099884fa379797abd276b60f9c3be739cf48c2bcdaceb9cd12fd795bd6415",
+      "deploy/recovery-item6-staging-manifest.json": "sha256:13fbf05001cbc906c98f043fb4f3b8b094e357eba186673e560e3df8d9fc933e",
+      "scripts/build_readiness_ancestry.py": "sha256:5b69c00bc4295f7aa4d17b717334ca91a18f542fefcd3451b21c59710eaeb269",
+      "toolkit/health.py": "sha256:e8aba3ad1f37dadc4fe20efd6f5663a8ad706d6d0592ffd43ff6cc834195fe56",
+      "toolkit/hermes_insights/readiness_ancestry.py": "sha256:64434eeeac2ce0f5f0c6a01fa2d23ab08f3ab8f0c5be91c47ab9b6fbe037ce81"
+    },
+    "external_hermes": {
+      "gateway/platforms/base.py": "sha256:765edc12a28979ebf650bbe5ca442447c26cf9dc6970ff50b0544501498d223f",
+      "gateway/required_delivery.py": "sha256:93893210784a36221cfa7b6125a6c38dd4c9bd88b992d983f076f05f757faefa",
+      "gateway/run.py": "sha256:8cd0ce680e5a55591f217439cac4780462f35b5a1680430f893037c45f042ced",
+      "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+      "plugins/platforms/telegram/adapter.py": "sha256:82a663a1e093c31305ac009eb614dee07aa1bff9f02a5776cf08a0648d85163f"
+    }
+  },
+  "local_acceptance": {
+    "deterministic_development_v6": {
+      "status": "Working",
+      "assessment_state": "insufficient_data",
+      "included_components": [
+        {
+          "key": "sleep",
+          "score": 92,
+          "hours": 7.09
+        }
+      ],
+      "excluded_components": [
+        {
+          "key": "hrv",
+          "observed_same_source_baseline_rows": 10,
+          "required_same_source_baseline_rows": 14,
+          "other_source_rows_excluded": 86
+        },
+        {
+          "key": "rhr",
+          "observed_same_source_baseline_rows": 10,
+          "required_same_source_baseline_rows": 14,
+          "other_source_rows_excluded": 86
+        }
+      ],
+      "input_fingerprint": "sha256:05a680875d5e32d4e72e2e6c86014f4bab4b19c736dcd5a352e7ab637f64bded",
+      "policy_id": "openhealthatlas-readiness-policy",
+      "policy_version": "1.0.0",
+      "policy_sha256": "sha256:9668f604a6c2d09cb9f92bb8f40ab30afb008d55b0547a5abd09514233e59613",
+      "public_evidence_identity": "sha256:e21d6b99aa5fd66ca40c7fc9abfbebc520651a61a38620e270315424a9063196",
+      "database_file_stats_and_hash_unchanged": true,
+      "sqlite_companion_files_observed": false
+    },
+    "accepted_v5_reference": {
+      "status": "deployment_proof_pending",
+      "source_ledger": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json",
+      "legacy_raw_result_or_input_identities_repeated": false,
+      "candidate_locally_recomputed_against_accepted_database": false,
+      "historical_generation_event_attested": false,
+      "schema_migration_performed": false
+    },
+    "recovery_dashboard": {
+      "status": "Working",
+      "proof_level": "localhost_fictional_development_v6",
+      "viewports": [
+        {
+          "width": 1280,
+          "height": 720,
+          "horizontal_overflow": false
+        },
+        {
+          "width": 390,
+          "height": 844,
+          "horizontal_overflow": false
+        }
+      ],
+      "required_facts_visible_on_each_viewport": true,
+      "forbidden_private_fields_visible_on_any_viewport": false,
+      "visible_status": "insufficient_data",
+      "visible_sleep_score": 92,
+      "visible_hrv_gate": "10/14 with 86 other-source rows excluded",
+      "visible_rhr_gate": "10/14 with 86 other-source rows excluded",
+      "policy_id_and_version_visible": true,
+      "snapshot_scope_visible": true,
+      "raw_qualitative_text_visible": false,
+      "private_identity_visible": false,
+      "accepted_v5_runtime_claimed": false
+    },
+    "qualitative_source_authorization": {
+      "status": "Working",
+      "sharing_authorization_id": "openhealthatlas-fictional-recovery-telegram",
+      "sharing_authorization_version": "1.0.0",
+      "authorization_id": "openhealthatlas-fictional-soreness-summary-telegram",
+      "version": "1.0.0",
+      "destination": "telegram_via_external_hermes_gateway",
+      "destination_binding": "same_authenticated_gateway_source",
+      "permitted_summary_paths_by_response": {
+        "snapshot": [
+          "result.soreness.present",
+          "result.soreness.date",
+          "result.soreness.source_label",
+          "result.soreness.source_locator",
+          "result.muscle_recovery[].sore"
+        ],
+        "detail_sleep": [],
+        "detail_heart_signals": [],
+        "detail_training": [
+          "detail[].sore"
+        ],
+        "detail_soreness": [
+          "detail.soreness.present",
+          "detail.soreness.date",
+          "detail.soreness.source_label",
+          "detail.soreness.source_locator",
+          "detail.flagged_groups[].sore"
+        ]
+      },
+      "raw_note_permitted": false,
+      "note_derived_secret_permitted": false,
+      "calculation_fingerprint_member": false
+    },
+    "gateway_delivery": {
+      "status": "Working_in_local_cross_repository_harness",
+      "trusted_source": "exact_successful_same_turn_openhealthatlas_mcp_completion",
+      "disclosure_precedes_optional_prose": true,
+      "complete_telegram_payload_validated_before_send": true,
+      "destination_bound_inside_external_hermes_only": true,
+      "destination_shared_with_openhealthatlas_renderer": false,
+      "redirect_rejected": true,
+      "replay_rejected": true,
+      "raw_qualitative_text_or_derived_secret_reached_gateway": false,
+      "development_v6_behavior": "intentional_fixed_no_prose_failure",
+      "live_telegram_send_performed": false
+    },
+    "test_runs": [
+      {
+        "scope": "openhealthatlas_recovery_and_adjacent",
+        "passed": 282,
+        "failed": 0
+      },
+      {
+        "scope": "openhealthatlas_local_socket_and_green_day_e2e",
+        "passed": 17,
+        "failed": 0
+      },
+      {
+        "scope": "external_hermes_required_delivery_telegram_and_plugin_registry",
+        "passed": 116,
+        "failed": 0
+      },
+      {
+        "scope": "external_hermes_adjacent_gateway",
+        "passed": 211,
+        "failed": 0
+      },
+      {
+        "scope": "external_hermes_model_tools_and_turn_finalizer_with_existing_local_dependencies",
+        "passed": 42,
+        "failed": 0,
+        "dependencies_downloaded": false
+      }
+    ],
+    "release_scans": {
+      "candidate_delta": {
+        "changed_paths": 31,
+        "findings": 0
+      },
+      "clean_candidate_tree": {
+        "tracked_files": 390,
+        "findings": 1,
+        "finding_scope": "preserved_historical_evidence_only"
+      }
+    }
+  },
+  "release_boundaries": {
+    "staging_manifest": "deploy/recovery-item6-staging-manifest.json",
+    "deployment_authorized": false,
+    "staging_only": true,
+    "deterministic_tracked_file_allowlist_count": 31,
+    "openhealthatlas_interpretation_runtime_staged": false,
+    "external_hermes_home_resolved": false,
+    "external_hermes_home_resolution_source": "live_service_configuration_at_deployment_gate",
+    "legacy_installer_allowed": false,
+    "real_data_governance_contract": "openhealthatlas-real-data-governance-gate-v1",
+    "consent_decision": "unresolved",
+    "retention_decision": "unresolved",
+    "provider_transfer_decision": "unresolved",
+    "deletion_decision": "unresolved"
+  },
+  "deployment": {
+    "performed": false,
+    "vps_accessed": false,
+    "services_restarted": false,
+    "fault_injection_performed": false,
+    "live_telegram_acceptance_performed": false,
+    "accepted_v5_database_or_private_sidecar_accessed": false,
+    "next_gate": "owner_approval_for_vps_staging_deployment_and_fault_injection"
+  },
+  "preserved_evidence_sha256": {
+    "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json": "sha256:d1a9c511a5a8588d2d7beec5892d27647f99098edbbaba312f337e9f4b7f37f0",
+    "tools/project_map/evidence/fictional-primary-telegram-proof-levels-2026-08-17.json": "sha256:88299e7646e5cd38979ed6ee854321475b579dcce0eb1812b5caa796f141dd3b",
+    "tools/project_map/evidence/fictional-recovery-dashboard-parity-2026-08-17.json": "sha256:4c6e1faf19e740f2cee6e5225566212eb19edbcc362f2887562b2f06c0ed0841",
+    "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json": "sha256:6b7282c8de917b6678ce7ca4000a6c244bb1ce9f86ca050dd180b3ff63ef5306",
+    "tools/project_map/evidence/fictional-recovery-local-2026-08-17.json": "sha256:238e9b42ecc69903891724b4f5aed5e809b6bb75d3ac93ca40ea2a74f4bf63bc",
+    "tools/project_map/evidence/fictional-recovery-telegram-acceptance-2026-08-17.json": "sha256:90dcc1650ed1beef152f2dcf029bf9e965d25c15e71af5d51cab07be64701568",
+    "tools/project_map/evidence/fictional-recovery-vps-preflight-2026-08-17.json": "sha256:38448ba68905cc3d348f2ce2ecf71cb8e24dcd3aa7d143df3150a0f0015fb719",
+    "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json": "sha256:45b7377d2fbf15f367b0edb1920dacb52de9d53dd0f212a33c942ae6ea047bf6",
+    "tools/project_map/evidence/product-authority-route-inventory-2026-08-17.json": "sha256:43e55b89c4d83411c2c6c7232680cea8ad8dd2834dd753e04906621256bc4476"
+  },
+  "known_limitations": [
+    "The accepted schema-v5 database bytes were not present in the repository and were not accessed locally.",
+    "The private ancestry artifact was not generated or accessed locally; its accepted-v5 proof remains a deployment gate.",
+    "The accepted-v5 artifact can attest current snapshot integrity and reproducibility, not the original historical generation event.",
+    "Renderer v1 intentionally rejects development-v6 completions with a fixed no-prose failure.",
+    "No VPS deployment, service restart, live Telegram send or fault injection was performed.",
+    "Real-data consent, retention, provider-transfer and deletion decisions remain unresolved and activation stays denied.",
+    "The full repository suite was not claimed as one uninterrupted green run; the bounded affected and adjacent suites above are the verified evidence."
+  ],
+  "overall_claim": {
+    "recovery_item_4": "Working",
+    "recovery_item_4_scope": "fresh localhost fictional Recovery dashboard parity",
+    "recovery_item_6": "Partially built",
+    "product_release_certified": false,
+    "statement": "The pushed candidates close the local fictional dashboard, ancestry-contract, public disclosure, gateway-rendering and fail-closed governance slices. Item 6 remains partial until the exact accepted-v5 snapshot is attested and the candidates pass separately approved VPS, live Telegram and fault-injection gates; real data remains blocked."
+  }
+}

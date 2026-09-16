@@ -1,0 +1,29 @@
+{% extends "bare.html" %}
+{% block title %}Enroll passkey{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <div class="auth-brand">
+    <span class="brand-mark">⚕</span>
+    <h1>Enroll this device</h1>
+  </div>
+  {% if token_ok %}
+  <p class="dim">Registers a passkey (Face ID / Touch ID / security key) for the
+  OpenHealthAtlas on <em>this</em> device. The link is single-use.</p>
+  <label class="field">
+    <span>Device name</span>
+    <input id="cred-label" type="text" maxlength="60" placeholder="e.g. MacBook / iPhone" autocomplete="off">
+  </label>
+  <button id="passkey-enroll" class="primary-btn" type="button" data-token="{{ token }}">
+    Create passkey
+  </button>
+  <p id="auth-msg" class="auth-msg" role="status"></p>
+  {% else %}
+  <p>This enrollment link is <strong>invalid, used, or expired</strong>.</p>
+  <p class="dim">Generate a fresh one on the server:<br>
+  <code>sudo /opt/hermes/deploy/enroll.sh</code> — links last 15 minutes.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if token_ok %}<script src="{{ url_for('static', filename='js/auth.js') }}" defer></script>{% endif %}
+{% endblock %}

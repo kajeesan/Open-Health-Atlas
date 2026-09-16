@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Stdio-to-Unix-socket bridge used by Hermes' MCP client configuration."""
+
+import os
+import socket
+import sys
+import threading
+
+
+SOCKET_PATH = os.environ.get(
+    "HERMES_HEVY_MCP_SOCKET", "/run/hermes-hevy-mcp/gateway.sock"
+)
+
+
+def _stdin_to_socket(connection):
+    try:
+        while True:
+            # ``BufferedReader.read(65536)`` may wait for the buffer to fill or
+            # for EOF. MCP clients keep stdin open for the session, so forward
+            # whatever the pipe currently has instead.
+            chunk = os.read(sys.stdin.fileno(), 65536)
+            if not chunk:
+                break
+            connection.sendall(chunk)
+    except (BrokenPipeError, OSError):
+        pass
+    try:
+        connection.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+
+def main():
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        connection.connect(SOCKET_PATH)
+    except OSError as exc:
+        print(f"Hevy MCP gateway unavailable: {exc}", file=sys.stderr)
+        return 1
+    threading.Thread(
+        target=_stdin_to_socket, args=(connection,), daemon=True
+    ).start()
+    try:
+        while True:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            sys.stdout.buffer.write(chunk)
+            sys.stdout.buffer.flush()
+    except (BrokenPipeError, OSError):
+        pass
+    finally:
+        connection.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

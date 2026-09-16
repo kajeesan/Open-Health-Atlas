@@ -1,0 +1,146 @@
+{
+  "contract": "openhealthatlas-recovery-item6-renderer-bypass-fix-v12",
+  "recorded_on": "2026-08-18",
+  "status": "live_renderer_acceptance_failed_rolled_back_new_candidate_pushed",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-corrected-restart-registry-accepted-2026-08-18.json",
+    "record_commit": "c2e20ad13218e75a0f885979b1d78f4f49f68690",
+    "sha256": "sha256:4a6ab1936456ff5573abb36deab6aad254eaf7eaff566eeb518e9e96d43a7d29",
+    "byte_preserved": true
+  },
+  "live_acceptance_result": {
+    "snapshot_deterministic_tool_completed": true,
+    "genuine_hermes_model_marker_present": true,
+    "fictional_scope": true,
+    "result_status": "insufficient_data",
+    "sleep_score": 92,
+    "hrv_and_rhr_same_source_baseline": 10,
+    "required_same_source_baseline": 14,
+    "snapshot_integrity_verified": true,
+    "schema_version": 5,
+    "interpretation_writeback": "disabled",
+    "synthesis_rows": 0,
+    "server_owned_renderer_executed": false,
+    "accepted": false
+  },
+  "visible_failure_shape": {
+    "ordinary_model_prose_preceded_disclosure": true,
+    "legacy_full_yaml_disclosure_present": true,
+    "compact_trusted_disclosure_first": false,
+    "plugin_added_top_level_hermes_interpretation_prefix": false,
+    "fixed_fail_closed_text_present": false,
+    "visible_message_content_committed": false
+  },
+  "exact_root_cause": {
+    "primary": {
+      "file": "gateway/run.py",
+      "normal_response_branch_dropped_turn_id": true,
+      "empty_response_branch_dropped_turn_id": true,
+      "effect": "Required completion was stored under the real Hermes session and turn, but gateway delivery looked up the session with an empty turn and returned the ordinary-path None result."
+    },
+    "secondary_reachable_gap": {
+      "file": "model_tools.py",
+      "tool_call_recursion_dropped_turn_id": true,
+      "tool_call_recursion_dropped_api_request_id": true,
+      "effect": "Direct callers of the deferred tool bridge could orphan governed completions under a missing turn."
+    },
+    "openhealthatlas_calculation_changed": false,
+    "architecture_changed": false
+  },
+  "rollback_verification": {
+    "failed_candidate_stopped": true,
+    "failed_fictional_audit_and_receipt_quarantined": true,
+    "prior_gateway_active": true,
+    "prior_gateway_working_directory_restored": true,
+    "failed_candidate_release_active": false,
+    "failed_candidate_config_active": false,
+    "accepted_database_identity_matched": true,
+    "schema_version": 5,
+    "sqlite_companions_absent": true,
+    "database_unchanged": true,
+    "writeback_enabled": false,
+    "real_data_enabled": false,
+    "original_dirty_checkout_untouched": true
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+      "git_tree_id": "918050f78de81de28625bf4d6d88baaa3d4948b9"
+    },
+    "external_hermes": {
+      "previous_combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "combined_candidate": "0bb411db34c550d9b28416144946d5ac581d31aa",
+      "git_tree_id": "e3686283528904be75bbea10665b6a6960c4f9df",
+      "branch": "codex/oha-recovery-delivery-contract",
+      "pushed_remote_contains_candidate": true,
+      "worktree_clean": true
+    }
+  },
+  "new_hermes_archive": {
+    "sha256": "sha256:e8777c4ee24b7a32de340ac926d6709ee306c4a7855b6fb267779b74799b29f6",
+    "bytes": 63207192,
+    "member_count": 6842,
+    "code_only_paths_verified": true,
+    "uploaded_or_staged": false
+  },
+  "external_hermes_runtime_sha256": {
+    "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+    "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+    "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+    "gateway/run.py": "sha256:875054b58aa3b8ca04f660f335d61d796f82ce28c8786644dac0242851ce5940",
+    "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+    "model_tools.py": "sha256:c040a04afd8f62e8a001564e4171b46a04769aef147a3b3aa71a79b70ec3cbe2",
+    "plugins/platforms/telegram/adapter.py": "sha256:d8eb3186de8efb0b28bdcc9ab40e24f94dc82b2e05b4b13212504e142819d0d4",
+    "plugins/platforms/telegram/health_actions.py": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a"
+  },
+  "changed_file_sha256": {
+    "gateway/run.py": "sha256:875054b58aa3b8ca04f660f335d61d796f82ce28c8786644dac0242851ce5940",
+    "model_tools.py": "sha256:c040a04afd8f62e8a001564e4171b46a04769aef147a3b3aa71a79b70ec3cbe2",
+    "tests/gateway/test_fast_command.py": "sha256:4502a89a2d67478327ca8ad8352f4039d2f0cc4afa3943c38eb595776fbc0097",
+    "tests/gateway/test_required_delivery.py": "sha256:25bcdba427a09682852fec703922cfe6688132114020ac2bb8e10bc9511e4ba5"
+  },
+  "verification": {
+    "focused_required_delivery_gateway_and_model_tools": {
+      "passed": 50,
+      "failed": 0
+    },
+    "turn_finalizer_and_focused_combined": {
+      "passed": 61,
+      "failed": 0
+    },
+    "full_telegram_suite": {
+      "files": 44,
+      "passed": 987,
+      "failed": 0
+    },
+    "tracked_cross_repository_acceptance": {
+      "passed": 1,
+      "failed": 0
+    },
+    "git_diff_check": "pass"
+  },
+  "new_regressions": {
+    "normal_gateway_result_preserves_turn_id": true,
+    "empty_gateway_result_preserves_turn_id": true,
+    "deferred_tool_bridge_preserves_turn_and_api_request_ids": true,
+    "preserved_bridge_identity_produces_compact_disclosure_first_payload": true
+  },
+  "next_gate": {
+    "new_candidate_deployment_authorized": false,
+    "supplemental_absence_backup_for_new_release_path_required": true,
+    "new_archive_upload_required": true,
+    "fictional_restage_restart_required": true,
+    "fresh_owner_telegram_canary_required": true,
+    "training_follow_up_allowed_before_snapshot_pass": false,
+    "fault_injection_complete": false
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "prior_gateway_current": true,
+    "renderer_bypass_fixed_in_pushed_candidate": true,
+    "new_candidate_deployed": false,
+    "ready_for_new_candidate_deployment_approval": true,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

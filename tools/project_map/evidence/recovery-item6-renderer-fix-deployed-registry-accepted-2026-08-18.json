@@ -1,0 +1,100 @@
+{
+  "contract": "openhealthatlas-recovery-item6-renderer-fix-deployment-v13",
+  "recorded_on": "2026-08-18",
+  "status": "fixed_candidate_active_exact_registry_verified_awaiting_canary",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-renderer-bypass-fixed-candidate-2026-08-18.json",
+    "record_commit": "e65ed94c6a2fbd2c09f9615500ce63b574ae9995",
+    "sha256": "sha256:fc35c8739cef41a52d518727ff19ab961556a3694cb7da80de2e781db129627a",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "exact_archive_upload_authorized": true,
+    "supplemental_absence_backup_authorized": true,
+    "fictional_restage_and_one_restart_authorized": true,
+    "telegram_send_authorized": false,
+    "fault_injection_authorized": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "supplemental_rollback": {
+    "backup_id": "item6-0bb-prestage-20260818T195834Z-684053",
+    "inventory_sha256": "sha256:82671bcdee566c49f11c923bb6c326f9b30af6910ea120eca40ef8e4319d70b6",
+    "new_release_prechange_state": "absent",
+    "isolated_restore_rehearsal_passed": true,
+    "deployment_target_changes_during_backup": 0,
+    "v8_backup_retained": true
+  },
+  "deployed_candidates": {
+    "openhealthatlas": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "external_hermes": "0bb411db34c550d9b28416144946d5ac581d31aa",
+    "external_hermes_tree": "e3686283528904be75bbea10665b6a6960c4f9df",
+    "archive_sha256": "sha256:e8777c4ee24b7a32de340ac926d6709ee306c4a7855b6fb267779b74799b29f6",
+    "archive_bytes": 63207192,
+    "archive_remote_hash_matched": true
+  },
+  "runtime_state": {
+    "gateway_active": true,
+    "gateway_running": true,
+    "clean_release_working_directory_loaded": true,
+    "loopback_health_ok": true,
+    "gateway_active_agents": 0,
+    "mcp_alias": "openhealthatlas_fictional",
+    "registered_tool_count": 8,
+    "exact_tool_set_verified": true,
+    "plugin_discovery_found": 52,
+    "plugin_discovery_enabled": 44,
+    "health_actions_registered": true,
+    "delivery_plugin_load_failure_observed": false,
+    "process_stable_after_registration": true
+  },
+  "runtime_hashes": {
+    "gateway/run.py": "sha256:875054b58aa3b8ca04f660f335d61d796f82ce28c8786644dac0242851ce5940",
+    "model_tools.py": "sha256:c040a04afd8f62e8a001564e4171b46a04769aef147a3b3aa71a79b70ec3cbe2",
+    "all_eight_runtime_files_matched_v12": true
+  },
+  "deterministic_and_storage_continuity": {
+    "fixture_lane": "accepted-v5",
+    "schema_version": 5,
+    "database_accepted_identity_matched": true,
+    "database_hash_and_stats_unchanged": true,
+    "sqlite_companions_absent": true,
+    "ancestry_sidecar_verified": true,
+    "historical_generation_event_proven": false,
+    "fictional_audit_predated_staging": true,
+    "recovery_receipt_predated_staging": true,
+    "fictional_tool_execution_during_deployment": false,
+    "telegram_response_during_deployment": false,
+    "writeback_disabled": true,
+    "real_data_activation_denied": true
+  },
+  "independent_verification": {
+    "service_pointer_and_clean_cwd_matched": true,
+    "private_restart_receipt_matched_current_process": true,
+    "exact_current_start_registry_marker_verified": true,
+    "database_and_sidecar_continuity_verified": true,
+    "immediate_pre_restart_evidence_boundary_used": true,
+    "older_v8_audit_snapshot_not_misused": true
+  },
+  "next_gate": {
+    "owner_snapshot_canary_required": true,
+    "snapshot_question": "Using only the OpenHealthAtlas fictional fixture, how recovered is the fictional person on 2026-06-30?",
+    "required_visible_order": [
+      "compact_trusted_data_and_evidence_disclosure",
+      "plugin_prefixed_hermes_interpretation"
+    ],
+    "legacy_yaml_after_prose_is_failure": true,
+    "training_follow_up_allowed_before_snapshot_pass": false,
+    "fault_injection_complete": false
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "fixed_candidate_currently_active": true,
+    "restart_and_registry_gate_complete": true,
+    "renderer_execution_unverified_until_canary": true,
+    "ready_for_owner_snapshot_canary": true,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

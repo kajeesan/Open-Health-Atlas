@@ -1,0 +1,71 @@
+{
+  "contract": "openhealthatlas-generic-renderer-v101-reload-attempt-v2",
+  "recorded_on": "2026-08-19",
+  "status": "candidate_not_started_stop_timeout_mismatch_verified_rollback",
+  "supersedes_attempt": {
+    "path": "tools/project_map/evidence/generic-renderer-v101-first-reload-rolled-back-2026-08-19.json",
+    "record_commit": "fa64265",
+    "byte_preserved": true
+  },
+  "candidate": {
+    "openhealthatlas_commit": "d7ab4575d486827d30c8043d62c2aed09b05efe1",
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.1",
+    "candidate_started": false
+  },
+  "attempt": {
+    "backup_id": "generic-renderer-v101-20260819T112138Z",
+    "backup_archive_sha256": "sha256:d146e63314f558021c03251ddcb3d7c93fffd7b6ec828840812531bf8689a4bc",
+    "backup_inventory_sha256": "sha256:1a018ea9ab38d6158019c9ca83b925ce0c343f442467351597a37b5417647faa",
+    "restore_rehearsal": "passed",
+    "old_pid": 694879,
+    "failure_gate": "gateway did not reach inactive state",
+    "configured_timeout_stop_seconds": 90,
+    "script_wait_seconds": 30,
+    "root_cause": "the bounded wait was shorter than the systemd unit TimeoutStopSec",
+    "candidate_files_installed": false,
+    "candidate_start_attempted": false,
+    "telegram_message_sent": false
+  },
+  "rollback": {
+    "completed": true,
+    "active_pid": 695833,
+    "active_state": "active",
+    "sub_state": "running",
+    "working_directory": "[REDACTED release-location 01]",
+    "loopback_health": "ok",
+    "gateway_active_agents": 0,
+    "generic_renderer_restored_version": "1.0.0",
+    "openhealthatlas_surface_sha256": "sha256:6301499a92a4d6b660e891a165f068f2d3be2a16842944d57d250c09b057aac6",
+    "mcp_sha256": "sha256:f24357ee319821c2735a88d52bebfbbd34436278e38db508d98a6b9ecf2c906d",
+    "plugin_sha256": "sha256:27e78d2abc5e352df8db3929ae1e554edd821d0bde1853d82971b8c2d05be55f"
+  },
+  "post_record_read_only_recheck": {
+    "main_pid": 695833,
+    "started_at": "2026-08-19T11:22:10Z",
+    "active_state": "active",
+    "sub_state": "running",
+    "service_result": "success",
+    "working_directory": "[REDACTED release-location 01]",
+    "registered_tool_count": 12,
+    "exact_fictional_tool_set_verified": true,
+    "current_start_registry_marker_at": "2026-08-19T11:22:14.717Z",
+    "deployed_hashes_match_rollback_record": true,
+    "database_and_sidecar_hashes_match_protected_state": true,
+    "service_mutation_performed_by_recheck": false,
+    "telegram_message_sent_by_recheck": false
+  },
+  "protected_state": {
+    "database_sha256": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "ancestry_sidecar_sha256": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "unchanged": true,
+    "interpretation_writeback": "disabled",
+    "real_data_activation": "disabled",
+    "private_health_data_accessed": false
+  },
+  "corrective_action": {
+    "product_code_change_required": false,
+    "deployment_script_change": "wait up to 105 seconds for inactive/MainPID=0, exceeding the configured 90-second stop timeout, before staging; use the same wait before rollback restore",
+    "retry_authorized": false,
+    "additional_restart_requires_owner_approval": true
+  }
+}

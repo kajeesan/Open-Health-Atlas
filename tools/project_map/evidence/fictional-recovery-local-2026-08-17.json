@@ -1,0 +1,84 @@
+{
+  "contract": "openhealthatlas-fictional-recovery-local-proof-v1",
+  "data_class": "fictional",
+  "fixture_id": "comprehensive-persona-v1",
+  "range_from": "2026-03-02",
+  "range_to": "2026-06-30",
+  "database_sha256": "sha256:d159561ec839a4a7939c8bbfe47b2ccfe36b83c58113015028b65223daf2a8de",
+  "readiness_command": [
+    "toolkit/health.py",
+    "readiness",
+    "--from",
+    "2026-03-02",
+    "--anchor",
+    "2026-06-30"
+  ],
+  "readiness_result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+  "readiness_result": {
+    "status": "ok",
+    "anchor_date": "2026-06-30",
+    "range_from": "2026-03-02",
+    "score": 58,
+    "band": "warn",
+    "component_keys": [
+      "sleep",
+      "hrv",
+      "rhr"
+    ],
+    "component_scores": {
+      "sleep": 92,
+      "hrv": 27,
+      "rhr": 55
+    },
+    "muscle_groups_returned": 7,
+    "sore_groups": [
+      "Legs",
+      "Glutes"
+    ]
+  },
+  "fixture_coverage": {
+    "scheduled_training_days": [
+      "Mon",
+      "Wed",
+      "Fri"
+    ],
+    "routines": 15,
+    "daily_metrics": 126,
+    "sleep_log": 114,
+    "subjective_daily": 108,
+    "hevy_sets": 765,
+    "workouts": 23,
+    "recipes": 4,
+    "nutrition_log": 433,
+    "water_intake": 112,
+    "nutrient_daily": 968,
+    "supplements_log": 363,
+    "skincare_log": 135,
+    "pain_log": 5,
+    "labs": 9,
+    "weather": 121,
+    "air_quality": 121
+  },
+  "governed_feature_frame_checks": [
+    "sleep",
+    "wearable",
+    "training",
+    "recovery",
+    "subjective"
+  ],
+  "model_interpretation_stored": false,
+  "system_generated_rows": {
+    "analysis_batches": 0,
+    "analysis_findings": 0,
+    "hypotheses": 0,
+    "synthesis_runs": 0,
+    "insight_notification_outbox": 0
+  },
+  "proof_level": "local deterministic",
+  "does_not_prove": [
+    "genuine Hermes selected the recovery tools",
+    "a Telegram follow-up turn completed",
+    "the Oracle VPS is running this comprehensive fixture",
+    "any private-data journey works"
+  ]
+}

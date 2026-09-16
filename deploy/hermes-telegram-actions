@@ -1,0 +1,884 @@
+#!/usr/bin/env python3
+"""Tap-first Telegram actions for Hermes.
+
+The Hermes Telegram adapter owns inbound updates.  It delegates only callback
+data beginning with ``hx:`` and registered message reactions to this program.
+This program owns the small interaction ledger, while every quantitative
+health write still goes through the canonical ``health.py`` CLI.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import secrets
+import sqlite3
+import stat
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+
+TZ = ZoneInfo(os.environ.get("HERMES_TIMEZONE", "UTC"))
+DEFAULT_DATA = Path(os.environ.get(
+    "HERMES_DATA_DIR", Path.home() / ".local" / "share" / "hermes"
+))
+DEFAULT_HOME = Path(os.environ.get("HERMES_AGENT_HOME", Path.home() / ".hermes"))
+DEFAULT_HEALTH = Path(os.environ.get("HERMES_HEALTH_CLI", "/opt/hermes/toolkit/health.py"))
+DEFAULT_STATE = DEFAULT_DATA / "runtime" / "telegram-actions"
+HEARTS = {"❤", "❤️"}
+VALID_TASK_STATES = {"pending", "started", "done", "partial", "blocked", "snoozed"}
+
+
+def _now() -> datetime:
+    return datetime.now(TZ)
+
+
+def _emit(value: dict, code: int = 0) -> None:
+    print(json.dumps(value, ensure_ascii=False, sort_keys=True))
+    raise SystemExit(code)
+
+
+def _testing() -> bool:
+    return os.environ.get("HERMES_TELEGRAM_ACTIONS_TESTING") == "1"
+
+
+def _path(name: str, default: Path) -> Path:
+    override = os.environ.get(name)
+    return Path(override) if override else default
+
+
+def _home() -> Path:
+    return _path("HERMES_TELEGRAM_ACTIONS_HOME", DEFAULT_HOME)
+
+
+def _health() -> Path:
+    return _path("HERMES_TELEGRAM_ACTIONS_HEALTH", DEFAULT_HEALTH)
+
+
+def _state() -> Path:
+    return _path("HERMES_TELEGRAM_ACTIONS_STATE", DEFAULT_STATE)
+
+
+def _load_env() -> dict[str, str]:
+    values = dict(os.environ)
+    credentials_dir = os.environ.get("CREDENTIALS_DIRECTORY")
+    env_file = Path(os.environ.get(
+        "HERMES_TELEGRAM_ACTIONS_ENV",
+        str(Path(credentials_dir) / "telegram.env")
+        if credentials_dir else str(_home() / ".env"),
+    ))
+    if not env_file.exists():
+        return values
+    try:
+        metadata = env_file.lstat()
+    except OSError as exc:
+        _emit({"ok": False, "error": f"Telegram credential file unavailable: {exc.__class__.__name__}"}, 2)
+    if env_file.is_symlink() or not stat.S_ISREG(metadata.st_mode):
+        _emit({"ok": False, "error": "Telegram credential file must be regular"}, 2)
+    if metadata.st_mode & 0o077 or metadata.st_uid not in {0, os.geteuid()}:
+        _emit({"ok": False, "error": "Telegram credential file must be owner-controlled mode 0600"}, 2)
+    for raw in env_file.read_text(errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        values.setdefault(key, value)
+    return values
+
+
+def _owner_id(env: dict[str, str]) -> str | None:
+    raw = env.get("TELEGRAM_ALLOWED_USERS", "")
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    return values[0] if len(values) == 1 else None
+
+
+def _chat_id(env: dict[str, str], supplied: str | None) -> str:
+    value = supplied or env.get("TELEGRAM_HOME_CHANNEL") or env.get("TELEGRAM_CHAT_ID")
+    if not value:
+        _emit({"ok": False, "error": "Telegram home channel is not configured"}, 2)
+    return str(value)
+
+
+def _connect() -> sqlite3.Connection:
+    root = _state()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(root, 0o700)
+    db = root / "actions.sqlite3"
+    if db.is_symlink():
+        _emit({"ok": False, "error": "action database symlink refused"}, 2)
+    cx = sqlite3.connect(db, timeout=15)
+    cx.row_factory = sqlite3.Row
+    cx.executescript(
+        """
+        PRAGMA journal_mode=WAL;
+        PRAGMA foreign_keys=ON;
+        CREATE TABLE IF NOT EXISTS cards(
+          token TEXT PRIMARY KEY,
+          dedupe_key TEXT UNIQUE,
+          chat_id TEXT NOT NULL,
+          message_id TEXT,
+          owner_user_id TEXT,
+          kind TEXT NOT NULL,
+          action_date TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          original_text TEXT NOT NULL,
+          keyboard_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS cards_message
+          ON cards(chat_id, message_id);
+        CREATE TABLE IF NOT EXISTS action_events(
+          event_key TEXT PRIMARY KEY,
+          token TEXT NOT NULL REFERENCES cards(token),
+          event_type TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          action_code TEXT NOT NULL,
+          status TEXT NOT NULL,
+          response_json TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        """
+    )
+    try:
+        os.chmod(db, 0o600)
+    except OSError:
+        pass
+    return cx
+
+
+def _token() -> str:
+    return secrets.token_urlsafe(8)
+
+
+def _button(text: str, token: str, code: str) -> dict:
+    data = f"hx:{token}:{code}"
+    if len(data.encode()) > 64:
+        raise ValueError("callback data exceeds Telegram's 64-byte limit")
+    return {"text": text, "callback_data": data}
+
+
+def _api_send(env: dict[str, str], chat_id: str, text: str, keyboard: list[list[dict]]) -> str:
+    outbox = os.environ.get("HERMES_TELEGRAM_ACTIONS_OUTBOX")
+    if outbox:
+        if not _testing():
+            _emit({"ok": False, "error": "outbox override is test-only"}, 2)
+        path = Path(outbox)
+        messages = json.loads(path.read_text()) if path.exists() else []
+        message_id = str(100 + len(messages) + 1)
+        messages.append({
+            "chat_id": chat_id,
+            "text": text,
+            "reply_markup": {"inline_keyboard": keyboard},
+            "message_id": message_id,
+        })
+        path.write_text(json.dumps(messages, ensure_ascii=False, sort_keys=True))
+        return message_id
+    token = env.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        _emit({"ok": False, "error": "Telegram bot token is not configured"}, 2)
+    base = os.environ.get("HERMES_TELEGRAM_ACTIONS_API_BASE", "https://api.telegram.org")
+    if os.environ.get("HERMES_TELEGRAM_ACTIONS_API_BASE") and not _testing():
+        _emit({"ok": False, "error": "API base override is test-only"}, 2)
+    fields = {
+        "chat_id": chat_id,
+        "text": text,
+        "disable_web_page_preview": "true",
+    }
+    if keyboard:
+        fields["reply_markup"] = json.dumps(
+            {"inline_keyboard": keyboard}, ensure_ascii=False
+        )
+    body = urllib.parse.urlencode(fields).encode()
+    request = urllib.request.Request(
+        f"{base.rstrip('/')}/bot{token}/sendMessage",
+        data=body,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            value = json.loads(response.read())
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        _emit({"ok": False, "error": f"Telegram send failed: {exc.__class__.__name__}"}, 1)
+    if not value.get("ok") or not isinstance(value.get("result"), dict):
+        _emit({"ok": False, "error": "Telegram rejected the message"}, 1)
+    return str(value["result"]["message_id"])
+
+
+def _reserve_card(
+    *,
+    kind: str,
+    action_date: str,
+    text: str,
+    codes: list[list[tuple[str, str]]],
+    payload: dict,
+    dedupe_key: str | None,
+    chat_id: str | None,
+    expiry_hours: int = 36,
+) -> dict:
+    env = _load_env()
+    destination = _chat_id(env, chat_id)
+    cx = _connect()
+    if dedupe_key:
+        prior = cx.execute(
+            "SELECT token, message_id FROM cards WHERE dedupe_key=?", (dedupe_key,)
+        ).fetchone()
+        if prior and prior["message_id"]:
+            return {
+                "ok": True,
+                "sent": False,
+                "duplicate_suppressed": True,
+                "token": prior["token"],
+                "message_id": prior["message_id"],
+            }
+        if prior:
+            cx.execute("DELETE FROM cards WHERE token=?", (prior["token"],))
+            cx.commit()
+    token = _token()
+    keyboard = [[_button(label, token, code) for label, code in row] for row in codes]
+    created = _now()
+    values = (
+        token,
+        dedupe_key,
+        destination,
+        None,
+        _owner_id(env),
+        kind,
+        action_date,
+        json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        text,
+        json.dumps(keyboard, ensure_ascii=False, sort_keys=True),
+        created.isoformat(),
+        (created + timedelta(hours=expiry_hours)).isoformat(),
+        created.isoformat(),
+    )
+    cx.execute(
+        """INSERT INTO cards(
+             token,dedupe_key,chat_id,message_id,owner_user_id,kind,action_date,
+             payload_json,original_text,keyboard_json,created_at,expires_at,updated_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        values,
+    )
+    cx.commit()
+    try:
+        message_id = _api_send(env, destination, text, keyboard)
+    except SystemExit:
+        cx.execute("DELETE FROM cards WHERE token=? AND message_id IS NULL", (token,))
+        cx.commit()
+        raise
+    cx.execute(
+        "UPDATE cards SET message_id=?,updated_at=? WHERE token=?",
+        (message_id, _now().isoformat(), token),
+    )
+    cx.commit()
+    return {"ok": True, "sent": True, "token": token, "message_id": message_id}
+
+
+def _send_checkin(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    slot_label = "Morning" if args.slot == "am" else "Afternoon"
+    text = (
+        f"⚡ {slot_label} check-in\n"
+        "Tap energy, focus, and any water you drank. Each tap logs immediately."
+    )
+    rows = [
+        [(f"Energy {value}", f"e{value}") for value in range(1, 6)],
+        [(f"Focus {value}", f"f{value}") for value in range(1, 6)],
+        [("+250 ml", "w250"), ("+500 ml", "w500"), ("+1 L", "w1000")],
+    ]
+    return _reserve_card(
+        kind="checkin",
+        action_date=day,
+        text=text,
+        codes=rows,
+        payload={"slot": args.slot},
+        dedupe_key=f"checkin:{day}:{args.slot}",
+        chat_id=args.chat_id,
+    )
+
+
+def _send_water(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    return _reserve_card(
+        kind="water",
+        action_date=day,
+        text=args.text or "💧 How much water did you drink?",
+        codes=[[("+250 ml", "w250"), ("+500 ml", "w500"), ("+1 L", "w1000")]],
+        payload={},
+        dedupe_key=args.dedupe_key,
+        chat_id=args.chat_id,
+    )
+
+
+def _send_rating(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    return _reserve_card(
+        kind="rating",
+        action_date=day,
+        text=args.text or "How was today overall?",
+        codes=[[("🔴 Red", "rred"), ("🟡 Yellow", "ryellow"), ("🟢 Green", "rgreen")]],
+        payload={},
+        dedupe_key=args.dedupe_key or f"rating:{day}",
+        chat_id=args.chat_id,
+    )
+
+
+def _send_word(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    return _reserve_card(
+        kind="word",
+        action_date=day,
+        text=args.text or "Did you keep your word to yourself today?",
+        codes=[[("Broke", "wb"), ("Partly", "wp"), ("Kept", "wk")]],
+        payload={},
+        dedupe_key=args.dedupe_key or f"word:{day}",
+        chat_id=args.chat_id,
+    )
+
+
+def _send_mood(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    return _reserve_card(
+        kind="mood",
+        action_date=day,
+        text=args.text or "Mood right now?",
+        codes=[[(str(value), f"m{value}") for value in range(1, 6)]],
+        payload={},
+        dedupe_key=args.dedupe_key or f"mood:{day}:evening",
+        chat_id=args.chat_id,
+    )
+
+
+def _send_commitment(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    return _reserve_card(
+        kind="commitment",
+        action_date=day,
+        text=f"Commitment: {args.name}",
+        codes=[[("Broke", "cb"), ("Partly", "cp"), ("Kept", "ck")]],
+        payload={"commitment_id": args.id, "name": args.name},
+        dedupe_key=args.dedupe_key or f"commitment:{day}:{args.id}",
+        chat_id=args.chat_id,
+    )
+
+
+def _send_task(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    lines = [f"🎯 {args.title}"]
+    if args.goal:
+        lines.append(f"Why: {args.goal}")
+    if args.at:
+        lines.append(f"When: {args.at}")
+    if args.floor:
+        lines.append(f"Can't-fail floor: {args.floor}")
+    lines.append("Double-tap ❤️ = done.")
+    return _reserve_card(
+        kind="task",
+        action_date=day,
+        text="\n".join(lines),
+        codes=[[("▶️ Start", "ts"), ("✅ Done", "td")],
+               [("🟡 Partial", "tp"), ("🧱 Blocked", "tb")]],
+        payload={
+            "title": args.title,
+            "goal": args.goal,
+            "floor": args.floor,
+            "at": args.at,
+            "status": "pending",
+            "commitment_id": args.commitment_id,
+        },
+        dedupe_key=args.dedupe_key,
+        chat_id=args.chat_id,
+        expiry_hours=72,
+    )
+
+
+def _send_option(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    lines = [args.option]
+    if args.context:
+        lines.append(args.context)
+    lines.append("Double-tap ❤️ to choose this.")
+    return _reserve_card(
+        kind="option",
+        action_date=day,
+        text="\n".join(lines),
+        codes=[],
+        payload={
+            "group": args.group,
+            "option": args.option,
+            "status": "available",
+        },
+        dedupe_key=args.dedupe_key or f"option:{day}:{args.group}:{args.option}",
+        chat_id=args.chat_id,
+        expiry_hours=72,
+    )
+
+
+def _feedback_status(day: str) -> dict:
+    value = _run_health("feedback-status", "--date", day)
+    if value.get("date") != day or not isinstance(value.get("prompt_fields"), list):
+        raise RuntimeError("feedback status returned invalid data")
+    return value
+
+
+def _send_evening(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    status = _feedback_status(day)
+    sent = []
+    if "day_rating" in status["prompt_fields"]:
+        sent.append(_reserve_card(
+            kind="rating",
+            action_date=day,
+            text="🌙 How was today overall?",
+            codes=[[("🔴 Red", "rred"), ("🟡 Yellow", "ryellow"), ("🟢 Green", "rgreen")]],
+            payload={},
+            dedupe_key=f"rating:{day}",
+            chat_id=args.chat_id,
+        ))
+    if "whole_day_word" in status["prompt_fields"]:
+        sent.append(_reserve_card(
+            kind="word",
+            action_date=day,
+            text="Did you keep your word to yourself today?",
+            codes=[[("Broke", "wb"), ("Partly", "wp"), ("Kept", "wk")]],
+            payload={},
+            dedupe_key=f"word:{day}",
+            chat_id=args.chat_id,
+        ))
+    if "mood" in status["prompt_fields"]:
+        sent.append(_reserve_card(
+            kind="mood",
+            action_date=day,
+            text="Mood right now?",
+            codes=[[(str(value), f"m{value}") for value in range(1, 6)]],
+            payload={},
+            dedupe_key=f"mood:{day}:evening",
+            chat_id=args.chat_id,
+        ))
+    commitments = status.get("active_commitments_missing_log") or []
+    if not isinstance(commitments, list):
+        raise RuntimeError("feedback status returned invalid commitments")
+    for item in commitments[:5]:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), int) or \
+                not isinstance(item.get("name"), str):
+            raise RuntimeError("feedback status returned invalid commitment")
+        sent.append(_reserve_card(
+            kind="commitment",
+            action_date=day,
+            text=f"Commitment: {item['name']}",
+            codes=[[("Broke", "cb"), ("Partly", "cp"), ("Kept", "ck")]],
+            payload={"commitment_id": item["id"], "name": item["name"]},
+            dedupe_key=f"commitment:{day}:{item['id']}",
+            chat_id=args.chat_id,
+        ))
+    pain = status.get("pain_followup_due") or []
+    if pain:
+        parts = []
+        for item in pain[:2]:
+            if not isinstance(item, dict):
+                continue
+            region, side = item.get("region"), item.get("side")
+            if isinstance(region, str) and isinstance(side, str):
+                parts.append(f"{side} {region}")
+        if parts:
+            env = _load_env()
+            destination = _chat_id(env, args.chat_id)
+            _api_send(
+                env,
+                destination,
+                "Pain check: reply with today's 0–10 number for " + " and ".join(parts) + ".",
+                [],
+            )
+            sent.append({"ok": True, "sent": True, "kind": "pain"})
+    return {
+        "ok": True,
+        "date": day,
+        "sent_count": sum(1 for item in sent if item.get("sent")),
+        "duplicate_count": sum(1 for item in sent if item.get("duplicate_suppressed")),
+        "complete": not sent,
+    }
+
+
+def _run_health(*parts: str) -> dict:
+    command = [sys.executable, str(_health()), *parts]
+    try:
+        run = subprocess.run(
+            command,
+            cwd=_health().parent,
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"health toolkit unavailable: {exc.__class__.__name__}") from exc
+    if run.returncode != 0:
+        message = (run.stderr or run.stdout or "health toolkit failed").strip().splitlines()[-1]
+        raise RuntimeError(message[:180])
+    try:
+        value = json.loads(run.stdout)
+    except ValueError as exc:
+        raise RuntimeError("health toolkit returned invalid JSON") from exc
+    if not isinstance(value, dict) or value.get("ok") is not True:
+        raise RuntimeError("health toolkit rejected the action")
+    return value
+
+
+def _claim_event(cx: sqlite3.Connection, key: str, token: str, event_type: str,
+                 user_id: str, code: str) -> dict | None:
+    now = _now().isoformat()
+    try:
+        cx.execute(
+            """INSERT INTO action_events(
+                 event_key,token,event_type,user_id,action_code,status,created_at,updated_at
+               ) VALUES(?,?,?,?,?,'processing',?,?)""",
+            (key, token, event_type, user_id, code, now, now),
+        )
+        cx.commit()
+        return None
+    except sqlite3.IntegrityError:
+        row = cx.execute(
+            "SELECT status,response_json FROM action_events WHERE event_key=?", (key,)
+        ).fetchone()
+        if row and row["response_json"]:
+            return json.loads(row["response_json"])
+        return {"ok": True, "answer_text": "Already received.", "idempotent": True}
+
+
+def _finish_event(cx: sqlite3.Connection, key: str, response: dict, status: str) -> dict:
+    cx.execute(
+        "UPDATE action_events SET status=?,response_json=?,updated_at=? WHERE event_key=?",
+        (status, json.dumps(response, ensure_ascii=False, sort_keys=True),
+         _now().isoformat(), key),
+    )
+    cx.commit()
+    return response
+
+
+def _update_task(cx: sqlite3.Connection, card: sqlite3.Row, state: str) -> dict:
+    if state not in VALID_TASK_STATES:
+        raise RuntimeError("invalid task state")
+    payload = json.loads(card["payload_json"])
+    previous = payload.get("status", "pending")
+    payload["status"] = state
+    payload["status_at"] = _now().isoformat()
+    cx.execute(
+        "UPDATE cards SET payload_json=?,updated_at=? WHERE token=?",
+        (json.dumps(payload, ensure_ascii=False, sort_keys=True),
+         _now().isoformat(), card["token"]),
+    )
+    cx.commit()
+    if state == "done" and payload.get("commitment_id"):
+        _run_health(
+            "log-commitment", "kept", "--id", str(payload["commitment_id"]),
+            "--date", card["action_date"], "--source", "chat-telegram",
+        )
+    labels = {
+        "started": "▶️ Started",
+        "done": "✅ Done",
+        "partial": "🟡 Partial counts",
+        "blocked": f"🧱 Blocked — do the floor: {payload.get('floor') or 'make it two minutes'}",
+    }
+    suffix = labels[state]
+    edit_text = card["original_text"].split("\n\n— ")[0] + f"\n\n— {suffix}"
+    return {
+        "ok": True,
+        "answer_text": suffix,
+        "edit_text": edit_text,
+        "remove_keyboard": state == "done",
+        "task_status": state,
+        "previous_status": previous,
+    }
+
+
+def _select_option(cx: sqlite3.Connection, card: sqlite3.Row) -> dict:
+    payload = json.loads(card["payload_json"])
+    payload["status"] = "selected"
+    payload["selected_at"] = _now().isoformat()
+    cx.execute(
+        "UPDATE cards SET payload_json=?,updated_at=? WHERE token=?",
+        (json.dumps(payload, ensure_ascii=False, sort_keys=True),
+         _now().isoformat(), card["token"]),
+    )
+    cx.commit()
+    edit_text = card["original_text"].split("\n\n— ")[0] + "\n\n— ❤️ Selected"
+    return {
+        "ok": True,
+        "edit_text": edit_text,
+        "remove_keyboard": True,
+        "selection_status": "selected",
+    }
+
+
+def _execute(cx: sqlite3.Connection, card: sqlite3.Row, code: str) -> dict:
+    day = card["action_date"]
+    payload = json.loads(card["payload_json"])
+    if code in {"w250", "w500", "w1000"}:
+        amount = int(code[1:])
+        value = _run_health("water-add", str(amount), "--date", day)
+        return {
+            "ok": True,
+            "answer_text": (
+                f"+{amount} ml · {int(value['total_ml'])} / {int(value['target_ml'])} ml today"
+            ),
+        }
+    if len(code) == 2 and code[0] in {"e", "f", "m"} and code[1] in "12345":
+        kind = {"e": "energy", "f": "focus", "m": "mood"}[code[0]]
+        value = int(code[1])
+        _run_health(
+            "checkin", kind, str(value), "--date", day, "--source", "chat-telegram"
+        )
+        return {"ok": True, "answer_text": f"{kind.title()} {value}/5 logged"}
+    if code in {"rred", "ryellow", "rgreen"}:
+        rating = code[1:]
+        _run_health("day-rating", rating, "--date", day, "--source", "chat-telegram")
+        emoji = {"red": "🔴", "yellow": "🟡", "green": "🟢"}[rating]
+        return {"ok": True, "answer_text": f"{emoji} {rating.title()} day logged"}
+    if code in {"wb", "wp", "wk"}:
+        status = {"wb": "broke", "wp": "partly", "wk": "kept"}[code]
+        _run_health(
+            "log-commitment", status, "--date", day, "--source", "chat-telegram"
+        )
+        return {"ok": True, "answer_text": f"Word: {status} logged"}
+    if code in {"cb", "cp", "ck"} and payload.get("commitment_id"):
+        status = {"cb": "broke", "cp": "partly", "ck": "kept"}[code]
+        _run_health(
+            "log-commitment", status, "--id", str(payload["commitment_id"]),
+            "--date", day, "--source", "chat-telegram",
+        )
+        return {"ok": True, "answer_text": f"{payload.get('name', 'Commitment')}: {status}"}
+    if card["kind"] == "task" and code in {"ts", "td", "tp", "tb"}:
+        state = {"ts": "started", "td": "done", "tp": "partial", "tb": "blocked"}[code]
+        return _update_task(cx, card, state)
+    raise RuntimeError("action is not valid for this card")
+
+
+def _validate_card(card: sqlite3.Row, event: dict) -> None:
+    if not card["message_id"]:
+        raise RuntimeError("card is not active")
+    if str(event.get("chat_id")) != card["chat_id"] or \
+            str(event.get("message_id")) != card["message_id"]:
+        raise RuntimeError("card binding mismatch")
+    if card["owner_user_id"] and str(event.get("user_id")) != card["owner_user_id"]:
+        raise RuntimeError("wrong card owner")
+    if datetime.fromisoformat(card["expires_at"]) < _now():
+        raise RuntimeError("this card expired")
+
+
+def _dispatch_callback(event: dict) -> dict:
+    data = str(event.get("data", ""))
+    parts = data.split(":", 2)
+    if len(parts) != 3 or parts[0] != "hx":
+        return {"ok": False, "answer_text": "Invalid action."}
+    token, code = parts[1], parts[2]
+    cx = _connect()
+    card = cx.execute("SELECT * FROM cards WHERE token=?", (token,)).fetchone()
+    if not card:
+        return {"ok": False, "answer_text": "This action expired."}
+    try:
+        _validate_card(card, event)
+    except RuntimeError as exc:
+        return {"ok": False, "answer_text": str(exc)}
+    key = f"callback:{event.get('query_id')}"
+    prior = _claim_event(cx, key, token, "callback", str(event.get("user_id")), code)
+    if prior:
+        return prior
+    try:
+        response = _execute(cx, card, code)
+        return _finish_event(cx, key, response, "done")
+    except Exception as exc:
+        response = {"ok": False, "answer_text": f"Could not log: {str(exc)[:120]}"}
+        return _finish_event(cx, key, response, "failed")
+
+
+def _reaction_emojis(value: object) -> set[str]:
+    result = set()
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict) and isinstance(item.get("emoji"), str):
+                result.add(item["emoji"])
+    return result
+
+
+def _dispatch_reaction(event: dict) -> dict:
+    old = _reaction_emojis(event.get("old_reaction"))
+    new = _reaction_emojis(event.get("new_reaction"))
+    if not (new & HEARTS) or old & HEARTS:
+        return {"ok": True, "ignored": True}
+    cx = _connect()
+    card = cx.execute(
+        "SELECT * FROM cards WHERE chat_id=? AND message_id=? ORDER BY created_at DESC LIMIT 1",
+        (str(event.get("chat_id")), str(event.get("message_id"))),
+    ).fetchone()
+    if not card or card["kind"] not in {"task", "option"}:
+        return {"ok": True, "ignored": True}
+    try:
+        _validate_card(card, event)
+    except RuntimeError:
+        return {"ok": True, "ignored": True}
+    key = f"reaction:{event.get('update_id')}"
+    prior = _claim_event(
+        cx, key, card["token"], "reaction", str(event.get("user_id")), "td"
+    )
+    if prior:
+        return prior
+    try:
+        response = (
+            _update_task(cx, card, "done")
+            if card["kind"] == "task"
+            else _select_option(cx, card)
+        )
+        return _finish_event(cx, key, response, "done")
+    except Exception as exc:
+        return _finish_event(
+            cx, key, {"ok": False, "error": str(exc)[:120]}, "failed"
+        )
+
+
+def _dispatch(args: argparse.Namespace) -> dict:
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return {"ok": False, "answer_text": "Invalid action payload."}
+    if not isinstance(event, dict):
+        return {"ok": False, "answer_text": "Invalid action payload."}
+    return _dispatch_callback(event) if args.kind == "callback" else _dispatch_reaction(event)
+
+
+def _list_tasks(args: argparse.Namespace) -> dict:
+    day = args.date or _now().date().isoformat()
+    cx = _connect()
+    rows = []
+    for card in cx.execute(
+        """SELECT token,action_date,payload_json,created_at,updated_at
+           FROM cards WHERE kind='task' AND action_date=?
+           ORDER BY created_at""",
+        (day,),
+    ):
+        payload = json.loads(card["payload_json"])
+        rows.append({
+            "token": card["token"],
+            "date": card["action_date"],
+            "title": payload.get("title"),
+            "goal": payload.get("goal"),
+            "floor": payload.get("floor"),
+            "at": payload.get("at"),
+            "status": payload.get("status", "pending"),
+            "updated_at": card["updated_at"],
+        })
+    return {"ok": True, "date": day, "tasks": rows}
+
+
+def _list_options(args: argparse.Namespace) -> dict:
+    cx = _connect()
+    query = """SELECT token,action_date,payload_json,updated_at
+               FROM cards WHERE kind='option'"""
+    params: list[str] = []
+    if args.group:
+        query += " AND json_extract(payload_json, '$.group')=?"
+        params.append(args.group)
+    query += " ORDER BY created_at"
+    rows = []
+    for card in cx.execute(query, params):
+        payload = json.loads(card["payload_json"])
+        rows.append({
+            "token": card["token"],
+            "date": card["action_date"],
+            "group": payload.get("group"),
+            "option": payload.get("option"),
+            "status": payload.get("status", "available"),
+            "updated_at": card["updated_at"],
+        })
+    return {"ok": True, "group": args.group, "options": rows}
+
+
+def _add_common_send(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--date")
+    parser.add_argument("--chat-id")
+    parser.add_argument("--text")
+    parser.add_argument("--dedupe-key")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    checkin = sub.add_parser("send-checkin")
+    checkin.add_argument("--slot", choices=("am", "pm"), required=True)
+    checkin.add_argument("--date")
+    checkin.add_argument("--chat-id")
+    checkin.set_defaults(fn=_send_checkin)
+
+    for name, fn in (
+        ("send-water", _send_water),
+        ("send-rating", _send_rating),
+        ("send-word", _send_word),
+        ("send-mood", _send_mood),
+    ):
+        item = sub.add_parser(name)
+        _add_common_send(item)
+        item.set_defaults(fn=fn)
+
+    commitment = sub.add_parser("send-commitment")
+    _add_common_send(commitment)
+    commitment.add_argument("--id", type=int, required=True)
+    commitment.add_argument("--name", required=True)
+    commitment.set_defaults(fn=_send_commitment)
+
+    task = sub.add_parser("send-task")
+    task.add_argument("--title", required=True)
+    task.add_argument("--goal")
+    task.add_argument("--floor")
+    task.add_argument("--at")
+    task.add_argument("--date")
+    task.add_argument("--chat-id")
+    task.add_argument("--dedupe-key")
+    task.add_argument("--commitment-id", type=int)
+    task.set_defaults(fn=_send_task)
+
+    option = sub.add_parser("send-option")
+    option.add_argument("--group", required=True)
+    option.add_argument("--option", required=True)
+    option.add_argument("--context")
+    option.add_argument("--date")
+    option.add_argument("--chat-id")
+    option.add_argument("--dedupe-key")
+    option.set_defaults(fn=_send_option)
+
+    evening = sub.add_parser("send-evening")
+    evening.add_argument("--date")
+    evening.add_argument("--chat-id")
+    evening.set_defaults(fn=_send_evening)
+
+    dispatch = sub.add_parser("dispatch")
+    dispatch.add_argument("kind", choices=("callback", "reaction"))
+    dispatch.set_defaults(fn=_dispatch)
+
+    tasks = sub.add_parser("list-tasks")
+    tasks.add_argument("--date")
+    tasks.set_defaults(fn=_list_tasks)
+
+    options = sub.add_parser("list-options")
+    options.add_argument("--group")
+    options.set_defaults(fn=_list_options)
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    result = args.fn(args)
+    _emit(result, 0 if result.get("ok") else 1)
+
+
+if __name__ == "__main__":
+    main()

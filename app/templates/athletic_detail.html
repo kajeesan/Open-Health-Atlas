@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} — athletic breakdown{% endblock %}
+{% block content %}
+{# §3c drill-down (round-3 redesign): one shared template for all five athletic
+   axes (endurance/strength/flexibility/balance/speed). The axis is fixed by the
+   URL and validated in the route (404 otherwise); athletic_detail.js fetches
+   /api/training/athletic-detail?axis= and renders the four design cards. All
+   SCORES come from the engine (athletic-radar) verbatim; the panel only
+   presents them + reads raw test history for the progress line and chips. The
+   demo DB seeds no athletic targets or fitness tests → this page renders its
+   honest single-card empty state locally (the expected local state). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.training') }}">◱ Body</a>
+      <h1 class="page-title" id="ad-title">{{ label }} — athletic breakdown</h1>
+      <span class="muted micro">from the Athletic Profile axis · latest tests + progress</span>
+    </div>
+  </div>
+
+  {# honest whole-page empty state — shown only when the axis is insufficient_data #}
+  <div class="card" id="ad-empty" hidden>
+    <h3 class="card-title mb-1" id="ad-empty-title">{{ label }} — no data yet</h3>
+    <p class="muted note-txt m0" id="ad-empty-body">Loading…</p>
+  </div>
+
+  <div id="ad-grid" hidden>
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-1">Sub-tests — score vs target</h3>
+        <div id="ad-sub-body"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-1">Field tests driving this axis</h3>
+        <div id="ad-field-body"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-1">Progress — last 5 tests</h3>
+        <div id="ad-prog-body"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-1">Where you're at · what to improve</h3>
+        <div id="ad-summary-body"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/athletic_detail.js') }}" defer></script>
+{% endblock %}

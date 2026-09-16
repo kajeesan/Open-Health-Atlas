@@ -1,0 +1,73 @@
+{
+  "contract": "openhealthatlas-recovery-item6-prestage-backup-acceptance-v8",
+  "recorded_on": "2026-08-18",
+  "status": "prestage_backup_and_restore_rehearsal_accepted_no_deployment",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-prestage-complete-release-tuple-no-deployment-2026-08-18.json",
+    "record_commit": "3f6bef1776d52ff0087bd12eea8d6829cb7113a0",
+    "sha256": "sha256:857c22d26de1cb3437ff71d824cdde6c6b331a7f61a06f317e71d2a5cdfe0d0f",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "fictional_only": true,
+    "prestage_backup_authorized": true,
+    "isolated_restore_rehearsal_authorized": true,
+    "deployment_authorized": false,
+    "configuration_change_authorized": false,
+    "sidecar_generation_authorized": false,
+    "service_restart_authorized": false,
+    "telegram_send_authorized": false,
+    "private_health_data_accessed": false,
+    "health_rows_queried": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "backup_acceptance": {
+    "backup_id": "item6-prestage-20260818T133824Z-429eebde",
+    "backup_parent": "/var/backups/openhealthatlas-fictional",
+    "backup_root_mode": "0700",
+    "inventory_mode": "0600",
+    "inventory_sha256": "sha256:558436f88c89a70cf3ab2cb9dd0d27dec4d414e45aad7f76726eea5009643cdb",
+    "target_count": 56,
+    "present_target_count": 45,
+    "absence_marker_count": 11,
+    "planned_mutation_target_count": 46,
+    "protected_control_count": 4,
+    "target_paths_unique": true,
+    "dirty_checkout_archive_verified": true,
+    "isolated_restore_rehearsal_passed": true
+  },
+  "independent_verification": {
+    "contract": "openhealthatlas-recovery-item6-prestage-backup-verification-v1",
+    "inventory_sha256_matched": true,
+    "target_count_matched": true,
+    "dirty_checkout_archive_matched": true,
+    "database_hash_and_stats_unchanged": true,
+    "sqlite_companions_absent": true,
+    "gateway_active_and_unchanged": true,
+    "clean_release_still_absent": true,
+    "ancestry_sidecar_still_absent": true,
+    "deployment_target_changes": 0
+  },
+  "candidate_commits": {
+    "openhealthatlas_contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "external_hermes_combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+    "release_tuple_record": "3f6bef1776d52ff0087bd12eea8d6829cb7113a0"
+  },
+  "remaining_live_gates": {
+    "clean_release_materialized": false,
+    "deployed_manifest_generated": false,
+    "mcp_alias_plugin_and_sidecar_staged": false,
+    "gateway_dropin_created": false,
+    "gateway_restarted_and_registry_verified": false,
+    "live_telegram_and_fault_injection_complete": false
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "prestage_backup_gate_complete": true,
+    "ready_for_separate_staging_approval": true,
+    "staging_authorized": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

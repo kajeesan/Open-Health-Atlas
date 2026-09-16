@@ -1,0 +1,283 @@
+{
+  "contract": "openhealthatlas-recovery-item6-governed-network-preflight-record-v3",
+  "recorded_on": "2026-08-18",
+  "status": "pushed_local_candidates_read_only_preflight_blocked",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-corrected-candidate-release-2026-08-18.json",
+    "record_commit": "c588663f7cef885e1e11aa3409fe584e2a0f6c4c",
+    "sha256": "sha256:805d200ed3869650ee39b70330afaf7fe31e00a70fbf3b152191e86f9ff1e829",
+    "byte_preserved": true
+  },
+  "scope": {
+    "data_class": "fictional",
+    "local_correction_authorized": true,
+    "read_only_vps_preflight_authorized": true,
+    "private_health_data_accessed": false,
+    "health_rows_queried": false,
+    "staging_authorized": false,
+    "copy_authorized": false,
+    "configuration_change_authorized": false,
+    "sidecar_generation_or_replacement_authorized": false,
+    "service_restart_authorized": false,
+    "telegram_send_authorized": false,
+    "fault_injection_authorized": false,
+    "schema_migration_authorized": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/recovery-item6-evidence-v2",
+      "previous_record_tip": "c588663f7cef885e1e11aa3409fe584e2a0f6c4c",
+      "staging_contract_candidate": "390df11df2e1bd0492a10ca102fe1659ea612abb",
+      "git_tree_id": "fa6863e10e20cbac7e4b9aacf4945e6ce096dc9b",
+      "remote_branch_contains_candidate": true
+    },
+    "external_hermes": {
+      "repository": "https://github.com/kajeesan/hermes-agent.git",
+      "branch": "codex/oha-recovery-delivery-contract",
+      "previous_candidate": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "governed_network_candidate": "720edca78a92e990cce1ce1445ea7eaa131c03d8",
+      "git_tree_id": "359811361a2359c3d5c09d7a6f9dae8bc319488e",
+      "remote_branch_contains_candidate": true
+    }
+  },
+  "governed_network_correction": {
+    "scope": "openhealthatlas_required_delivery_only",
+    "observed_connection_drop_likely_owner_wifi_loss": true,
+    "broader_hermes_or_telegram_network_defect_claimed": false,
+    "ordinary_telegram_retry_behavior_changed": false,
+    "networking_or_timeout_redesign_performed": false,
+    "generic_network_error_classification": "post_dispatch_ambiguous",
+    "generic_network_error_maximum_bot_api_attempts": 1,
+    "generic_network_error_invalidates_plan": true,
+    "generic_network_error_result_retryable": false,
+    "generic_network_error_automatic_replay_blocked": true,
+    "positively_identified_connect_establishment_retry_preserved": true,
+    "positively_identified_pool_acquisition_retry_preserved": true,
+    "explicit_bot_api_rejection_handling_changed": false
+  },
+  "staging_contract_correction": {
+    "health_py_mode": "0755",
+    "ordinary_deterministic_bundle_file_mode": "0644",
+    "ambiguous_blanket_file_mode_removed": true,
+    "expected_external_hermes_checkout": "/opt/hermes",
+    "expected_value_is_confirmed_live_fact": false,
+    "read_only_service_configuration_resolution_required": true,
+    "mismatch_action": "stop_before_staging"
+  },
+  "artifact_sha256": {
+    "openhealthatlas_candidate": {
+      "RELEASE_MANIFEST.tsv": "sha256:b8266fb3132d1bd8b9467a63593b7793aa124b3bf1cfab34aa01408f2c88beff",
+      "deploy/recovery-item6-deployment-runbook.md": "sha256:023d895bffb619ae0ddfa8a5600085d0cdbf6ceafe2c79d3dda14efed90a4f3e",
+      "deploy/recovery-item6-staging-manifest.json": "sha256:f66038c245d452e513bdfd9091d0fa1e8138a45eedecb787e00d8a8d8735e759",
+      "tests/test_openhealthatlas_tool.py": "sha256:b345ff2bcd279b2b9be24553610d56c1425abe3356b60017e1e777d38f0aad13"
+    },
+    "external_hermes_runtime": {
+      "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+      "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+      "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+      "gateway/run.py": "sha256:8cb9edc5dda013a26e2d55e88a89e3a6b57700cf51fb839d9167c8988c7791c0",
+      "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+      "model_tools.py": "sha256:1b20a925f60e8d884b87412662606944e282d135c521420e48ec5a9a66a5353c",
+      "plugins/platforms/telegram/adapter.py": "sha256:cca01f0f3ce78e344a1addcd9e76649c42a97e16a2e45de34a7c58c1d1c2700b"
+    },
+    "external_hermes_regression": {
+      "tests/gateway/test_telegram_required_delivery.py": "sha256:c8969812c11ea10f64cc8516ba4f5bf0bcdec9997f0d63b56e202fc5fc149b68"
+    }
+  },
+  "verification_gates": [
+    {
+      "gate_id": "external_hermes_governed_delivery_focused",
+      "candidate_commit": "720edca78a92e990cce1ce1445ea7eaa131c03d8",
+      "command": "scripts/run_tests.sh tests/gateway/test_telegram_required_delivery.py -q",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 0.5,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_full_telegram",
+      "candidate_commit": "720edca78a92e990cce1ce1445ea7eaa131c03d8",
+      "command": "rg --files tests/gateway | rg '/test_telegram[^/]*\\.py$' | xargs scripts/run_tests.sh -q",
+      "passed": 979,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 21.9,
+      "result": "pass"
+    },
+    {
+      "gate_id": "tracked_cross_repository_delivery",
+      "candidate_commit": "720edca78a92e990cce1ce1445ea7eaa131c03d8",
+      "command": "OPENHEALTHATLAS_CHECKOUT=<openhealthatlas-candidate-checkout> scripts/run_tests.sh tests/integration/test_openhealthatlas_required_delivery.py -q",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 1.5,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_staging_contract",
+      "candidate_commit": "390df11df2e1bd0492a10ca102fe1659ea612abb",
+      "command": "<openhealthatlas-python> -m pytest -q tests/test_openhealthatlas_tool.py",
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 0.89,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_release_manifest",
+      "candidate_commit": "390df11df2e1bd0492a10ca102fe1659ea612abb",
+      "command": "python3 scripts/release_manifest.py verify",
+      "verified_entry_count": 391,
+      "result": "pass"
+    }
+  ],
+  "privacy_verification": {
+    "openhealthatlas_candidate_changed_paths": 4,
+    "openhealthatlas_candidate_findings": 0,
+    "external_hermes_candidate_changed_paths": 2,
+    "external_hermes_candidate_findings": 0,
+    "private_paths_recorded": false,
+    "database_identity_recorded": false,
+    "sidecar_identity_recorded": false,
+    "health_content_recorded": false,
+    "message_content_recorded": false,
+    "secrets_recorded": false
+  },
+  "sanitized_read_only_vps_preflight": {
+    "performed": true,
+    "live_mutation_performed": false,
+    "preflight_blocked": true,
+    "service": {
+      "unit": "hermes-gateway.service",
+      "scope": "user",
+      "loaded": true,
+      "active": true,
+      "substate_running": true,
+      "exec_shape": "python_module_hermes_cli_gateway_run",
+      "working_directory_absolute": true,
+      "working_directory_matches_expected_checkout": false,
+      "hermes_home_explicit": true,
+      "hermes_home_absolute_canonical_owned_directory": true,
+      "raw_exec_start_or_paths_recorded": false
+    },
+    "adjacent_services": {
+      "hermes_panel_active": true,
+      "hermes_bridge_active": true,
+      "external_gateway_is_not_a_system_unit": true
+    },
+    "external_hermes_checkout": {
+      "resolved_as_git_checkout": true,
+      "matches_expected_opt_hermes": false,
+      "repository_matches_candidate_repository": false,
+      "head": "a6b9597d5fb92969d605a858d5f14536e805553a",
+      "branch": "main",
+      "tracked_dirty": true,
+      "tracked_changed_path_count": 1,
+      "tracked_patch_sha256": "sha256:08c5665c9fa6b586ef006e58e005b8bc5a962aeb6c37394d4e0177e0d564e2a2",
+      "candidate_runtime_overlap": [
+        "plugins/platforms/telegram/adapter.py"
+      ],
+      "health_actions_markers_present": true,
+      "untracked_path_count": 4,
+      "untracked_path_list_sha256": "sha256:9f0f7ba3caae7b83c309661a1e28a1586c4f37b711e51fcc7f3affc71a4efd66",
+      "untracked_candidate_runtime_overlap": [],
+      "untracked_health_actions_metadata_count": 2,
+      "untracked_patch_or_backup_metadata_count": 0,
+      "untracked_test_metadata_count": 0,
+      "untracked_other_metadata_count": 2,
+      "untracked_content_inspected": false
+    },
+    "mcp_and_plugin_configuration": {
+      "config_parsed_without_recording_values": true,
+      "openhealthatlas_fictional_alias_enabled": false,
+      "unqualified_legacy_alias_present": false,
+      "configured_profile_matches_expected": false,
+      "delivery_plugin_installed": false,
+      "delivery_plugin_enabled": false,
+      "recovery_tools_allowed_by_filter": true,
+      "expected_registry_names": [
+        "mcp_openhealthatlas_fictional_openhealthatlas_recovery_snapshot",
+        "mcp_openhealthatlas_fictional_openhealthatlas_recovery_detail"
+      ],
+      "running_gateway_registry_names_verified": false
+    },
+    "installed_fictional_topology": {
+      "source_root_matches_expected": true,
+      "installed_profile_root_matches_expected": true,
+      "fixture_root_matches_expected": true,
+      "configured_mcp_executable_present": true,
+      "installed_files_prove_running_registration": false
+    },
+    "accepted_v5_database": {
+      "regular_non_symlink": true,
+      "hash_matches_accepted_ledger": true,
+      "schema_ledger_shape_valid": true,
+      "schema_version": 5,
+      "schema_versions_exactly_1_through_5": true,
+      "sqlite_companions_absent_before": true,
+      "sqlite_companions_absent_after": true,
+      "hash_and_stats_unchanged": true,
+      "health_rows_queried": false,
+      "ancestry_or_historical_generation_proven": false
+    },
+    "existing_ancestry_artifact": {
+      "configured_location_checked_read_only": true,
+      "regular_file_present": false,
+      "content_inspected": false,
+      "generated_or_replaced": false
+    },
+    "rollback_inventory": {
+      "immediate_child_count": 4,
+      "unknown_child_names_recorded": false,
+      "pre_item6_backup": {
+        "present_regular_directory": true,
+        "regular_file_count": 7,
+        "directory_count": 0,
+        "symlink_or_special_count": 0,
+        "contains_program_candidate": true,
+        "contains_database_candidate": true,
+        "contains_manifest_candidate": false,
+        "contains_receipt_candidate": true,
+        "completeness_established": false
+      },
+      "pre_disclosure_backup": {
+        "present_regular_directory": true,
+        "regular_file_count": 2,
+        "directory_count": 0,
+        "symlink_or_special_count": 0,
+        "contains_program_candidate": true,
+        "contains_database_candidate": false,
+        "contains_manifest_candidate": false,
+        "contains_receipt_candidate": false,
+        "completeness_established": false
+      }
+    }
+  },
+  "live_release_blockers": [
+    "The active external-Hermes working directory does not match the expected /opt/hermes checkout contract.",
+    "The resolved live checkout repository does not match the candidate repository.",
+    "The tracked health-actions patch overlaps plugins/platforms/telegram/adapter.py and must be incorporated into a clean tested candidate before any copy.",
+    "Four untracked entries remain in the live checkout; none overlaps the seven candidate runtime paths, but two are health-actions metadata and must be versioned or otherwise resolved before staging.",
+    "The required openhealthatlas_fictional MCP alias and delivery plugin are not configured in the active Hermes home.",
+    "The expected accepted-v5 ancestry artifact is not present as a regular file and was not generated or replaced.",
+    "Rollback directories exist, but a complete rollback inventory has not been established."
+  ],
+  "remaining_proof_limits": [
+    "Systemd active state proves observed process state only, not OpenHealthAtlas tool reachability.",
+    "Installed fictional profile files do not prove registration inside the running gateway.",
+    "The stable hash-matching schema-v5 snapshot does not prove source ancestry or its historical generation event.",
+    "The expected registry names are derived from configuration contract; running in-process registry names remain unverified.",
+    "No Telegram message, fault injection, restart, staging, copy, configuration change, schema migration, write-back, or real-data action was performed."
+  ],
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "ready_to_stage": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

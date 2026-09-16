@@ -1,0 +1,1734 @@
+#!/usr/bin/env python3
+"""Fictional-only OpenHealthAtlas MCP tools for the existing Hermes gateway.
+
+This process contains no model and accepts no arbitrary health payload.  It
+exposes the accepted fixed journeys plus a four-operation generic read-only
+surface over the real deterministic OpenHealthAtlas engine. All tools are bound
+by the adjacent root-owned adapter configuration to a fictional fixture.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+from copy import deepcopy
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import subprocess
+import threading
+from typing import Annotated, Any
+
+from mcp.server.fastmcp import FastMCP
+
+
+SCRIPT = Path(__file__).resolve()
+TOOL = SCRIPT.with_name("hermes-openhealthatlas-tool")
+PROJECTION = SCRIPT.with_name("hermes-ssh-transport")
+CONFIG = SCRIPT.with_name("tool-config.json")
+REAL_DATA_GOVERNANCE = SCRIPT.with_name(
+    "openhealthatlas-real-data-governance.json"
+)
+RECEIPT = Path("/var/lib/openhealthatlas-fictional/last-hermes-receipt.json")
+RECOVERY_RECEIPT = Path(
+    "/var/lib/openhealthatlas-fictional/last-recovery-receipt.json"
+)
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+MAX_GENERIC_RESPONSE_BYTES = 1024 * 1024
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+FIXTURE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
+REAL_DATA_REQUIRED_DECISIONS = {
+    "consent": [
+        "accountable_owner", "authorization_id", "authorization_version",
+        "data_classes", "field_paths", "date_range", "destinations",
+        "revocation_process",
+    ],
+    "retention": [
+        "accountable_owner", "raw_record_period", "derived_record_period",
+        "audit_period", "backup_period", "expiry_enforcement",
+        "restoration_reconciliation",
+    ],
+    "provider_transfer": [
+        "purpose", "provider", "processor_role", "destination_region",
+        "transfer_basis", "subprocessors", "provider_retention",
+        "prompt_and_log_handling",
+    ],
+    "deletion": [
+        "execution_owner", "primary_store_process", "derived_store_process",
+        "backup_purge_process", "provider_deletion_process",
+        "confirmation_evidence", "audit_retention_exception",
+    ],
+}
+
+
+def _real_data_governance_configuration() -> dict[str, str]:
+    """Load the explicit deny gate; this repository cannot activate real data."""
+
+    if REAL_DATA_GOVERNANCE.is_symlink() or not REAL_DATA_GOVERNANCE.is_file():
+        raise RuntimeError("real-data governance gate is unavailable")
+    try:
+        value = json.loads(REAL_DATA_GOVERNANCE.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("real-data governance gate is unreadable") from exc
+    expected = {
+        "activation_allowed",
+        "contract",
+        "decisions",
+        "fictional_tests_only",
+        "missing_unknown_or_unapproved_action",
+        "real_data_status",
+        "version",
+    }
+    if not isinstance(value, dict) or set(value) != expected:
+        raise RuntimeError("real-data governance gate has the wrong fields")
+    decisions = value.get("decisions")
+    if (
+        value.get("contract") != "openhealthatlas-real-data-governance-gate-v1"
+        or value.get("version") != "1.0.0"
+        or value.get("activation_allowed") is not False
+        or value.get("fictional_tests_only") is not True
+        or value.get("missing_unknown_or_unapproved_action") != "deny"
+        or value.get("real_data_status") != "blocked_unresolved_decisions"
+        or not isinstance(decisions, dict)
+        or set(decisions) != set(REAL_DATA_REQUIRED_DECISIONS)
+        or any(
+            not isinstance(decision, dict)
+            or set(decision) != {"required", "status"}
+            or decision.get("status") != "unresolved"
+            or decision.get("required") != REAL_DATA_REQUIRED_DECISIONS[name]
+            for name, decision in decisions.items()
+        )
+    ):
+        raise RuntimeError("real-data governance gate must remain fail closed")
+    return {
+        "contract": value["contract"],
+        "version": value["version"],
+        "status": value["real_data_status"],
+    }
+
+
+def _fixture_configuration() -> tuple[str, str, str]:
+    """Load the adapter's adjacent root-owned fictional fixture identity."""
+    if CONFIG.is_symlink() or not CONFIG.is_file():
+        raise RuntimeError("fictional tool configuration is unavailable")
+    try:
+        value = json.loads(CONFIG.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("fictional tool configuration is unreadable") from exc
+    if not isinstance(value, dict) or value.get("data_class") != "fictional":
+        raise RuntimeError("MCP requires the fictional tool configuration")
+    fixture_id = value.get("fixture_id")
+    range_from = value.get("range_from")
+    range_to = value.get("range_to")
+    if not isinstance(fixture_id, str) or FIXTURE_ID_RE.fullmatch(fixture_id) is None:
+        raise RuntimeError("fictional fixture identifier is invalid")
+    try:
+        start = date.fromisoformat(range_from)
+        end = date.fromisoformat(range_to)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("fictional fixture range is invalid") from exc
+    if start.isoformat() != range_from or end.isoformat() != range_to or start > end:
+        raise RuntimeError("fictional fixture range is invalid")
+    return fixture_id, range_from, range_to
+
+
+REAL_DATA_GOVERNANCE_GATE = _real_data_governance_configuration()
+FIXTURE_ID, RANGE_FROM, RANGE_TO = _fixture_configuration()
+
+RECOVERY_DISCLOSURE_CONTRACT = "openhealthatlas-recovery-disclosure-v1"
+READINESS_EVIDENCE_CONTRACT = "readiness-evidence-v2"
+READINESS_ANCESTRY_CONTRACT = "openhealthatlas-readiness-ancestry-v2"
+RECOVERY_SHARING_AUTHORIZATION_CONTRACT = (
+    "openhealthatlas-fictional-sharing-authorization-v1"
+)
+RECOVERY_SHARING_AUTHORIZATION_ID = (
+    "openhealthatlas-fictional-recovery-telegram"
+)
+RECOVERY_SHARING_AUTHORIZATION_VERSION = "1.0.0"
+RECOVERY_DELIVERY_CONTRACT = "hermes-gateway-required-delivery-v1"
+RECOVERY_DELIVERY_RENDERER_ID = "openhealthatlas-recovery-delivery"
+RECOVERY_DELIVERY_RENDERER_VERSION = "1.0.0"
+GENERIC_DELIVERY_RENDERER_ID = "openhealthatlas-generic-evidence-delivery"
+GENERIC_DELIVERY_RENDERER_VERSION = "1.0.2"
+GENERIC_OBSERVED_EVIDENCE_TOOL = (
+    "mcp_openhealthatlas_fictional_openhealthatlas_health_evidence"
+)
+GENERIC_EVIDENCE_NON_DIAGNOSTIC_TEXT = (
+    "This is deterministic fictional health evidence, not a diagnosis, "
+    "medical advice, proof of causation, or proof that unavailable data exists."
+)
+RECOVERY_NON_DIAGNOSTIC_TEXT = (
+    "This is a transparent fictional-fixture heuristic, not a diagnosis, "
+    "medical advice, proof of readiness, or proof of causation."
+)
+RECOVERY_EXCLUDED_FIELD_GROUPS = [
+    "private_health_data",
+    "database_paths_and_contents",
+    "vault_paths_and_contents",
+    "raw_history_rows",
+    "verbatim_soreness_note",
+    "soreness_content_fingerprint",
+    "private_ancestry_sidecar_paths_and_contents",
+    "canonical_row_digests",
+    "canonical_recovery_rows_sha256",
+    "full_database_identity",
+]
+RECOVERY_REPLY_REQUIREMENT = {
+    "required_final_heading": "Data & evidence disclosure",
+    "source_field": "required_disclosure",
+    "include_every_disclosure_field": True,
+    "omission_is_acceptance_failure": True,
+}
+
+MODEL_COMPONENT_FIELDS = ("key", "score", "value", "basis")
+MODEL_DRAG_FIELDS = ("key", "label", "score", "points")
+MODEL_MUSCLE_FIELDS = (
+    "group",
+    "days_since",
+    "sets_7d",
+    "exercise",
+    "e1rm_delta_pct",
+    "below_median",
+    "sore",
+)
+EVIDENCE_COMPONENT_FIELDS = (
+    "key",
+    "status",
+    "reason_code",
+    "ancestry_state",
+    "transformation",
+)
+EVIDENCE_CURRENT_FIELDS = (
+    "table",
+    "locator",
+    "source_label",
+    "observed_at",
+)
+EVIDENCE_BASELINE_FIELDS = (
+    "source_label",
+    "observation_count",
+    "range_from",
+    "range_to",
+    "locators",
+)
+EVIDENCE_WARNING_FIELDS = (
+    "code",
+    "component",
+    "source_label",
+    "required",
+    "observed",
+    "other_source_observations_excluded",
+)
+EVIDENCE_GAP_FIELDS = ("code", "scope")
+POLICY_TOP_LEVEL_FIELDS = (
+    "policy_id",
+    "version",
+    "meaning",
+    "baseline_days",
+    "minimum_same_source_baseline_observations",
+    "component_keys",
+    "composite",
+    "minimum_components",
+)
+SNAPSHOT_INTEGRITY_FIELDS = (
+    "contract",
+    "status",
+    "scope",
+    "schema_version",
+    "external_provider_sync",
+    "training_ancestry",
+)
+POLICY_SECTION_FIELDS = {
+    "sleep": ("target_hours", "method", "quality_scale_max"),
+    "hrv": ("method", "deviation_coefficient", "higher_is_better"),
+    "resting_hr": ("method", "deviation_coefficient", "lower_is_better"),
+    "bands": ("bad_below", "warn_below", "good_at_or_above"),
+    "training": (
+        "effective_sets_window_days",
+        "performance_window_days",
+        "e1rm_method",
+        "performance_comparison",
+        "below_median_rule",
+        "muscle_mapping",
+    ),
+    "soreness": ("derivation", "synonym_map_sha256", "meaning"),
+}
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
+def _sha256(value: Any) -> str:
+    return "sha256:" + hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
+
+
+def _validated_sha256(value: object, label: str) -> str:
+    if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+        raise ValueError(f"governed readiness evidence has invalid {label}")
+    return value
+
+
+def _project_fields(value: object, fields: tuple[str, ...]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("governed readiness evidence has an invalid object")
+    return {
+        key: deepcopy(value[key])
+        for key in fields
+        if key in value
+    }
+
+
+def _project_policy(value: object) -> dict[str, Any]:
+    policy = _project_fields(value, POLICY_TOP_LEVEL_FIELDS)
+    for name, fields in POLICY_SECTION_FIELDS.items():
+        section = value.get(name) if isinstance(value, dict) else None
+        if section is not None:
+            policy[name] = _project_fields(section, fields)
+    return policy
+
+
+def _project_snapshot_integrity(value: object) -> dict[str, Any]:
+    projected = _project_fields(value, SNAPSHOT_INTEGRITY_FIELDS)
+    if set(projected) != set(SNAPSHOT_INTEGRITY_FIELDS):
+        raise ValueError("governed readiness evidence lacks snapshot integrity")
+    if (
+        projected["contract"] != READINESS_ANCESTRY_CONTRACT
+        or projected["status"] != "verified"
+        or projected["scope"]
+        != "current_snapshot_integrity_and_reproducibility"
+        or projected["external_provider_sync"] != "not_performed"
+        or projected["training_ancestry"] != "manifested"
+        or not isinstance(projected["schema_version"], int)
+        or isinstance(projected["schema_version"], bool)
+    ):
+        raise ValueError("governed readiness evidence has invalid snapshot integrity")
+    return projected
+
+
+def _readiness_evidence(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Project only the governed, non-raw readiness evidence to Hermes."""
+
+    evidence = result.get("evidence")
+    if (
+        not isinstance(evidence, dict)
+        or evidence.get("contract") != READINESS_EVIDENCE_CONTRACT
+    ):
+        return None
+    projected: dict[str, Any] = {
+        "contract": READINESS_EVIDENCE_CONTRACT,
+        "input_fingerprint": _validated_sha256(
+            evidence.get("input_fingerprint"), "input fingerprint"
+        ),
+        "fingerprint_scope": list(evidence.get("fingerprint_scope", [])),
+        "policy": _project_policy(evidence.get("policy")),
+        "policy_sha256": _validated_sha256(
+            evidence.get("policy_sha256"), "policy identity"
+        ),
+        "public_evidence_identity": _validated_sha256(
+            evidence.get("public_evidence_identity"), "public evidence identity"
+        ),
+        "snapshot_integrity": _project_snapshot_integrity(
+            evidence.get("snapshot_integrity")
+        ),
+        "components": [],
+        "soreness": None,
+        "warnings": [],
+        "remaining_ancestry_gaps": [],
+    }
+    for row in evidence.get("components", []):
+        if not isinstance(row, dict):
+            continue
+        item = _project_fields(row, EVIDENCE_COMPONENT_FIELDS)
+        current = row.get("current")
+        baseline = row.get("baseline")
+        item["current"] = (
+            _project_fields(current, EVIDENCE_CURRENT_FIELDS)
+            if isinstance(current, dict) else None
+        )
+        item["baseline"] = (
+            _project_fields(baseline, EVIDENCE_BASELINE_FIELDS)
+            if isinstance(baseline, dict) else None
+        )
+        # Baseline locators identify source rows without exposing their raw values.
+        projected["components"].append(item)
+    for row in evidence.get("warnings", []):
+        projected["warnings"].append(
+            _project_fields(row, EVIDENCE_WARNING_FIELDS)
+        )
+    for row in evidence.get("remaining_ancestry_gaps", []):
+        projected["remaining_ancestry_gaps"].append(
+            _project_fields(row, EVIDENCE_GAP_FIELDS)
+        )
+    soreness = evidence.get("soreness")
+    if isinstance(soreness, dict):
+        projected["soreness"] = {
+            key: deepcopy(soreness.get(key))
+            for key in (
+                "status",
+                "table",
+                "locator",
+                "source_label",
+                "observed_at",
+            )
+        }
+    if projected["policy_sha256"] != _sha256(projected["policy"]):
+        raise ValueError("governed readiness evidence policy identity drifted")
+    public_preimage = {
+        key: deepcopy(value)
+        for key, value in projected.items()
+        if key != "public_evidence_identity"
+    }
+    if projected["public_evidence_identity"] != _sha256(public_preimage):
+        raise ValueError("governed readiness public evidence identity drifted")
+    return projected
+
+
+def _soreness_summary(result: dict[str, Any]) -> dict[str, Any]:
+    """Return presence and identity only; never return the qualitative text."""
+
+    soreness = result.get("soreness")
+    evidence = _readiness_evidence(result)
+    evidence_soreness = evidence.get("soreness") if evidence is not None else None
+    date_value = soreness.get("date") if isinstance(soreness, dict) else None
+    summary: dict[str, Any] = {
+        "present": isinstance(soreness, dict),
+        "date": date_value,
+    }
+    if isinstance(evidence_soreness, dict):
+        summary.update({
+            "source_label": evidence_soreness.get("source_label"),
+            "source_locator": evidence_soreness.get("locator"),
+        })
+    return summary
+
+
+def _model_readiness_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Bound the model-facing result and strip every raw qualitative value."""
+
+    projected = _project_fields(
+        result,
+        ("status", "anchor_date", "range_from", "reason", "score", "band"),
+    )
+    projected["components"] = [
+        _project_fields(row, MODEL_COMPONENT_FIELDS)
+        for row in result.get("components", [])
+    ]
+    if "drag" in result:
+        projected["drag"] = [
+            _project_fields(row, MODEL_DRAG_FIELDS)
+            for row in result.get("drag", [])
+        ]
+    projected["muscle_recovery"] = [
+        _project_fields(row, MODEL_MUSCLE_FIELDS)
+        for row in result.get("muscle_recovery", [])
+    ]
+    projected["disclaimer"] = RECOVERY_NON_DIAGNOSTIC_TEXT
+    projected["soreness"] = _soreness_summary(result)
+    evidence = _readiness_evidence(result)
+    if evidence is not None:
+        projected["evidence"] = evidence
+    return projected
+
+
+def _public_result_sha256(response_kind: str, projection: dict[str, Any]) -> str:
+    """Identify only an exact privacy-safe MCP projection."""
+
+    return _sha256({
+        "contract": f"openhealthatlas-public-recovery-{response_kind}-v1",
+        "projection": projection,
+    })
+
+
+def _shared_field_groups(response_kind: str, focus: str | None) -> list[str]:
+    groups = []
+    if response_kind == "snapshot" or focus in {"sleep", "heart_signals"}:
+        groups.append("derived_recovery_components")
+    if response_kind == "snapshot" or focus == "training":
+        groups.append("derived_training_recovery")
+    if response_kind == "snapshot" or focus == "soreness":
+        groups.append("derived_soreness_flags")
+    groups.extend(["governed_evidence_identity", "component_missingness"])
+    return groups
+
+
+def _shared_field_paths(
+    response_kind: str,
+    focus: str | None,
+    result: dict[str, Any],
+) -> list[str]:
+    common = [
+        "data_class",
+        "fixture_id",
+        "turn_id",
+        "result_sha256",
+        "missing[]",
+        "required_disclosure",
+        "reply_requirement",
+        "sharing_authorization",
+        "delivery_contract",
+    ]
+    if response_kind == "snapshot":
+        model_result = _model_readiness_result(result)
+        paths = []
+        for key in (
+            "status",
+            "anchor_date",
+            "range_from",
+            "reason",
+            "score",
+            "band",
+            "components",
+            "drag",
+            "muscle_recovery",
+            "soreness",
+            "disclaimer",
+            "evidence",
+        ):
+            if key not in model_result:
+                continue
+            suffix = {
+                "components": "[]",
+                "drag": "[]",
+                "muscle_recovery": "[]",
+                "soreness": (
+                    ".{present,date,source_label,source_locator}"
+                ),
+            }.get(key, "")
+            paths.append(f"result.{key}{suffix}")
+        return common + paths + ["follow_up_required"]
+    detail_path = {
+        "sleep": "detail[]",
+        "heart_signals": "detail[]",
+        "training": "detail[]",
+        "soreness": (
+            "detail.{soreness,flagged_groups[]}"
+        ),
+    }.get(focus, "detail")
+    return common + [
+        "status",
+        "focus",
+        "deterministic_components",
+        detail_path,
+        "evidence",
+        "disclaimer",
+        "instruction",
+    ]
+
+
+def _sharing_authorization(
+    *, response_kind: str, focus: str | None, result: dict[str, Any]
+) -> dict[str, Any]:
+    """Return destination authorization without changing OHA calculation identity."""
+
+    if response_kind == "snapshot":
+        qualitative_paths = [
+            "result.soreness.present",
+            "result.soreness.date",
+            "result.soreness.source_label",
+            "result.soreness.source_locator",
+            "result.muscle_recovery[].sore",
+        ]
+    elif focus == "soreness":
+        qualitative_paths = [
+            "detail.soreness.present",
+            "detail.soreness.date",
+            "detail.soreness.source_label",
+            "detail.soreness.source_locator",
+            "detail.flagged_groups[].sore",
+        ]
+    elif focus == "training":
+        qualitative_paths = ["detail[].sore"]
+    else:
+        qualitative_paths = []
+    return {
+        "contract": RECOVERY_SHARING_AUTHORIZATION_CONTRACT,
+        "authorization_id": RECOVERY_SHARING_AUTHORIZATION_ID,
+        "version": RECOVERY_SHARING_AUTHORIZATION_VERSION,
+        "status": "authorized",
+        "data_class": "fictional",
+        "fixture_id": FIXTURE_ID,
+        "destination": "telegram_via_external_hermes_gateway",
+        "destination_binding": "same_authenticated_gateway_source",
+        "audience": "fictional_recovery_acceptance",
+        "approved_range": {
+            "from": RANGE_FROM,
+            "to": RANGE_TO,
+            "anchor": RANGE_TO,
+        },
+        "permitted_field_paths": _shared_field_paths(
+            response_kind, focus, result
+        ),
+        "excluded_field_groups": list(RECOVERY_EXCLUDED_FIELD_GROUPS),
+        "interpretation_writeback": "disabled",
+        "calculation_fingerprint_member": False,
+        "qualitative_source_authorization": {
+            "contract": "openhealthatlas-qualitative-source-authorization-v1",
+            "authorization_id": (
+                "openhealthatlas-fictional-soreness-summary-telegram"
+            ),
+            "version": "1.0.0",
+            "status": "authorized",
+            "permitted_summary_paths": qualitative_paths,
+            "raw_note_permitted": False,
+            "note_derived_secret_permitted": False,
+        },
+        "real_data_governance_gate": dict(REAL_DATA_GOVERNANCE_GATE),
+    }
+
+
+def _recovery_disclosure(
+    *,
+    response_kind: str,
+    focus: str | None,
+    result: dict[str, Any],
+    result_sha256: object,
+    missing: list[str],
+) -> dict[str, Any]:
+    evidence = _readiness_evidence(result)
+    evidence_identity: dict[str, Any] = {
+        "result_sha256": result_sha256,
+        "result_identity_scope": (
+            f"privacy_safe_{response_kind}_projection"
+        ),
+    }
+    if evidence is not None and evidence.get("input_fingerprint") is not None:
+        evidence_identity["input_fingerprint"] = evidence["input_fingerprint"]
+    ancestry_gaps = (
+        deepcopy(evidence.get("remaining_ancestry_gaps", []))
+        if evidence is not None
+        else [{"code": "readiness_evidence_unavailable", "scope": ["recovery"]}]
+    )
+    excluded_components = []
+    if evidence is not None:
+        excluded_components = [
+            {
+                "key": row.get("key"),
+                "reason_code": row.get("reason_code"),
+                **next((
+                    {
+                        "source_label": warning.get("source_label"),
+                        "required": warning.get("required"),
+                        "observed": warning.get("observed"),
+                        "other_source_observations_excluded": warning.get(
+                            "other_source_observations_excluded"
+                        ),
+                    }
+                    for warning in evidence.get("warnings", [])
+                    if isinstance(warning, dict)
+                    and warning.get("component") == row.get("key")
+                ), {}),
+            }
+            for row in evidence.get("components", [])
+            if isinstance(row, dict) and row.get("status") == "excluded"
+        ]
+    return {
+        "contract": RECOVERY_DISCLOSURE_CONTRACT,
+        "data_class": "fictional",
+        "fixture_id": FIXTURE_ID,
+        "approved_range": {
+            "from": RANGE_FROM,
+            "to": RANGE_TO,
+            "anchor": RANGE_TO,
+        },
+        "destination": "Hermes reasoning model through the existing Telegram gateway",
+        "sharing_scope": "fictional_recovery_only",
+        "shared_field_groups": _shared_field_groups(response_kind, focus),
+        "shared_field_paths": _shared_field_paths(response_kind, focus, result),
+        "evidence_identity": evidence_identity,
+        "calculation_policy": (
+            {
+                "policy_id": evidence["policy"].get("policy_id"),
+                "version": evidence["policy"].get("version"),
+                "policy_sha256": evidence["policy_sha256"],
+            }
+            if evidence is not None
+            else None
+        ),
+        "public_evidence_identity": (
+            evidence["public_evidence_identity"] if evidence is not None else None
+        ),
+        "deterministic_components": [
+            _project_fields(row, MODEL_COMPONENT_FIELDS)
+            for row in result.get("components", [])
+        ],
+        "snapshot_integrity": (
+            deepcopy(evidence["snapshot_integrity"])
+            if evidence is not None else None
+        ),
+        "component_missingness": {
+            "status": "none_missing" if not missing else "missing",
+            "missing": list(missing),
+            "excluded": excluded_components,
+        },
+        "source_ancestry_status": (
+            "verified_current_snapshot" if evidence is not None else "unavailable"
+        ),
+        # The v5 sidecar proves the current snapshot and reproducibility only;
+        # it does not prove the original historical fixture-generation event.
+        "historical_generation_event_status": "not_attested",
+        "remaining_ancestry_gaps": ancestry_gaps,
+        "interpretation_writeback": "disabled",
+        "excluded_field_groups": list(RECOVERY_EXCLUDED_FIELD_GROUPS),
+        "non_diagnostic_text": RECOVERY_NON_DIAGNOSTIC_TEXT,
+    }
+
+
+def _required_delivery(
+    *,
+    mcp_tool: str,
+    turn_id: str,
+    result: dict[str, Any],
+    result_sha256: object,
+    disclosure: dict[str, Any],
+    sharing_authorization: dict[str, Any],
+) -> dict[str, Any]:
+    """Build facts consumable only from this successful MCP completion.
+
+    The external gateway must use the tool-completion event's own tool-call ID
+    in addition to this turn binding. It must not replace these facts with model
+    output, caller arguments, or a filesystem receipt.
+    """
+
+    evidence = _readiness_evidence(result)
+    if evidence is None:
+        raise RuntimeError("governed readiness evidence is unavailable")
+    _validated_sha256(result_sha256, "result identity")
+    trusted_facts = {
+        "data_class": "fictional",
+        "fixture_id": FIXTURE_ID,
+        "openhealthatlas_turn_id": turn_id,
+        "result_status": result.get("status"),
+        "approved_range": deepcopy(disclosure["approved_range"]),
+        "result_sha256": result_sha256,
+        "input_fingerprint": evidence["input_fingerprint"],
+        "calculation_policy": deepcopy(disclosure["calculation_policy"]),
+        "public_evidence_identity": evidence["public_evidence_identity"],
+        "snapshot_integrity": deepcopy(evidence["snapshot_integrity"]),
+        "component_missingness": deepcopy(disclosure["component_missingness"]),
+        "required_disclosure": deepcopy(disclosure),
+        "sharing_authorization": deepcopy(sharing_authorization),
+        "non_diagnostic_text": RECOVERY_NON_DIAGNOSTIC_TEXT,
+        "interpretation_writeback": "disabled",
+    }
+    completion_id = _sha256({
+        "contract": RECOVERY_DELIVERY_CONTRACT,
+        "mcp_tool": mcp_tool,
+        "turn_id": turn_id,
+        "trusted_facts": trusted_facts,
+    })
+    return {
+        "contract": RECOVERY_DELIVERY_CONTRACT,
+        "renderer_id": RECOVERY_DELIVERY_RENDERER_ID,
+        "renderer_version": RECOVERY_DELIVERY_RENDERER_VERSION,
+        "required": True,
+        "trusted_source_requirement": (
+            "successful_same_turn_openhealthatlas_mcp_completion"
+        ),
+        "correlation": {
+            "openhealthatlas_turn_id": turn_id,
+            "mcp_tool": mcp_tool,
+            "completion_id": completion_id,
+            "gateway_tool_call_id_required": True,
+        },
+        "delivery_order": [
+            "trusted_disclosure",
+            "optional_hermes_prose",
+        ],
+        "complete_telegram_payload_validation_required": True,
+        "missing_or_invalid_contract_action": "fail_closed_without_hermes_prose",
+        "trusted_facts": trusted_facts,
+    }
+
+
+def _load_projection(path: Path):
+    loader = importlib.machinery.SourceFileLoader(
+        "openhealthatlas_model_projection", str(path)
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise RuntimeError("could not load the bounded model projection")
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def _new_turn_id() -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"oha-fictional-{stamp}-{secrets.token_hex(5)}"
+
+
+class FictionalJourney:
+    """Serialize and prove one genuine-Hermes deterministic journey at a time."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.projection = _load_projection(PROJECTION)
+        self._reset()
+
+    def _reset(self) -> None:
+        self.phase = 0
+        self.turn_id = _new_turn_id()
+        self.started_at = datetime.now(timezone.utc).isoformat()
+        self.finding_ids: list[str] = []
+        self.allowed_finding_ids: set[str] = set()
+        self.input_fingerprint: str | None = None
+        self.batch_id: str | None = None
+        self.model_executions: list[dict[str, Any]] = []
+        self.full_executions: list[dict[str, Any]] = []
+        self.cache: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def _sha(value: object, label: str) -> str:
+        if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+            raise ValueError(f"{label} must be a returned sha256 identifier")
+        return value
+
+    def _sequence(
+        self, command: str, arguments: list[str]
+    ) -> tuple[int, str | None]:
+        fixed = {
+            "feature-frame": [
+                "--from", RANGE_FROM, "--to", RANGE_TO,
+                "--family", "subjective", "--include-provenance",
+            ],
+            "data-readiness": [
+                "--from", RANGE_FROM, "--to", RANGE_TO,
+                "--outcome", "subjective.day_rating",
+            ],
+            "analysis-refresh": [
+                "--kind", "manual", "--outcome", "subjective.day_rating",
+                "--mode", "green-vs-non-green",
+                "--from", RANGE_FROM, "--to", RANGE_TO,
+                "--anchor", RANGE_TO,
+            ],
+            "feature-registry": [],
+        }
+        ordered = [
+            "feature-frame", "data-readiness", "analysis-refresh",
+            "feature-registry",
+        ]
+        if self.phase < len(ordered):
+            expected = ordered[self.phase]
+            if command != expected or arguments != fixed[expected]:
+                raise ValueError(f"next required deterministic tool is {expected}")
+            return self.phase + 1, None
+
+        if command == "finding-evidence" and self.phase in {4, 5}:
+            if len(self.finding_ids) >= 3:
+                raise ValueError("at most three finding-evidence calls are allowed")
+            if (
+                len(arguments) != 10
+                or arguments[:2] != ["--outcome", "subjective.day_rating"]
+                or arguments[2] != "--finding-id"
+                or arguments[4] != "--input-fingerprint"
+                or arguments[6:] != [
+                    "--from", RANGE_FROM, "--to", RANGE_TO,
+                ]
+            ):
+                raise ValueError("finding-evidence arguments are outside fixture scope")
+            finding_id = self._sha(arguments[3], "finding ID")
+            fingerprint = self._sha(arguments[5], "input fingerprint")
+            if finding_id not in self.allowed_finding_ids:
+                raise ValueError("finding ID was not returned as a valid choice")
+            if fingerprint != self.input_fingerprint:
+                raise ValueError("input fingerprint does not match the analysis")
+            if finding_id in self.finding_ids:
+                raise ValueError("duplicate finding-evidence call")
+            return 5, finding_id
+
+        if command == "synthesis-prepare" and self.phase == 5:
+            if not self.finding_ids:
+                raise ValueError("at least one successful evidence replay is required")
+            if len(arguments) != 2 or arguments[0] != "--batch-id":
+                raise ValueError("synthesis-prepare requires the returned batch ID")
+            if self._sha(arguments[1], "batch ID") != self.batch_id:
+                raise ValueError("batch ID does not match this analysis")
+            return 6, None
+
+        if self.phase == 6:
+            raise ValueError("this deterministic journey is already complete")
+        raise ValueError("finding evidence is required before synthesis preparation")
+
+    def _tighten_analysis(self, projected: dict[str, Any]) -> None:
+        result = projected.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError("analysis projection has the wrong shape")
+        valid_choices: list[dict[str, Any]] = []
+        input_fingerprint = None
+        for run in result.get("runs", []):
+            if not isinstance(run, dict):
+                continue
+            candidate_fingerprint = run.get("input_fingerprint")
+            if input_fingerprint is None and isinstance(candidate_fingerprint, str):
+                input_fingerprint = candidate_fingerprint
+            deterministic = run.get("deterministic_result")
+            if not isinstance(deterministic, dict):
+                continue
+            rows = deterministic.get("findings")
+            eligible = [
+                finding for finding in rows if isinstance(finding, dict)
+                and finding.get("eligible_for_hypothesis") is True
+            ] if isinstance(rows, list) else []
+            eligible = eligible[:20]
+            deterministic["findings"] = eligible
+            projection = deterministic.get("projection")
+            if isinstance(projection, dict):
+                projection["returned_findings"] = len(eligible)
+                projection["selection"] = "eligible_hypothesis_findings_only"
+            valid_choices.extend(eligible)
+
+        batch = result.get("batch")
+        batch_id = batch.get("batch_id") if isinstance(batch, dict) else None
+        self.input_fingerprint = self._sha(input_fingerprint, "analysis fingerprint")
+        self.batch_id = self._sha(batch_id, "analysis batch ID")
+        ids = {
+            row.get("finding_id") for row in valid_choices
+            if isinstance(row.get("finding_id"), str)
+            and SHA256_RE.fullmatch(row["finding_id"]) is not None
+        }
+        if not ids:
+            raise RuntimeError("analysis returned no eligible finding choices")
+        self.allowed_finding_ids = ids
+        result["selection_contract"] = {
+            "instruction": (
+                "Use only finding_id values from valid_finding_choices with the "
+                "exact input_fingerprint below. Other hashes are not finding IDs."
+            ),
+            "input_fingerprint": self.input_fingerprint,
+            "batch_id": self.batch_id,
+            "valid_finding_choices": valid_choices,
+        }
+        projected.pop("evidence_ids", None)
+
+    def _save_receipt(self) -> None:
+        receipt = {
+            "contract": "openhealthatlas-fictional-hermes-journey-v1",
+            "data_class": "fictional",
+            "fixture_id": FIXTURE_ID,
+            "turn_id": self.turn_id,
+            "range_from": RANGE_FROM,
+            "range_to": RANGE_TO,
+            "started_at": self.started_at,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "phase": self.phase,
+            "finding_ids": list(self.finding_ids),
+            "full_executions": self.full_executions,
+            "model_interpretation_stored": False,
+        }
+        temporary = RECEIPT.with_suffix(".tmp")
+        temporary.write_text(_canonical(receipt) + "\n", encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        temporary.replace(RECEIPT)
+
+    def execute(self, command: str, arguments: list[str]) -> dict[str, Any]:
+        cache_key = _canonical({"command": command, "args": arguments})
+        with self.lock:
+            if command == "feature-frame" and self.phase == 6:
+                self._reset()
+            if cache_key in self.cache:
+                return self.cache[cache_key]
+
+            next_phase, pending_finding = self._sequence(command, arguments)
+            environment = os.environ.copy()
+            environment["OPENHEALTHATLAS_HERMES_TURN_ID"] = self.turn_id
+            completed = subprocess.run(
+                [str(TOOL), command, *arguments],
+                env=environment,
+                text=True,
+                capture_output=True,
+                timeout=100,
+                check=False,
+            )
+            try:
+                envelope = json.loads(completed.stdout)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("OpenHealthAtlas returned non-JSON output") from exc
+            if (
+                completed.returncode != 0
+                or not isinstance(envelope, dict)
+                or envelope.get("ok") is not True
+                or envelope.get("data_class") != "fictional"
+                or envelope.get("fixture_id") != FIXTURE_ID
+                or envelope.get("turn_id") != self.turn_id
+            ):
+                detail = envelope.get("error") if isinstance(envelope, dict) else None
+                raise RuntimeError(str(detail or "OpenHealthAtlas refused the call"))
+            if command == "finding-evidence" and (
+                not isinstance(envelope.get("result"), dict)
+                or envelope["result"].get("ok") is not True
+                or not envelope.get("evidence_ids")
+            ):
+                raise RuntimeError("finding-evidence returned no authorized evidence")
+
+            full_execution = {
+                "command": command, "args": arguments, "envelope": envelope,
+            }
+            projected = self.projection._model_projection(
+                command, envelope, self.model_executions
+            )
+            if command == "analysis-refresh":
+                self._tighten_analysis(projected)
+            model_execution = {
+                "command": command, "args": arguments, "envelope": projected,
+            }
+            response = {
+                "ok": True,
+                "contract": "openhealthatlas-fictional-hermes-tool-v1",
+                "data_class": "fictional",
+                "fixture_id": FIXTURE_ID,
+                "turn_id": self.turn_id,
+                "execution": model_execution,
+            }
+            if len(_canonical(response).encode("utf-8")) > MAX_RESPONSE_BYTES:
+                raise RuntimeError("projected deterministic result is too large")
+
+            self.phase = next_phase
+            if pending_finding is not None:
+                self.finding_ids.append(pending_finding)
+            self.full_executions.append(full_execution)
+            self.model_executions.append(model_execution)
+            self.cache[cache_key] = response
+            self._save_receipt()
+            return response
+
+
+class RecoveryJourney:
+    """A two-step, read-only recovery question with an explicit focus choice."""
+
+    FOCUSES = frozenset({"sleep", "heart_signals", "training", "soreness"})
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self._reset()
+
+    def _reset(self) -> None:
+        self.phase = 0
+        self.turn_id = _new_turn_id()
+        self.started_at = datetime.now(timezone.utc).isoformat()
+        self.executions: list[dict[str, Any]] = []
+
+    def _execute_readiness(self) -> dict[str, Any]:
+        environment = os.environ.copy()
+        environment["OPENHEALTHATLAS_HERMES_TURN_ID"] = self.turn_id
+        arguments = ["--from", RANGE_FROM, "--anchor", RANGE_TO]
+        completed = subprocess.run(
+            [str(TOOL), "readiness", *arguments],
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=100,
+            check=False,
+        )
+        try:
+            envelope = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("OpenHealthAtlas returned non-JSON recovery output") from exc
+        if (
+            completed.returncode != 0
+            or not isinstance(envelope, dict)
+            or envelope.get("ok") is not True
+            or envelope.get("data_class") != "fictional"
+            or envelope.get("fixture_id") != FIXTURE_ID
+            or envelope.get("turn_id") != self.turn_id
+            or not isinstance(envelope.get("result"), dict)
+        ):
+            detail = envelope.get("error") if isinstance(envelope, dict) else None
+            raise RuntimeError(str(detail or "OpenHealthAtlas refused recovery"))
+        execution = {
+            "command": "readiness", "args": arguments, "envelope": envelope,
+        }
+        self.executions.append(execution)
+        return envelope
+
+    @staticmethod
+    def _missing(result: dict[str, Any]) -> list[str]:
+        evidence = _readiness_evidence(result)
+        if evidence is not None:
+            missing = [
+                row.get("key") for row in evidence.get("components", [])
+                if isinstance(row, dict) and row.get("status") == "missing"
+            ]
+        else:
+            available = {
+                row.get("key") for row in result.get("components", [])
+                if isinstance(row, dict)
+            }
+            missing = [
+                key for key in ("sleep", "hrv", "rhr") if key not in available
+            ]
+        muscles = result.get("muscle_recovery")
+        if not isinstance(muscles, list) or all(
+            isinstance(row, dict) and row.get("days_since") is None for row in muscles
+        ):
+            missing.append("training_history")
+        if result.get("soreness") is None:
+            missing.append("soreness_note")
+        return missing
+
+    def _save_receipt(self, focus: str | None = None) -> None:
+        receipt = {
+            "contract": "openhealthatlas-fictional-recovery-journey-v1",
+            "data_class": "fictional",
+            "fixture_id": FIXTURE_ID,
+            "turn_id": self.turn_id,
+            "range_from": RANGE_FROM,
+            "range_to": RANGE_TO,
+            "started_at": self.started_at,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "phase": self.phase,
+            "selected_focus": focus,
+            "executions": self.executions,
+            "model_interpretation_stored": False,
+        }
+        temporary = RECOVERY_RECEIPT.with_suffix(".tmp")
+        temporary.write_text(_canonical(receipt) + "\n", encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        temporary.replace(RECOVERY_RECEIPT)
+
+    def snapshot(self) -> dict[str, Any]:
+        with self.lock:
+            # Every MCP completion is self-contained. A process-global "latest"
+            # journey must never correlate two Hermes chats.
+            self._reset()
+            envelope = self._execute_readiness()
+            result = envelope["result"]
+            model_result = _model_readiness_result(result)
+            public_result_sha256 = _public_result_sha256(
+                "snapshot", model_result
+            )
+            missing = self._missing(result)
+            disclosure = _recovery_disclosure(
+                response_kind="snapshot",
+                focus=None,
+                result=result,
+                result_sha256=public_result_sha256,
+                missing=missing,
+            )
+            sharing_authorization = _sharing_authorization(
+                response_kind="snapshot", focus=None, result=result
+            )
+            delivery_contract = _required_delivery(
+                mcp_tool="openhealthatlas_recovery_snapshot",
+                turn_id=self.turn_id,
+                result=result,
+                result_sha256=public_result_sha256,
+                disclosure=disclosure,
+                sharing_authorization=sharing_authorization,
+            )
+            self.phase = 1
+            self._save_receipt()
+            return {
+                "ok": True,
+                "contract": "openhealthatlas-fictional-recovery-tool-v1",
+                "data_class": "fictional",
+                "fixture_id": FIXTURE_ID,
+                "turn_id": self.turn_id,
+                "required_disclosure": disclosure,
+                "sharing_authorization": sharing_authorization,
+                "delivery_contract": delivery_contract,
+                "reply_requirement": dict(RECOVERY_REPLY_REQUIREMENT),
+                "result_sha256": public_result_sha256,
+                "result": model_result,
+                "missing": missing,
+                "follow_up_required": {
+                    "question": "Which part should we inspect next?",
+                    "options": sorted(self.FOCUSES),
+                },
+            }
+
+    def detail(self, focus: str) -> dict[str, Any]:
+        with self.lock:
+            if focus not in self.FOCUSES:
+                raise ValueError("focus must be sleep, heart_signals, training, or soreness")
+            # The chosen focus is validated here, but no global snapshot state is
+            # trusted. The successful detail completion gets a fresh OHA ID.
+            self._reset()
+            envelope = self._execute_readiness()
+            result = envelope["result"]
+            model_result = _model_readiness_result(result)
+            disclosure_components = deepcopy(model_result.get("components", []))
+            if focus == "sleep":
+                detail: object = [
+                    row for row in model_result.get("components", [])
+                    if isinstance(row, dict) and row.get("key") == "sleep"
+                ]
+            elif focus == "heart_signals":
+                detail = [
+                    row for row in model_result.get("components", [])
+                    if isinstance(row, dict) and row.get("key") in {"hrv", "rhr"}
+                ]
+            elif focus == "training":
+                detail = model_result.get("muscle_recovery")
+            else:
+                detail = {
+                    "soreness": model_result["soreness"],
+                    "flagged_groups": [
+                        row for row in model_result.get("muscle_recovery", [])
+                        if isinstance(row, dict) and row.get("sore") is True
+                    ],
+                }
+            missing = self._missing(result)
+            instruction = (
+                "Hermes must combine this deterministic detail with the prior "
+                "snapshot, explain uncertainty, and avoid diagnosis or causation."
+            )
+            detail_projection = {
+                "status": model_result.get("status"),
+                "focus": focus,
+                "detail": detail,
+                "evidence": model_result.get("evidence"),
+                "deterministic_components": disclosure_components,
+                "missing": missing,
+                "disclaimer": model_result["disclaimer"],
+                "instruction": instruction,
+            }
+            public_result_sha256 = _public_result_sha256(
+                "detail", detail_projection
+            )
+            disclosure = _recovery_disclosure(
+                response_kind="detail",
+                focus=focus,
+                result=result,
+                result_sha256=public_result_sha256,
+                missing=missing,
+            )
+            sharing_authorization = _sharing_authorization(
+                response_kind="detail", focus=focus, result=result
+            )
+            delivery_contract = _required_delivery(
+                mcp_tool="openhealthatlas_recovery_detail",
+                turn_id=self.turn_id,
+                result=result,
+                result_sha256=public_result_sha256,
+                disclosure=disclosure,
+                sharing_authorization=sharing_authorization,
+            )
+            self.phase = 2
+            self._save_receipt(focus)
+            return {
+                "ok": True,
+                "contract": "openhealthatlas-fictional-recovery-tool-v1",
+                "data_class": "fictional",
+                "fixture_id": FIXTURE_ID,
+                "turn_id": self.turn_id,
+                "status": model_result.get("status"),
+                "focus": focus,
+                "deterministic_components": disclosure_components,
+                "required_disclosure": disclosure,
+                "sharing_authorization": sharing_authorization,
+                "delivery_contract": delivery_contract,
+                "reply_requirement": dict(RECOVERY_REPLY_REQUIREMENT),
+                "result_sha256": public_result_sha256,
+                "detail": detail,
+                "evidence": model_result.get("evidence"),
+                "missing": missing,
+                "disclaimer": model_result["disclaimer"],
+                "instruction": instruction,
+            }
+
+
+class GenericHealthSurface:
+    """Stateless, bounded bridge from Hermes to the deterministic facade."""
+
+    OPERATIONS = frozenset({
+        "health_catalog", "health_query", "health_analyze", "health_evidence",
+    })
+    STATUSES = frozenset({
+        "ok", "insufficient_data", "unsupported", "refused",
+    })
+    ENVELOPE_FIELDS = frozenset({
+        "contract", "operation", "data_class", "fixture_id", "status", "range",
+        "registry_id", "engine_id", "result_id", "coverage", "facts",
+        "findings", "limitations", "evidence_refs",
+    })
+
+    @staticmethod
+    def _command(operation: str) -> str:
+        if operation not in GenericHealthSurface.OPERATIONS:
+            raise ValueError("generic health operation is unavailable")
+        return operation.replace("_", "-")
+
+    def execute(
+        self, operation: str, arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        turn_id = _new_turn_id()
+        request = {"operation": operation, "arguments": arguments}
+        environment = os.environ.copy()
+        environment["OPENHEALTHATLAS_HERMES_TURN_ID"] = turn_id
+        completed = subprocess.run(
+            [str(TOOL), self._command(operation)],
+            input=_canonical(request),
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=100,
+            check=False,
+        )
+        try:
+            adapter = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("OpenHealthAtlas returned non-JSON output") from exc
+        if (
+            completed.returncode != 0
+            or not isinstance(adapter, dict)
+            or adapter.get("ok") is not True
+            or adapter.get("data_class") != "fictional"
+            or adapter.get("fixture_id") != FIXTURE_ID
+            or adapter.get("turn_id") != turn_id
+            or not isinstance(adapter.get("result"), dict)
+        ):
+            detail = adapter.get("error") if isinstance(adapter, dict) else None
+            raise RuntimeError(str(detail or "OpenHealthAtlas refused the generic call"))
+        result = deepcopy(adapter["result"])
+        range_value = result.get("range")
+        range_invalid = (
+            operation in {"health_query", "health_analyze"}
+            and (
+                not isinstance(range_value, dict)
+                or set(range_value) != {"from", "to"}
+            )
+        ) or (
+            operation == "health_catalog" and range_value is not None
+        ) or (
+            operation == "health_evidence"
+            and range_value is not None
+            and (
+                not isinstance(range_value, dict)
+                or set(range_value) != {"from", "to"}
+            )
+        )
+        if (
+            set(result) != self.ENVELOPE_FIELDS
+            or result.get("contract") != "openhealthatlas-hermes-surface-v1"
+            or result.get("operation") != operation
+            or result.get("data_class") != "fictional"
+            or result.get("fixture_id") != FIXTURE_ID
+            or result.get("status") not in self.STATUSES
+            or any(
+                not isinstance(result.get(key), str)
+                or SHA256_RE.fullmatch(result[key]) is None
+                for key in ("registry_id", "engine_id", "result_id")
+            )
+            or range_invalid
+            or not isinstance(result.get("coverage"), dict)
+            or any(
+                not isinstance(result.get(key), list)
+                for key in ("facts", "findings", "limitations", "evidence_refs")
+            )
+        ):
+            raise RuntimeError("OpenHealthAtlas returned an invalid generic envelope")
+        result["turn_id"] = turn_id
+        if len(_canonical(result).encode("utf-8")) > MAX_GENERIC_RESPONSE_BYTES:
+            raise RuntimeError("generic deterministic result is too large")
+        return result
+
+
+def _generic_evidence_delivery(
+    result: dict[str, Any], *, completion_role: str,
+) -> dict[str, Any]:
+    """Bind a generic operation to the final-evidence delivery obligation."""
+
+    if (
+        result.get("operation") not in GenericHealthSurface.OPERATIONS
+        or result.get("data_class") != "fictional"
+        or result.get("fixture_id") != FIXTURE_ID
+        or not isinstance(result.get("turn_id"), str)
+        or result.get("status") not in GenericHealthSurface.STATUSES
+    ):
+        raise RuntimeError("generic evidence is not deliverable")
+    if completion_role not in {"requires_final", "final"}:
+        raise RuntimeError("generic evidence completion role is invalid")
+    if (
+        (result["operation"] == "health_evidence") != (completion_role == "final")
+    ):
+        raise RuntimeError("generic evidence completion role does not match operation")
+    mcp_tool = f"openhealthatlas_{result['operation']}"
+    trusted_facts = {
+        "data_class": "fictional",
+        "fixture_id": FIXTURE_ID,
+        "openhealthatlas_turn_id": result["turn_id"],
+        "operation": result["operation"],
+        "status": result["status"],
+        "range": deepcopy(result.get("range")),
+        "registry_id": result["registry_id"],
+        "engine_id": result["engine_id"],
+        "result_id": result["result_id"],
+        "coverage": deepcopy(result["coverage"]),
+        "limitations": deepcopy(result["limitations"]),
+        "interpretation_writeback": "disabled",
+        "non_diagnostic_text": GENERIC_EVIDENCE_NON_DIAGNOSTIC_TEXT,
+        "allowed_scalar_claims": deepcopy(result.get("allowed_scalar_claims", [])),
+    }
+    completion_id = _sha256({
+        "contract": RECOVERY_DELIVERY_CONTRACT,
+        "mcp_tool": mcp_tool,
+        "turn_id": result["turn_id"],
+        "trusted_facts": trusted_facts,
+    })
+    return {
+        "contract": RECOVERY_DELIVERY_CONTRACT,
+        "renderer_id": GENERIC_DELIVERY_RENDERER_ID,
+        "renderer_version": GENERIC_DELIVERY_RENDERER_VERSION,
+        "required": True,
+        "trusted_source_requirement": (
+            "successful_same_turn_openhealthatlas_mcp_completion"
+        ),
+        "correlation": {
+            "openhealthatlas_turn_id": result["turn_id"],
+            "mcp_tool": mcp_tool,
+            "completion_id": completion_id,
+            "gateway_tool_call_id_required": True,
+        },
+        "delivery_order": ["trusted_disclosure", "optional_hermes_prose"],
+        "complete_telegram_payload_validation_required": True,
+        "missing_or_invalid_contract_action": "fail_closed_without_hermes_prose",
+        "completion_role": completion_role,
+        "final_tool_name": GENERIC_OBSERVED_EVIDENCE_TOOL,
+        "trusted_facts": trusted_facts,
+    }
+
+
+def _claim_number(value: object) -> str | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, int):
+        return str(value)
+    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+
+
+def _generic_allowed_scalar_claims(result: dict[str, Any]) -> list[str]:
+    """Build canonical scalar summaries retained for contract compatibility."""
+
+    claims: list[str] = []
+    range_value = result.get("range")
+    if isinstance(range_value, dict):
+        claims.append(f"range: {range_value.get('from')} to {range_value.get('to')}")
+    coverage = result.get("coverage")
+    if isinstance(coverage, dict):
+        verified = coverage.get("verified_references")
+        requested = coverage.get("requested_references")
+        if type(verified) is int and type(requested) is int:
+            claims.append(f"evidence: {verified} of {requested} references verified")
+    for evidence_item in result.get("facts", []):
+        if not isinstance(evidence_item, dict):
+            continue
+        summary = evidence_item.get("deterministic_summary")
+        if not isinstance(summary, dict):
+            continue
+        operation = summary.get("operation")
+        for row in summary.get("rows", []):
+            if not isinstance(row, dict):
+                continue
+            if operation == "health_query":
+                feature = row.get("feature_key")
+                if not isinstance(feature, str):
+                    continue
+                unit = row.get("unit") if isinstance(row.get("unit"), str) else ""
+                latest = row.get("latest")
+                if isinstance(latest, dict):
+                    number = _claim_number(latest.get("value"))
+                    latest_unit = latest.get("unit") if isinstance(latest.get("unit"), str) else unit
+                    observed_at = latest.get("observed_at")
+                    if number is not None and isinstance(observed_at, str):
+                        claims.append(
+                            f"{feature} latest: {number} {latest_unit} on {observed_at}".replace("  ", " ")
+                        )
+                aggregates = row.get("aggregates")
+                if isinstance(aggregates, dict):
+                    for name in sorted(aggregates):
+                        number = _claim_number(aggregates[name])
+                        if number is not None:
+                            claim_unit = "observations" if name == "count" else unit
+                            claims.append(
+                                f"{feature} {name}: {number} {claim_unit}".strip()
+                            )
+                for section_name in ("baseline", "current"):
+                    section = row.get(section_name)
+                    if not isinstance(section, dict):
+                        continue
+                    section_aggregates = section.get("aggregates")
+                    if isinstance(section_aggregates, dict):
+                        for name in sorted(section_aggregates):
+                            number = _claim_number(section_aggregates[name])
+                            if number is not None:
+                                claim_unit = "observations" if name == "count" else unit
+                                claims.append(
+                                    f"{feature} {section_name} {name}: {number} {claim_unit}".strip()
+                                )
+                delta = row.get("delta")
+                if isinstance(delta, dict):
+                    for name in sorted(delta):
+                        number = _claim_number(delta[name])
+                        if number is not None:
+                            claim_unit = "observations" if name == "count" else unit
+                            claims.append(
+                                f"{feature} change in {name}: {number} {claim_unit}".strip()
+                            )
+            elif operation == "health_analyze":
+                finding_id = row.get("finding_id")
+                effect = row.get("effect") if isinstance(row.get("effect"), dict) else {}
+                sample = row.get("sample") if isinstance(row.get("sample"), dict) else {}
+                testing = row.get("testing") if isinstance(row.get("testing"), dict) else {}
+                stability = row.get("stability") if isinstance(row.get("stability"), dict) else {}
+                estimate = _claim_number(effect.get("oriented_estimate", effect.get("estimate")))
+                complete_n = _claim_number(sample.get("complete_n"))
+                q_value = _claim_number(testing.get("q"))
+                if isinstance(finding_id, str) and estimate and complete_n and q_value:
+                    claims.append(
+                        f"{finding_id} effect: {estimate}; n: {complete_n}; q: {q_value}; "
+                        f"stability: {stability.get('status')}"
+                    )
+    return list(dict.fromkeys(claim for claim in claims if len(claim) <= 300))[:80]
+
+
+def _generic_mcp_result(
+    operation: str, arguments: dict[str, Any],
+) -> dict[str, Any]:
+    result = generic_health_surface.execute(operation, arguments)
+    completion_role = "final" if operation == "health_evidence" else "requires_final"
+    result["interpretation_writeback"] = "disabled"
+    result["non_diagnostic_text"] = GENERIC_EVIDENCE_NON_DIAGNOSTIC_TEXT
+    result["allowed_scalar_claims"] = _generic_allowed_scalar_claims(result)
+    result["delivery_contract"] = _generic_evidence_delivery(
+        result, completion_role=completion_role,
+    )
+    return result
+
+
+class _ToolArgumentSchema:
+    """Advertise nested fields without changing Pydantic's value validation."""
+
+    def __init__(self, schema: dict[str, Any]) -> None:
+        self.schema = schema
+
+    def __get_pydantic_json_schema__(self, _core_schema, _handler):
+        # Pydantic's documented Annotated JSON-schema hook is independent of
+        # core validation. Keep the existing dict/list types and closed guards.
+        return deepcopy(self.schema)
+
+
+_DateRangeArgument = Annotated[
+    dict[str, str],
+    _ToolArgumentSchema({
+        "type": "object",
+        "properties": {
+            "from": {
+                "type": "string", "format": "date",
+                "description": "Inclusive start date in canonical YYYY-MM-DD format.",
+            },
+            "to": {
+                "type": "string", "format": "date",
+                "description": "Inclusive end date in canonical YYYY-MM-DD format.",
+            },
+        },
+        "required": ["from", "to"],
+        "additionalProperties": False,
+    }),
+]
+_EvidenceReferencesArgument = Annotated[
+    list[dict[str, Any]],
+    _ToolArgumentSchema({
+        "type": "array", "minItems": 1, "maxItems": 20,
+        "items": {
+            "type": "object",
+            "properties": {
+                "contract": {
+                    "type": "string", "const": "openhealthatlas-evidence-ref-v1",
+                },
+                "operation": {
+                    "type": "string",
+                    "enum": ["health_catalog", "health_query", "health_analyze"],
+                },
+                "arguments": {
+                    "type": "object", "additionalProperties": True,
+                    "description": "Copy the complete returned arguments object unchanged.",
+                },
+                "result_id": {"type": "string", "pattern": SHA256_RE.pattern},
+                "finding_id": {
+                    "type": "string", "pattern": SHA256_RE.pattern,
+                    "description": "Copy unchanged only when present on an analysis reference.",
+                },
+            },
+            "required": ["contract", "operation", "arguments", "result_id"],
+            "additionalProperties": False,
+        },
+    }),
+]
+
+
+# Hermes may launch stdio servers while its caller is in a directory that the
+# unprivileged service user cannot inspect.  FastMCP's settings loader probes
+# ``.env`` in the current directory, so move into the fixture directory first.
+# This directory contains only fictional data and is owned by the Hermes user.
+os.chdir(RECEIPT.parent)
+
+journey = FictionalJourney()
+recovery_journey = RecoveryJourney()
+generic_health_surface = GenericHealthSurface()
+mcp = FastMCP(
+    "OpenHealthAtlas Fictional",
+    instructions=(
+        "These are the real deterministic OpenHealthAtlas tools bound only to "
+        f"the {FIXTURE_ID} fictional fixture. The four generic health tools "
+        "let Hermes discover registered data, query bounded features, request "
+        "deterministic analysis, and finish with governed evidence. Hermes "
+        "chooses and combines those calls; OpenHealthAtlas never performs model "
+        "reasoning. The Green-day tools "
+        "run stages 1 through 6 in order. Recovery uses snapshot, then Hermes "
+        "must ask the user which focus to inspect before calling detail. The "
+        "external gateway must consume the successful same-turn MCP completion "
+        "and render its trusted disclosure before optional Hermes prose. Raw "
+        "soreness text and note-derived fingerprints are never model-facing. "
+        "Hermes is the sole reasoning layer. Never claim causation "
+        "or diagnosis, never describe caffeine timing because only daily total "
+        "is recorded, and never imply that synthesis-prepare invokes a model or "
+        "stores Hermes interpretation."
+    ),
+)
+
+
+@mcp.tool(description="1 of 6. Start a new fictional journey and return exact Green-day observations. No arguments.")
+def openhealthatlas_feature_frame() -> dict[str, Any]:
+    return journey.execute("feature-frame", [
+        "--from", RANGE_FROM, "--to", RANGE_TO,
+        "--family", "subjective", "--include-provenance",
+    ])
+
+
+@mcp.tool(description="2 of 6. Return deterministic readiness for the fictional day-rating outcome. No arguments.")
+def openhealthatlas_data_readiness() -> dict[str, Any]:
+    return journey.execute("data-readiness", [
+        "--from", RANGE_FROM, "--to", RANGE_TO,
+        "--outcome", "subjective.day_rating",
+    ])
+
+
+@mcp.tool(description="3 of 6. Run deterministic Green-vs-non-Green association analysis. No arguments.")
+def openhealthatlas_analysis_refresh() -> dict[str, Any]:
+    return journey.execute("analysis-refresh", [
+        "--kind", "manual", "--outcome", "subjective.day_rating",
+        "--mode", "green-vs-non-green", "--from", RANGE_FROM,
+        "--to", RANGE_TO, "--anchor", RANGE_TO,
+    ])
+
+
+@mcp.tool(description="4 of 6. Return deterministic metadata for the analyzed exposure features. No arguments.")
+def openhealthatlas_feature_registry() -> dict[str, Any]:
+    return journey.execute("feature-registry", [])
+
+
+@mcp.tool(description="5 of 6. Replay one to three valid findings. Use only the analysis selection_contract values.")
+def openhealthatlas_finding_evidence(
+    finding_id: str, input_fingerprint: str
+) -> dict[str, Any]:
+    return journey.execute("finding-evidence", [
+        "--outcome", "subjective.day_rating", "--finding-id", finding_id,
+        "--input-fingerprint", input_fingerprint,
+        "--from", RANGE_FROM, "--to", RANGE_TO,
+    ])
+
+
+@mcp.tool(description="6 of 6. Prepare the deterministic evidence envelope. This invokes no model and stores no Hermes prose.")
+def openhealthatlas_synthesis_prepare(batch_id: str) -> dict[str, Any]:
+    return journey.execute("synthesis-prepare", ["--batch-id", batch_id])
+
+
+@mcp.tool(description="Recovery 1 of 2. Return deterministic fictional Recovery evidence plus the required same-turn gateway delivery contract. The gateway renders trusted disclosure before optional Hermes prose. Then ask which focus the user wants inspected.")
+def openhealthatlas_recovery_snapshot() -> dict[str, Any]:
+    return recovery_journey.snapshot()
+
+
+@mcp.tool(description="Recovery 2 of 2. After the user chooses one focus, return deterministic fictional detail plus a fresh self-contained gateway delivery contract; Hermes may supply optional explanation only after trusted disclosure.")
+def openhealthatlas_recovery_detail(focus: str) -> dict[str, Any]:
+    return recovery_journey.detail(focus)
+
+
+@mcp.tool(description="Discover bounded fictional OpenHealthAtlas features and their availability. Use this when Hermes needs to find feature keys; it performs no interpretation and accepts no SQL, table, column, database, or path input.")
+def openhealthatlas_health_catalog(
+    search: str | None = None,
+    domains: list[str] | None = None,
+    roles: list[str] | None = None,
+    availability: list[str] | None = None,
+    cursor: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    arguments: dict[str, Any] = {"limit": limit}
+    for key, value in (
+        ("search", search), ("domains", domains), ("roles", roles),
+        ("availability", availability), ("cursor", cursor),
+    ):
+        if value is not None:
+            arguments[key] = value
+    return _generic_mcp_result("health_catalog", arguments)
+
+
+@mcp.tool(description="Read one to 32 registered fictional health features over the configured fixture range as latest values, a bounded series, a summary, or a period comparison. This is deterministic and read-only.")
+def openhealthatlas_health_query(
+    feature_keys: list[str],
+    range: _DateRangeArgument,
+    view: str = "latest",
+    grain: str | None = None,
+    aggregates: list[str] | None = None,
+) -> dict[str, Any]:
+    arguments: dict[str, Any] = {
+        "feature_keys": feature_keys,
+        "range": range,
+        "view": view,
+    }
+    if grain is not None:
+        arguments["grain"] = grain
+    if aggregates is not None:
+        arguments["aggregates"] = aggregates
+    return _generic_mcp_result("health_query", arguments)
+
+
+@mcp.tool(description="Run a bounded deterministic fictional analysis for one registered outcome against one to 32 explicit registered exposures. Returns associations and optional interactions, limitations, and evidence references; Hermes alone interprets them.")
+def openhealthatlas_health_analyze(
+    outcome_key: str,
+    exposure_keys: list[str],
+    range: _DateRangeArgument,
+    mode: str = "all",
+    interactions: bool = False,
+    min_n: int = 30,
+    top: int = 10,
+) -> dict[str, Any]:
+    arguments: dict[str, Any] = {
+        "outcome_key": outcome_key,
+        "exposure_keys": exposure_keys,
+        "range": range,
+        "mode": mode,
+        "interactions": interactions,
+        "min_n": min_n,
+        "top": top,
+    }
+    return _generic_mcp_result("health_analyze", arguments)
+
+
+@mcp.tool(description=(
+    "Final governed operation for a broad fictional-health turn. Replay one to "
+    "20 complete objects from earlier results' evidence_refs and return a "
+    "bounded privacy-safe evidence bundle. Copy each object's contract, "
+    "operation, arguments and result_id unchanged, including finding_id when "
+    "present. Hash strings and objects containing only a ref/hash are invalid. "
+    "Include at most one reference whose operation is health_analyze: choose "
+    "its overall reference or one finding-specific reference. Complete this "
+    "operation successfully before Hermes writes the final explanation."
+))
+def openhealthatlas_health_evidence(
+    evidence_refs: _EvidenceReferencesArgument, detail: str = "summary",
+) -> dict[str, Any]:
+    return _generic_mcp_result("health_evidence", {
+        "evidence_refs": evidence_refs,
+        "detail": detail,
+    })
+
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")

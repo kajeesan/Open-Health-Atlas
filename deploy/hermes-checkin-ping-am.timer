@@ -1,0 +1,14 @@
+# Morning check-in ping at 10:30 UTC. Adjust OnCalendar for the deployment.
+# The explicit timezone keeps the schedule stable across host settings.
+# anchored to UTC wall-clock across DST.
+[Unit]
+Description=Morning energy/focus ping (10:30 UTC)
+
+[Timer]
+OnCalendar=*-*-* 10:30 UTC
+RandomizedDelaySec=5m
+Persistent=false
+Unit=hermes-checkin-ping@am.service
+
+[Install]
+WantedBy=timers.target

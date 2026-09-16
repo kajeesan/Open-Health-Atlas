@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Insight Explorer{% endblock %}
+{% block content %}
+<div class="vstack" id="insight-root">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Insight Explorer</h1>
+      <span class="muted micro">patterns with their limits, in your chosen window</span>
+    </div>
+    <a class="chip" href="{{ url_for('core.insights_conversations') }}">Manage conversations ›</a>
+  </div>
+
+  <section class="card insight-scope" aria-labelledby="scope-title">
+    <div class="row between wrap gap-2">
+      <div>
+        <h2 class="card-title" id="scope-title">Investigation</h2>
+        <p class="muted note-txt m0 mt-1">The same lens and dates follow the findings, readiness check, and conversation.</p>
+      </div>
+      <span class="chip" id="ins-context-chip" aria-live="polite">Loading scope…</span>
+    </div>
+    <div class="ins-scope-grid mt-3">
+      <label class="field-label">Conversation
+        <select class="select-input" id="ins-conversation" aria-label="Current conversation"></select>
+      </label>
+      <label class="field-label">New conversation lens
+        <select class="select-input" id="ins-new-lens">
+          <option value="general">General</option>
+          <option value="pain">Pain</option>
+          <option value="mobility">Mobility</option>
+        </select>
+      </label>
+      <button class="btn" id="ins-new-conversation" type="button">New conversation</button>
+      <label class="field-label">Analysis window
+        <select class="select-input" id="ins-granularity">
+          <option value="day">Day</option>
+          <option value="week">Week</option>
+          <option value="month" selected>Month</option>
+          <option value="year">Year</option>
+          <option value="all">All time</option>
+        </select>
+      </label>
+      <div class="row gap-2 ins-range-nav">
+        <button class="btn quiet" id="ins-range-prev" type="button" aria-label="Previous analysis window">←</button>
+        <button class="btn quiet" id="ins-range-today" type="button">Current</button>
+        <button class="btn quiet" id="ins-range-next" type="button" aria-label="Next analysis window">→</button>
+      </div>
+      <div class="ins-window-readout">
+        <span class="label">Selected window</span>
+        <strong id="ins-window">Loading…</strong>
+      </div>
+    </div>
+    <div class="row between wrap gap-2 mt-2">
+      <p class="muted micro m0" id="ins-scope-status" role="status">
+        Ready. Analysis runs only when you ask for it.
+      </p>
+      <button class="btn" id="ins-analyze" type="button">Analyze this window</button>
+    </div>
+  </section>
+
+  <div class="grid-2 insight-main-grid">
+    <section class="card" aria-labelledby="chat-title">
+      <div class="row between wrap gap-2">
+        <div>
+          <h2 class="card-title" id="chat-title">Conversations with Hermes</h2>
+          <p class="muted micro m0 mt-1" id="ins-chat-subtitle">This panel's own chat log — not Telegram history.</p>
+        </div>
+        <span class="chip" id="ins-chat-state"></span>
+      </div>
+      <div id="ins-chat" class="chat-log ins-chat mt-3 mb-3" aria-live="polite"></div>
+      <div id="ins-selected-evidence" class="selected-evidence mb-3" aria-live="polite" hidden></div>
+      <form class="row gap-2" id="ins-form">
+        <input id="ins-input" class="ins-input grow" maxlength="4000"
+          placeholder="Ask about the evidence in this window…" aria-label="Message Hermes" autocomplete="off">
+        <button id="ins-send" class="ins-send" type="submit" title="Send">→</button>
+      </form>
+      <p class="muted micro m0 mt-2">Hermes sees this exact lens and date window. Findings describe associations in your recorded data.</p>
+    </section>
+
+    <section class="card" aria-labelledby="readiness-title">
+      <div class="row between wrap gap-2">
+        <div>
+          <h2 class="card-title" id="readiness-title">Is the data ready?</h2>
+          <p class="muted micro m0 mt-1">Every engine readiness state stays visible.</p>
+        </div>
+        <span class="chip" id="readiness-window"></span>
+      </div>
+      <div class="readiness-grid mt-3" id="readiness-states" aria-busy="false"></div>
+      <p class="muted note-txt m0 mt-2" id="readiness-empty">
+        Not loaded yet. Choose “Analyze this window” when you need it.
+      </p>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="findings-title">
+    <div class="row between wrap gap-2">
+      <div>
+        <h2 class="card-title" id="findings-title">Outcome findings</h2>
+        <p class="muted micro m0 mt-1">Day-rating patterns grouped exactly as the analysis engine returns them.</p>
+      </div>
+      <span class="chip" id="findings-meta">Not loaded</span>
+    </div>
+    <div class="window-pair mt-3">
+      <div><span class="label">Analysis window</span><strong id="analysis-window">—</strong></div>
+      <div><span class="label">Wider baseline used</span><strong id="baseline-window">—</strong></div>
+    </div>
+    <div class="finding-groups mt-3" id="finding-groups" aria-busy="false"></div>
+    <p class="muted note-txt m0 mt-2" id="findings-empty" hidden></p>
+  </section>
+
+  <section class="card" aria-labelledby="hypotheses-title">
+    <div class="row between wrap gap-2">
+      <div>
+        <h2 class="card-title" id="hypotheses-title">Tracked hypotheses</h2>
+        <p class="muted micro m0 mt-1">Each card keeps its original evidence window; changing the Explorer does not rewrite history.</p>
+      </div>
+      <div class="row gap-2">
+        <span class="chip" id="hypotheses-meta">Not loaded</span>
+        <button class="btn quiet" id="load-hypotheses" type="button">Show hypotheses</button>
+      </div>
+    </div>
+    <div class="vstack mt-3" id="hypothesis-list" aria-busy="false">
+      <p class="muted note-txt m0">Load this section only when you need it.</p>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="card" aria-labelledby="synthesis-title">
+      <div class="row between wrap gap-2">
+        <div>
+          <h2 class="card-title" id="synthesis-title">Latest synthesis</h2>
+          <p class="muted micro m0 mt-1">Recorded history with its own immutable evidence window.</p>
+        </div>
+        <div class="row gap-2">
+          <span class="chip" id="synthesis-meta">Not loaded</span>
+          <button class="btn quiet" id="load-syntheses" type="button">Show history</button>
+        </div>
+      </div>
+      <div class="vstack mt-3" id="synthesis-list" aria-busy="false">
+        <p class="muted note-txt m0">Load this section only when you need it.</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="runs-title">
+      <div class="row between wrap gap-2">
+        <div>
+          <h2 class="card-title" id="runs-title">Analysis run audit</h2>
+          <p class="muted micro m0 mt-1">Read-only run, trigger, and notification status. Autonomous delivery remains off.</p>
+        </div>
+        <div class="row gap-2">
+          <span class="chip">read only</span>
+          <button class="btn quiet" id="load-run-audit" type="button">Show audit</button>
+        </div>
+      </div>
+      <div class="vstack mt-3" id="run-audit" aria-busy="false">
+        <p class="muted note-txt m0">Load this section only when you need it.</p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analysis_jobs.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/insights.js') }}" defer></script>
+{% endblock %}

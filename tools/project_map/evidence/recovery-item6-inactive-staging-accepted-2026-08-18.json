@@ -1,0 +1,124 @@
+{
+  "contract": "openhealthatlas-recovery-item6-inactive-staging-acceptance-v9",
+  "recorded_on": "2026-08-18",
+  "status": "fictional_only_staging_accepted_inactive_no_restart",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-prestage-backup-rehearsal-accepted-2026-08-18.json",
+    "record_commit": "405828019e3d0680314c96b6c6be9a13137f9ea2",
+    "sha256": "sha256:98669fd07ca48d842a8368fe769ceac3713a109558b69e41d0e2b80ec6687b39",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "fictional_only": true,
+    "archive_upload_authorized": true,
+    "inactive_staging_authorized": true,
+    "configuration_staging_authorized": true,
+    "accepted_v5_sidecar_generation_authorized": true,
+    "inactive_service_dropin_authorized": true,
+    "daemon_reload_authorized": false,
+    "service_restart_authorized": false,
+    "telegram_send_authorized": false,
+    "fault_injection_authorized": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "approved_archives": {
+    "external_hermes": {
+      "sha256": "sha256:61622de537b52edca3b40bbcb95491bfd706f41aed2a494ea09e2e4799acae57",
+      "bytes": 63206760,
+      "code_only_archive_verified": true
+    },
+    "openhealthatlas": {
+      "sha256": "sha256:5c2104d7cb8809a070b70b1e7488c2535acc5f6754ca358aefd5f69d13c3e9de",
+      "bytes": 2188028,
+      "code_only_archive_verified": true
+    }
+  },
+  "candidate_commits": {
+    "openhealthatlas_contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "external_hermes_combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+    "prestage_backup_record": "405828019e3d0680314c96b6c6be9a13137f9ea2"
+  },
+  "staged_state": {
+    "clean_external_hermes_release_materialized": true,
+    "external_hermes_runtime_hashes_verified": 8,
+    "openhealthatlas_release_manifest_entries_verified": 393,
+    "openhealthatlas_deployed_manifest_generated": true,
+    "fictional_profile_staged": true,
+    "mcp_alias": "openhealthatlas_fictional",
+    "mcp_alias_staged": true,
+    "delivery_plugin_staged": true,
+    "delivery_plugin_enabled_in_inactive_config": true,
+    "accepted_v5_ancestry_sidecar_generated": true,
+    "accepted_v5_ancestry_sidecar_private_identity_recorded": false,
+    "gateway_working_directory_dropin_created": true,
+    "gateway_working_directory_dropin_loaded": false,
+    "running_gateway_configuration_changed": false
+  },
+  "deterministic_verification": {
+    "status": "insufficient_data",
+    "overall_score_present": false,
+    "overall_band_present": false,
+    "sleep_score": 92,
+    "hrv_same_source_baseline": 10,
+    "resting_hr_same_source_baseline": 10,
+    "required_same_source_baseline": 14,
+    "other_source_rows_excluded": 86,
+    "schema_version": 5,
+    "database_accepted_identity_matched": true,
+    "database_hash_and_stats_unchanged": true,
+    "sqlite_companions_absent": true,
+    "historical_generation_event_proven": false
+  },
+  "runtime_continuity": {
+    "gateway_active_before_and_after": true,
+    "loaded_working_directory_unchanged": true,
+    "loaded_dropin_paths_unchanged": true,
+    "daemon_reload_performed": false,
+    "service_restart_performed": false,
+    "running_registry_verified": false,
+    "telegram_message_sent": false,
+    "fault_injection_performed": false
+  },
+  "safety_verification": {
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "fixture_lane": "accepted-v5",
+    "writeback_disabled": true,
+    "real_data_governance_fail_closed": true,
+    "private_health_data_accessed": false,
+    "private_sidecar_identity_committed": false,
+    "private_configuration_hash_committed": false,
+    "model_or_message_content_committed": false
+  },
+  "rollback": {
+    "backup_id": "item6-prestage-20260818T133824Z-429eebde",
+    "inventory_sha256_matched": true,
+    "isolated_restore_rehearsal_previously_passed": true,
+    "automatic_rollback_armed_during_staging": true,
+    "rollback_triggered": false,
+    "original_dirty_checkout_untouched": true
+  },
+  "remaining_live_gates": {
+    "daemon_reload_and_gateway_restart_approved": false,
+    "running_mcp_registry_verified": false,
+    "genuine_two_turn_telegram_acceptance_complete": false,
+    "live_fault_injection_complete": false,
+    "real_data_owner_governance_complete": false
+  },
+  "proof_limits": [
+    "Inactive staged files and configuration do not prove that the restarted gateway will load the candidate.",
+    "The staged deterministic read proves the fictional accepted-v5 calculation path, not Telegram delivery.",
+    "The current-snapshot ancestry sidecar does not prove the original historical fixture-generation event.",
+    "No live fault behavior or real-data governance decision is inherited from local tests or staging."
+  ],
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "prestage_backup_gate_complete": true,
+    "inactive_staging_gate_complete": true,
+    "ready_for_separate_restart_approval": true,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

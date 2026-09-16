@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Habit ledger{% endblock %}
+{% block content %}
+{# Habit-ledger drill sub-page (task-35, design image 11). Real data from
+   /api/dash/habits-ledger-detail: per-habit current/best streak, a fixed
+   30-day adherence figure, and a DETERMINISTIC status classification (see
+   that route's docstring for the exact rule set — repeated in muted text
+   below so the owner can see why a habit lands where it does). No range dd:
+   the windows the classification needs (all-time + a fixed 30d) are fixed
+   by the rules, not user-selectable (see consistency_habits.js). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.consistency') }}">◱ Consistency</a>
+      <h1 class="page-title">Habit ledger</h1>
+      <span class="muted micro">how long each habit has held · when to add another</span>
+    </div>
+  </div>
+
+  <div class="card" id="hl-gate">
+    <div class="row between wrap mb-1">
+      <h3 class="card-title">Ready for a new habit?</h3>
+      <span class="flag" id="hl-gate-chip" hidden></span>
+    </div>
+    <p class="muted note-txt" id="hl-gate-advice">Loading…</p>
+    <div class="stat-row mt-2" id="hl-gate-stats" hidden>
+      <div class="stat"><span class="stat-label">ESTABLISHED</span><span class="stat-value" id="hl-n-established">–</span></div>
+      <div class="stat"><span class="stat-label">BUILDING / NEW</span><span class="stat-value" id="hl-n-building">–</span></div>
+      <div class="stat"><span class="stat-label">FRAGILE</span><span class="stat-value" id="hl-n-fragile">–</span></div>
+    </div>
+  </div>
+
+  <div class="grid-2" id="habits-grid"></div>
+  <p class="muted note-txt" id="habits-empty" hidden></p>
+
+  <p class="muted micro" id="hl-rule">
+    Established once a habit's current streak reaches 21 days. Building = still climbing
+    for the first time (best streak under 21). Rebuilding = had a full 21-day run before,
+    lost it, and is climbing again — same "still building" bucket above, no-guilt: a broken
+    streak is a fresh run starting now. Fragile = current streak is 0 or 30-day adherence is
+    under 60% (needs attention now, overrides Building/Rebuilding, never Established). All
+    computed server-side from the same ledger numbers shown on the Consistency page.
+    Deeper habit coaching — when to add a new one, what triggers/rewards to build it around —
+    comes later via OpenHealthAtlas chat.
+  </p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/consistency_habits.js') }}" defer></script>
+{% endblock %}

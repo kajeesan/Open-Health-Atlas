@@ -1,0 +1,62 @@
+{
+  "contract": "openhealthatlas-recovery-item6-prestage-artifact-set-v6",
+  "recorded_on": "2026-08-18",
+  "status": "complete_candidate_artifact_set_bound_not_deployed",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-prestage-contract-closed-no-deployment-2026-08-18.json",
+    "record_commit": "d16e4b45defc8cb8db62f4a511953edaf5b968f0",
+    "sha256": "sha256:72c253affdb9b4052a77897b7f68fdf759343b5f5f3c81942c5ab1fa2f5cb038",
+    "byte_preserved": true
+  },
+  "candidate_commits": {
+    "openhealthatlas_contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "external_hermes_combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+    "external_hermes_git_tree_id": "fecece29b29189aee3de4ec8731a11412977442a"
+  },
+  "external_hermes_runtime_sha256": {
+    "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+    "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+    "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+    "gateway/run.py": "sha256:8cb9edc5dda013a26e2d55e88a89e3a6b57700cf51fb839d9167c8988c7791c0",
+    "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+    "model_tools.py": "sha256:1b20a925f60e8d884b87412662606944e282d135c521420e48ec5a9a66a5353c",
+    "plugins/platforms/telegram/adapter.py": "sha256:d8eb3186de8efb0b28bdcc9ab40e24f94dc82b2e05b4b13212504e142819d0d4",
+    "plugins/platforms/telegram/health_actions.py": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a"
+  },
+  "completeness_correction": {
+    "v5_external_runtime_hash_count": 2,
+    "required_runtime_hash_count": 8,
+    "v6_external_runtime_hash_count": 8,
+    "latest_record_is_self_sufficient_for_external_runtime_verification": true,
+    "staging_manifest_runtime_set_matches_exactly": true
+  },
+  "scope": {
+    "append_only_evidence_correction": true,
+    "vps_mutation_performed": false,
+    "staging_performed": false,
+    "configuration_changed": false,
+    "sidecar_generated": false,
+    "service_restarted": false,
+    "telegram_message_sent": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "live_gates": {
+    "inherit_from_v5_by_supersession_hash": true,
+    "prestage_backup_and_restore_rehearsal_complete": false,
+    "clean_release_materialized": false,
+    "mcp_alias_plugin_and_sidecar_staged": false,
+    "gateway_restarted_and_registry_verified": false,
+    "live_telegram_and_fault_injection_complete": false
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "clean_candidate_ready_for_review": true,
+    "prestage_contract_mechanically_closed": true,
+    "candidate_artifact_set_complete": true,
+    "ready_to_stage": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

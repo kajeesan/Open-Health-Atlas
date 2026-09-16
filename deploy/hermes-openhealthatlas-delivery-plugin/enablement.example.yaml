@@ -1,0 +1,5 @@
+# Merge this one entry into the existing Hermes config. Do not replace other
+# plugin settings or enabled plugin names.
+plugins:
+  enabled:
+    - openhealthatlas-recovery-delivery

@@ -1,0 +1,722 @@
+#!/usr/bin/env python3
+"""Private SSH transport for a genuine, isolated Hermes tool-selection loop.
+
+The transport is an executable-compatible replacement for ``hermes -z`` at
+the existing hermesctl boundary.  Hermes chooses bounded OpenHealthAtlas CLI
+calls as JSON actions; this process executes those calls locally and returns
+their exact structured envelopes to the same genuine Hermes model.  SSH
+connection details are read only from a private local configuration file.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import secrets
+import shlex
+import stat
+import subprocess
+import sys
+from typing import Any
+
+
+CONTRACT = "openhealthatlas-hermes-ssh-transport-v1"
+CONFIG_ENV = "HERMES_SSH_TRANSPORT_CONFIG"
+TOOL_ENV = "OPENHEALTHATLAS_TRANSPORT_TOOL"
+RECEIPT_ENV = "HERMES_SSH_TRANSPORT_RECEIPT"
+MAX_MODEL_OUTPUT_BYTES = 256 * 1024
+MAX_PROMPT_BYTES = 2 * 1024 * 1024
+MAX_ITERATIONS = 10
+MAX_TOOL_CALLS = 12
+IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
+DESTINATION = re.compile(r"^[A-Za-z0-9_.:@-]{1,255}$")
+MODEL_NAME = re.compile(r"^[A-Za-z0-9_.:/+-]{1,160}$")
+
+
+class Refused(ValueError):
+    """The local configuration or model action escaped the transport contract."""
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+
+
+def _private_file(raw: object, label: str, *, executable: bool = False) -> Path:
+    if not isinstance(raw, str):
+        raise Refused(f"{label} must be an absolute path")
+    path = Path(raw)
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise Refused(f"{label} must be an absolute regular non-symlink file")
+    resolved = path.resolve(strict=True)
+    if resolved != path:
+        raise Refused(f"{label} must not traverse a symlink")
+    details = path.stat()
+    if not stat.S_ISREG(details.st_mode) or stat.S_IMODE(details.st_mode) & 0o022:
+        raise Refused(f"{label} must not be group/world writable")
+    if details.st_uid not in {0, os.getuid()}:
+        raise Refused(f"{label} has an unexpected owner")
+    if executable and not os.access(path, os.X_OK):
+        raise Refused(f"{label} must be executable")
+    return path
+
+
+def _remote_path(raw: object, label: str) -> str:
+    if not isinstance(raw, str) or not raw.startswith("/") or "\x00" in raw:
+        raise Refused(f"{label} must be an absolute POSIX path")
+    path = PurePosixPath(raw)
+    if any(part in {"", ".", ".."} for part in path.parts[1:]):
+        raise Refused(f"{label} is not canonical")
+    if not all(re.fullmatch(r"[A-Za-z0-9._-]+", part) for part in path.parts[1:]):
+        raise Refused(f"{label} contains unsupported characters")
+    return str(path)
+
+
+def _configuration() -> dict[str, Any]:
+    raw_path = os.environ.get(CONFIG_ENV, "")
+    path = _private_file(raw_path, "SSH transport config")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Refused("SSH transport config is unreadable") from exc
+    expected = {
+        "destination", "identity_file", "model", "provider",
+        "remote_hermes", "remote_home", "remote_profile_root", "remote_python",
+        "remote_user", "ssh_bin", "timeout_seconds",
+    }
+    if not isinstance(value, dict) or set(value) != expected:
+        raise Refused("SSH transport config has the wrong fields")
+    value["ssh_bin"] = _private_file(value["ssh_bin"], "SSH executable", executable=True)
+    value["identity_file"] = _private_file(value["identity_file"], "SSH identity file")
+    if not isinstance(value["destination"], str) or DESTINATION.fullmatch(
+        value["destination"]
+    ) is None:
+        raise Refused("SSH destination is invalid")
+    if not isinstance(value["remote_user"], str) or IDENTIFIER.fullmatch(
+        value["remote_user"]
+    ) is None:
+        raise Refused("remote Hermes user is invalid")
+    for key in ("model", "provider"):
+        if not isinstance(value[key], str) or MODEL_NAME.fullmatch(value[key]) is None:
+            raise Refused(f"remote {key} is invalid")
+    value["remote_hermes"] = _remote_path(value["remote_hermes"], "remote Hermes executable")
+    value["remote_python"] = _remote_path(value["remote_python"], "remote Hermes Python")
+    value["remote_home"] = _remote_path(value["remote_home"], "remote Hermes home")
+    value["remote_profile_root"] = _remote_path(
+        value["remote_profile_root"], "remote profile root",
+    )
+    timeout = value["timeout_seconds"]
+    if type(timeout) is not int or not 15 <= timeout <= 300:
+        raise Refused("SSH timeout must be between 15 and 300 seconds")
+    return value
+
+
+def _tool_path() -> Path:
+    return _private_file(
+        os.environ.get(TOOL_ENV, ""), "OpenHealthAtlas transport tool",
+        executable=True,
+    )
+
+
+def _ssh_base(config: dict[str, Any]) -> list[str]:
+    return [
+        str(config["ssh_bin"]),
+        "-i", str(config["identity_file"]),
+        "-o", "BatchMode=yes",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "ConnectTimeout=12",
+        "-o", "ServerAliveInterval=10",
+        "-o", "ServerAliveCountMax=2",
+        config["destination"],
+    ]
+
+
+def _remote_run(
+    config: dict[str, Any], command: str, *, stdin: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [*_ssh_base(config), command],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        timeout=config["timeout_seconds"],
+    )
+
+
+def _create_profile(config: dict[str, Any], profile: str) -> None:
+    command = " ".join([
+        "sudo", "-u", shlex.quote(config["remote_user"]),
+        "/usr/bin/install", "-d", "-m", "0700", "--", shlex.quote(profile),
+    ])
+    completed = _remote_run(config, command)
+    if completed.returncode != 0:
+        raise Refused("remote disposable Hermes home could not be created")
+
+
+def _cleanup_profile(config: dict[str, Any], profile: str) -> bool:
+    root = config["remote_profile_root"].rstrip("/") + "/"
+    if not profile.startswith(root) or not IDENTIFIER.fullmatch(profile[len(root):]):
+        return False
+    script = (
+        "target=$1\n"
+        "test -d \"$target\"\n"
+        "test ! -L \"$target\"\n"
+        "case \"$target\" in \"$0\"/ohademo*) ;; *) exit 64 ;; esac\n"
+        "/usr/bin/rm -rf -- \"$target\"\n"
+        "test ! -e \"$target\"\n"
+    )
+    command = " ".join([
+        "sudo", "-u", shlex.quote(config["remote_user"]),
+        "/bin/sh", "-c", shlex.quote(script),
+        shlex.quote(config["remote_profile_root"]), shlex.quote(profile),
+    ])
+    try:
+        return _remote_run(config, command).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _remote_hermes(
+    config: dict[str, Any], profile: str, prompt: str,
+) -> str:
+    if len(prompt.encode("utf-8")) > MAX_PROMPT_BYTES:
+        raise Refused("remote Hermes prompt exceeded the bounded size")
+    python_source = (
+        "import os,sys;"
+        "os.chdir(os.environ['HERMES_HOME']);"
+        "from hermes_cli.oneshot import run_oneshot;"
+        "raise SystemExit(run_oneshot(sys.stdin.read(),"
+        f"model={config['model']!r},provider={config['provider']!r},"
+        "toolsets=['safe']))"
+    )
+    command = " ".join([
+        "sudo", "-u", shlex.quote(config["remote_user"]),
+        "env", "-i",
+        "HOME=" + shlex.quote(config["remote_home"]),
+        "USER=" + shlex.quote(config["remote_user"]),
+        "LOGNAME=" + shlex.quote(config["remote_user"]),
+        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "HERMES_HOME=" + shlex.quote(profile),
+        shlex.quote(config["remote_python"]), "-c", shlex.quote(python_source),
+    ])
+    completed = _remote_run(config, command, stdin=prompt)
+    if completed.returncode != 0:
+        detail = (completed.stderr or "").strip()[:240]
+        raise Refused("remote Hermes model turn failed" + (f": {detail}" if detail else ""))
+    output = (completed.stdout or "").strip()
+    if not output or len(output.encode("utf-8")) > MAX_MODEL_OUTPUT_BYTES:
+        raise Refused("remote Hermes returned an empty or oversized response")
+    return output
+
+
+def _model_action(
+    raw: str, *, terminal_ready: bool = False,
+) -> dict[str, Any]:
+    value = raw.strip()
+    if value.startswith("```") and value.endswith("```"):
+        lines = value.splitlines()
+        value = "\n".join(lines[1:-1]).strip()
+    try:
+        action = json.loads(value)
+    except json.JSONDecodeError as exc:
+        required_headings = (
+            "## Deterministic result",
+            "## Hermes interpretation",
+            "### What the user did",
+            "### What the body showed",
+            "### What remains unknown",
+        )
+        if (
+            terminal_ready
+            and value.startswith(required_headings[0])
+            and all(heading in value for heading in required_headings[1:])
+        ):
+            return {"action": "final", "reply": value}
+        raise Refused("remote Hermes did not return protocol JSON") from exc
+    if not isinstance(action, dict) or set(action) != (
+        {"action", "calls"} if action.get("action") == "tool_calls"
+        else {"action", "reply"}
+    ):
+        raise Refused("remote Hermes returned the wrong protocol shape")
+    if action["action"] == "final":
+        if not isinstance(action["reply"], str) or not action["reply"].strip():
+            raise Refused("remote Hermes final reply is empty")
+        return action
+    if action["action"] != "tool_calls" or not isinstance(action["calls"], list):
+        raise Refused("remote Hermes returned an unsupported action")
+    if not 1 <= len(action["calls"]) <= MAX_TOOL_CALLS:
+        raise Refused("remote Hermes requested the wrong number of tool calls")
+    for call in action["calls"]:
+        if (
+            not isinstance(call, dict)
+            or set(call) != {"command", "args"}
+            or not isinstance(call["command"], str)
+            or not isinstance(call["args"], list)
+            or not all(isinstance(item, str) for item in call["args"])
+            or call["command"] == "synthesis-record"
+        ):
+            raise Refused("remote Hermes requested an invalid tool call")
+    return action
+
+
+def _execute_tool(tool: Path, call: dict[str, Any]) -> dict[str, Any]:
+    completed = subprocess.run(
+        [str(tool), call["command"], *call["args"]],
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+        timeout=95,
+    )
+    try:
+        envelope = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise Refused("OpenHealthAtlas transport tool returned non-JSON") from exc
+    if completed.returncode != 0 or not isinstance(envelope, dict) or envelope.get("ok") is not True:
+        raise Refused("OpenHealthAtlas transport tool refused the model action")
+    return envelope
+
+
+def _finding_feature_keys(executions: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
+    for execution in executions:
+        if execution.get("command") != "analysis-refresh":
+            continue
+        result = execution.get("envelope", {}).get("result", {})
+        for run in result.get("runs", []) if isinstance(result, dict) else []:
+            deterministic = (
+                run.get("deterministic_result", {})
+                if isinstance(run, dict) else {}
+            )
+            for finding in deterministic.get("findings", []):
+                if not isinstance(finding, dict):
+                    continue
+                exposure = finding.get("exposure", {})
+                for component in exposure.get("components", []):
+                    key = component.get("exposure_key") if isinstance(
+                        component, dict
+                    ) else None
+                    if isinstance(key, str):
+                        keys.add(key)
+    return keys
+
+
+def _compact_analysis_finding(finding: dict[str, Any], rank: int) -> dict[str, Any]:
+    """Keep every raw rank while deferring bulky replay detail to finding-evidence."""
+
+    exposure = finding.get("exposure")
+    component_rows = (
+        exposure.get("components")
+        if isinstance(exposure, dict) else None
+    )
+    components = []
+    for component in component_rows if isinstance(component_rows, list) else []:
+        if not isinstance(component, dict):
+            continue
+        components.append({
+            key: component.get(key) for key in (
+                "exposure_key", "lag_days", "transform", "window_days",
+                "temporal_direction",
+            )
+        })
+    effect = finding.get("effect")
+    sample = finding.get("sample")
+    testing = finding.get("testing")
+    quality = finding.get("quality")
+    stability = finding.get("stability")
+    compact: dict[str, Any] = {
+        "raw_statistical_rank": rank,
+        "finding_id": finding.get("finding_id"),
+        "exposure": {"components": components},
+        "oriented_effect": (
+            effect.get("oriented_estimate") if isinstance(effect, dict) else None
+        ),
+        "q": testing.get("q") if isinstance(testing, dict) else None,
+        "eligible_for_hypothesis": (
+            quality.get("eligible_for_hypothesis")
+            if isinstance(quality, dict) else None
+        ),
+        "stability_status": (
+            stability.get("status") if isinstance(stability, dict) else None
+        ),
+    }
+    if isinstance(sample, dict):
+        compact["complete_n"] = sample.get("complete_n")
+    return compact
+
+
+def _model_projection(
+    command: str,
+    envelope: dict[str, Any],
+    prior_executions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Return an exact, bounded projection of result fields relevant to this question."""
+
+    projected = {
+        key: envelope[key]
+        for key in (
+            "ok", "tool_contract", "turn_id", "data_class", "fixture_id",
+            "selected_command", "result_sha256", "evidence_ids",
+        )
+        if key in envelope
+    }
+    result = envelope.get("result")
+    if not isinstance(result, dict):
+        projected["result"] = result
+        return projected
+    if command == "feature-registry":
+        requested_keys = _finding_feature_keys(prior_executions or [])
+        features = result.get("features")
+        rows = features if isinstance(features, list) else []
+        selected = []
+        classification_fields = (
+            "key", "display_name", "pillar", "actionability", "roles",
+            "confounder_role", "temporal_type", "lag_eligibility",
+            "direction", "value_kind", "candidate_enabled",
+        )
+        for feature in rows:
+            if (
+                not isinstance(feature, dict)
+                or feature.get("key") not in requested_keys
+            ):
+                continue
+            selected.append({
+                key: feature.get(key) for key in classification_fields
+            })
+        projected["result"] = {
+            "contract_version": result.get("contract_version"),
+            "registry_version": result.get("registry_version"),
+            "registry_sha256": result.get("registry_sha256"),
+            "features": selected,
+            "projection": {
+                "selection": "analysis_finding_exposures",
+                "requested_keys": sorted(requested_keys),
+                "returned_features": len(selected),
+                "total_registry_features": len(rows),
+            },
+        }
+        return projected
+    if command == "feature-frame":
+        observations = result.get("observations")
+        rows = observations if isinstance(observations, list) else []
+        selected = [
+            item for item in rows
+            if isinstance(item, dict)
+            and item.get("feature_key") == "subjective.day_rating"
+        ]
+        projected["result"] = {
+            "ok": result.get("ok"),
+            "meta": result.get("meta"),
+            "observations": selected,
+            "projection": {
+                "field": "subjective.day_rating",
+                "returned_rows": len(selected),
+                "total_observation_rows": len(rows),
+            },
+        }
+        return projected
+    if command == "data-readiness":
+        features = result.get("features")
+        rows = features if isinstance(features, list) else []
+        selected = [
+            item for item in rows
+            if isinstance(item, dict)
+            and item.get("feature_key") == "subjective.day_rating"
+        ]
+        projected["result"] = {
+            "ok": result.get("ok"),
+            "meta": result.get("meta"),
+            "features": selected,
+            "projection": {
+                "field": "subjective.day_rating",
+                "returned_rows": len(selected),
+                "total_feature_rows": len(rows),
+            },
+        }
+        return projected
+    if command == "analysis-refresh":
+        runs = result.get("runs")
+        run_rows = runs if isinstance(runs, list) else []
+        projected_runs = []
+        for run in run_rows:
+            if not isinstance(run, dict):
+                continue
+            run_copy = {key: value for key, value in run.items() if key != "result_json"}
+            raw = run.get("result_json")
+            try:
+                deterministic = json.loads(raw) if isinstance(raw, str) else raw
+            except json.JSONDecodeError as exc:
+                raise Refused("analysis result_json is invalid") from exc
+            if not isinstance(deterministic, dict):
+                raise Refused("analysis result_json has the wrong shape")
+            findings = deterministic.get("findings")
+            finding_rows = findings if isinstance(findings, list) else []
+            ranked = [
+                _compact_analysis_finding(finding, rank)
+                for rank, finding in enumerate(finding_rows, start=1)
+                if isinstance(finding, dict)
+            ]
+            run_copy["deterministic_result"] = {
+                key: deterministic.get(key)
+                for key in (
+                    "contract_version", "ok", "meta", "coverage",
+                    "suppression_counts", "warnings",
+                )
+            }
+            run_copy["deterministic_result"]["findings"] = ranked
+            run_copy["deterministic_result"]["projection"] = {
+                "ordering": "raw_deterministic_statistical_ranking",
+                "returned_findings": len(ranked),
+                "total_findings": len(finding_rows),
+            }
+            projected_runs.append(run_copy)
+        projected["result"] = {
+            key: result.get(key)
+            for key in ("ok", "contract_version", "batch", "outcomes")
+        }
+        projected["result"]["runs"] = projected_runs
+        return projected
+    if command == "finding-evidence":
+        finding = result.get("finding")
+        if not isinstance(finding, dict):
+            projected["result"] = result
+            return projected
+        projected["result"] = {
+            "ok": result.get("ok"),
+            "contract_version": result.get("contract_version"),
+            "meta": result.get("meta"),
+            "finding": {
+                key: finding.get(key) for key in (
+                    "finding_id", "exposure", "effect", "evidence_for",
+                    "evidence_against", "quality", "sample", "stability",
+                    "testing", "confounders", "warnings", "provenance",
+                )
+            },
+            "projection": {
+                "omitted_bulk_fields": [
+                    "source_references", "source_manifests",
+                ],
+                "full_result_bound_by": projected.get("result_sha256"),
+            },
+        }
+        return projected
+    if command == "synthesis-prepare":
+        slots = result.get("structured_slots")
+        slot_projection: dict[str, Any] | None = None
+        if isinstance(slots, dict):
+            findings = slots.get("findings")
+            named_slots = slots.get("slots")
+            slot_projection = {
+                key: slots.get(key) for key in (
+                    "contract_version", "cadence", "numeric_authority",
+                    "template", "transitions",
+                )
+            }
+            slot_projection["finding_count"] = (
+                len(findings) if isinstance(findings, list) else None
+            )
+            slot_projection["slot_count"] = (
+                len(named_slots) if isinstance(named_slots, dict) else None
+            )
+        projected["result"] = {
+            key: value for key, value in result.items()
+            if key != "structured_slots"
+        }
+        projected["result"]["structured_slots"] = slot_projection
+        projected["result"]["projection"] = {
+            "omitted_bulk_fields": [
+                "structured_slots.findings",
+                "structured_slots.readiness_data_gaps",
+                "structured_slots.slots",
+            ],
+            "full_result_bound_by": projected.get("result_sha256"),
+        }
+        return projected
+    projected["result"] = result
+    return projected
+
+
+def _protocol_prompt(original: str, executions: list[dict[str, Any]]) -> str:
+    return (
+        "You are the genuine external Hermes operator and reasoning layer. "
+        "Do not call any built-in Hermes tool. Instead choose the next bounded "
+        "OpenHealthAtlas deterministic action through this transport protocol. "
+        "Return exactly one JSON object and no markdown.\n\n"
+        "For more deterministic data return: "
+        '{"action":"tool_calls","calls":[{"command":"NAME","args":["ARG"]}]}.'
+        " For the completed user answer return: "
+        '{"action":"final","reply":"FULL MARKDOWN REPLY"}.\n\n'
+        "For the final object, JSON-escape every line break and quotation mark "
+        "inside reply; never place a literal line break inside the JSON string.\n\n"
+        "Required workflow: feature-frame, data-readiness, analysis-refresh; "
+        "then call feature-registry to retrieve deterministic actionability, "
+        "role, pillar, confounder, and lag metadata for the returned findings; "
+        "then select and replay at most three findings used in the answer with "
+        "finding-evidence: the strongest supported direct upstream behavior, "
+        "the strongest physiological marker, and at most one meaningful "
+        "competitor or alternative; "
+        "then call synthesis-prepare. Do not call synthesis-record because the "
+        "owner did not request persistence. Keep the final exact headings "
+        "'## Deterministic result' and '## Hermes interpretation', with exact "
+        "subheadings '### What the user did', '### What the body showed', and "
+        "'### What remains unknown'. Cite only "
+        "sha256 evidence IDs returned below. If assessment_state is "
+        "insufficient_data, say 'Insufficient data' and do not include a ranked "
+        "hypothesis list. Preserve the returned raw statistical ranking in the "
+        "deterministic section. In 'What the user did', create a separate "
+        "actionable ranking: direct upstream behavior must precede the outcome "
+        "and remain supported after limitations; indirect factors are mechanisms, "
+        "not actions. Treat wearable/recovery/vital measurements as physiological "
+        "markers even when statistically strongest. A marker may support an "
+        "upstream hypothesis but must not be presented as what the user did. "
+        "Same-day order-unknown findings may also be consequences. Calendar, "
+        "illness, travel, training phase, source transitions, and fixture design "
+        "are context/confounders. If no upstream behavior is supported, say that "
+        "you cannot determine what the user did. For fixture green-days-v1, the "
+        "exact three-day Green-Yellow-Red cycle is known fixture structure and is "
+        "the dominant limitation: do not infer a behavioral explanation. Show "
+        "support, weakening evidence, alternatives, categorical confidence, "
+        "temporal order, what would change the ranking, follow-up questions, and "
+        "no diagnostic or causal certainty.\n\n"
+        "Tool-call schemas (args are the exact argv strings after NAME; no "
+        "positional values are allowed):\n"
+        "feature-registry: []\n"
+        "feature-frame: [\"--from\",DATE,\"--to\",DATE,\"--family\","
+        "\"subjective\",\"--include-provenance\"]\n"
+        "data-readiness: [\"--from\",DATE,\"--to\",DATE,\"--outcome\","
+        "\"subjective.day_rating\"]\n"
+        "analysis-refresh: [\"--kind\",\"manual\",\"--outcome\","
+        "\"subjective.day_rating\",\"--mode\",\"green-vs-non-green\","
+        "\"--from\",DATE,\"--to\",DATE,\"--anchor\",END_DATE]\n"
+        "finding-evidence: [\"--outcome\",\"subjective.day_rating\","
+        "\"--finding-id\",FINDING_SHA256,\"--input-fingerprint\","
+        "INPUT_SHA256,\"--from\",DATE,\"--to\",DATE]\n"
+        "synthesis-prepare: [\"--batch-id\",BATCH_SHA256]\n"
+        "Use the bounded DATE values from HERMES_TRUSTED_PANEL_CONTEXT. "
+        "Use finding, fingerprint, and batch identifiers only after they are "
+        "returned by OpenHealthAtlas. Never pass fixture ID, lens, or question "
+        "text as tool arguments.\n\n"
+        "Original trusted Hermes turn:\n" + original + "\n\n"
+        "Exact OpenHealthAtlas executions so far:\n" + _canonical(executions)
+    )
+
+
+def _write_receipt(path_raw: str, receipt: dict[str, Any]) -> None:
+    if not path_raw:
+        return
+    path = Path(path_raw)
+    if not path.is_absolute() or path.is_symlink() or not path.parent.is_dir():
+        raise Refused("transport receipt path is invalid")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or stat.S_IMODE(opened.st_mode) & 0o077:
+            raise Refused("transport receipt is not private")
+        os.write(descriptor, (_canonical(receipt) + "\n").encode("utf-8"))
+    finally:
+        os.close(descriptor)
+
+
+def _original_prompt() -> str:
+    if len(sys.argv) != 6 or sys.argv[1] != "-z" or sys.argv[3:] != [
+        "--cli", "--continue", sys.argv[5],
+    ]:
+        raise Refused("unexpected Hermes transport invocation")
+    prompt = sys.argv[2]
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise Refused("Hermes transport prompt is empty")
+    return prompt
+
+
+def main() -> int:
+    profile = ""
+    cleanup = False
+    receipt: dict[str, Any] = {
+        "contract": CONTRACT,
+        "decisions": [],
+        "model_results": [],
+        "tool_executions": [],
+        "remote": {},
+    }
+    try:
+        original = _original_prompt()
+        config = _configuration()
+        tool = _tool_path()
+        profile_id = "ohademo" + secrets.token_hex(12)
+        profile = config["remote_profile_root"].rstrip("/") + "/" + profile_id
+        receipt["remote"] = {
+            "profile_id": profile_id,
+            "history_scope": "disposable-hermes-home",
+            "interface": "hermes_cli.oneshot.run_oneshot",
+            "model": config["model"],
+            "provider": config["provider"],
+        }
+        _create_profile(config, profile)
+        executions: list[dict[str, Any]] = []
+        total_calls = 0
+        final_reply = ""
+        for iteration in range(1, MAX_ITERATIONS + 1):
+            raw = _remote_hermes(config, profile, _protocol_prompt(original, executions))
+            action = _model_action(
+                raw,
+                terminal_ready=bool(
+                    executions
+                    and executions[-1].get("command") == "synthesis-prepare"
+                ),
+            )
+            receipt["decisions"].append({"iteration": iteration, "action": action})
+            if action["action"] == "final":
+                final_reply = action["reply"].strip()
+                break
+            total_calls += len(action["calls"])
+            if total_calls > MAX_TOOL_CALLS:
+                raise Refused("remote Hermes exceeded the bounded tool-call budget")
+            for call in action["calls"]:
+                envelope = _execute_tool(tool, call)
+                full_execution = {
+                    "command": call["command"],
+                    "args": call["args"],
+                    "envelope": envelope,
+                }
+                model_execution = {
+                    "command": call["command"],
+                    "args": call["args"],
+                    "envelope": _model_projection(
+                        call["command"], envelope, executions,
+                    ),
+                }
+                executions.append(model_execution)
+                receipt["model_results"].append(model_execution)
+                receipt["tool_executions"].append(full_execution)
+        if not final_reply:
+            raise Refused("remote Hermes did not finish within the bounded loop")
+        receipt["final_reply"] = final_reply
+        cleanup = _cleanup_profile(config, profile)
+        receipt["remote"]["cleanup_succeeded"] = cleanup
+        if not cleanup:
+            raise Refused("remote disposable Hermes home could not be removed")
+        _write_receipt(os.environ.get(RECEIPT_ENV, ""), receipt)
+        print(final_reply)
+        return 0
+    except (OSError, Refused, subprocess.TimeoutExpired) as exc:
+        if profile and not cleanup:
+            try:
+                cleanup = _cleanup_profile(config, profile)
+            except Exception:
+                cleanup = False
+        if receipt.get("remote"):
+            receipt["remote"]["cleanup_succeeded"] = cleanup
+        try:
+            _write_receipt(os.environ.get(RECEIPT_ENV, ""), receipt)
+        except Exception:
+            pass
+        print(f"Hermes SSH transport refused: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

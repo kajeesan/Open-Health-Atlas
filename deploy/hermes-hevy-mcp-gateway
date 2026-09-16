@@ -1,0 +1,658 @@
+#!/usr/bin/env python3
+"""Isolated, allowlisted MCP gateway for Hermes -> Hevy routine publishing.
+
+Hermes connects over a Unix socket through ``hermes-hevy-mcp-client``.  This
+service receives a systemd credential derived from the root-only Hevy key.
+Each accepted
+connection gets a fresh pinned local ``hevy-mcp`` child; the gateway filters
+tool discovery and every tool call before forwarding JSON-RPC.
+
+The intentionally small write surface creates reusable routine configuration.
+It does not expose completed-workout or body-measurement writers.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import grp
+import hashlib
+import json
+import os
+import pwd
+import re
+import select
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import uuid
+
+
+SOCKET_PATH = os.environ.get(
+    "HERMES_HEVY_MCP_SOCKET", "/run/hermes-hevy-mcp/gateway.sock"
+)
+KEY_FILE = os.environ.get(
+    "HERMES_HEVY_KEY_FILE",
+    os.path.join(os.environ["CREDENTIALS_DIRECTORY"], "hevy.env")
+    if os.environ.get("CREDENTIALS_DIRECTORY") else "/etc/hermes/hevy.env",
+)
+AUDIT_FILE = os.environ.get(
+    "HERMES_HEVY_MCP_AUDIT", "/var/log/hermes-hevy-mcp/audit.jsonl"
+)
+NODE = os.environ.get("HERMES_HEVY_NODE", "/usr/bin/node")
+HEVY_MCP = os.environ.get(
+    "HERMES_HEVY_MCP_ENTRY",
+    "/usr/local/lib/hermes-hevy-mcp/package/node_modules/hevy-mcp/dist/cli.mjs",
+)
+ALLOWED_USER = os.environ.get("HERMES_HEVY_MCP_USER", "hermes")
+UPSTREAM_TIMEOUT = int(os.environ.get("HERMES_HEVY_MCP_TIMEOUT", "75"))
+MAX_LINE_BYTES = 512 * 1024
+MAX_CONNECTIONS = 2
+
+READ_TOOLS = frozenset(
+    {
+        "get-user-info",
+        "search-routines",
+        "get-routine",
+        "get-routine-folders",
+        "search-exercise-templates",
+        "get-exercise-template",
+    }
+)
+WRITE_TOOLS = frozenset(
+    {
+        "create-routine",
+        "create-exercise-template",
+        "create-routine-folder",
+    }
+)
+ALLOWED_TOOLS = READ_TOOLS | WRITE_TOOLS
+
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{7,79}$")
+SET_TYPES = frozenset({"warmup", "normal", "failure", "dropset"})
+EXERCISE_TYPES = frozenset(
+    {
+        "weight_reps",
+        "reps_only",
+        "bodyweight_reps",
+        "bodyweight_assisted_reps",
+        "duration",
+        "weight_duration",
+        "distance_duration",
+        "short_distance_weight",
+    }
+)
+EQUIPMENT = frozenset(
+    {
+        "none",
+        "barbell",
+        "dumbbell",
+        "kettlebell",
+        "machine",
+        "plate",
+        "resistance_band",
+        "suspension",
+        "other",
+    }
+)
+MUSCLES = frozenset(
+    {
+        "abdominals",
+        "shoulders",
+        "biceps",
+        "triceps",
+        "forearms",
+        "quadriceps",
+        "hamstrings",
+        "calves",
+        "glutes",
+        "abductors",
+        "adductors",
+        "lats",
+        "upper_back",
+        "traps",
+        "lower_back",
+        "chest",
+        "cardio",
+        "neck",
+        "full_body",
+        "other",
+    }
+)
+
+
+class Refused(ValueError):
+    """A bounded, user-safe validation refusal."""
+
+
+def _bounded_text(value, label, maximum, *, required=False):
+    if not isinstance(value, str):
+        raise Refused(f"{label} must be text")
+    value = value.strip()
+    if required and not value:
+        raise Refused(f"{label} is required")
+    if len(value) > maximum:
+        raise Refused(f"{label} is too long")
+    return value
+
+
+def _bounded_number(value, label, low, high, *, nullable=False):
+    if value is None and nullable:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise Refused(f"{label} must be numeric")
+    if value < low or value > high:
+        raise Refused(f"{label} is outside the allowed range")
+
+
+def _exact_keys(value, allowed, label):
+    if not isinstance(value, dict):
+        raise Refused(f"{label} must be an object")
+    extra = set(value) - set(allowed)
+    if extra:
+        raise Refused(f"{label} contains unsupported fields")
+
+
+def _validate_set(value):
+    allowed = {
+        "type",
+        "weight",
+        "weightKg",
+        "reps",
+        "distance",
+        "distanceMeters",
+        "duration",
+        "durationSeconds",
+        "customMetric",
+        "repRange",
+    }
+    _exact_keys(value, allowed, "set")
+    if "type" in value and value["type"] not in SET_TYPES:
+        raise Refused("set type is unsupported")
+    for key in ("weight", "weightKg"):
+        if key in value:
+            _bounded_number(value[key], key, 0, 2000)
+    if "reps" in value:
+        _bounded_number(value["reps"], "reps", 0, 1000, nullable=True)
+    for key in ("distance", "distanceMeters"):
+        if key in value:
+            _bounded_number(value[key], key, 0, 1_000_000)
+    for key in ("duration", "durationSeconds"):
+        if key in value:
+            _bounded_number(value[key], key, 0, 86_400)
+    if "customMetric" in value:
+        _bounded_number(value["customMetric"], "customMetric", 0, 1_000_000)
+    if "repRange" in value:
+        rep_range = value["repRange"]
+        _exact_keys(rep_range, {"start", "end"}, "repRange")
+        for key in ("start", "end"):
+            if key in rep_range:
+                _bounded_number(
+                    rep_range[key], f"repRange.{key}", 0, 1000, nullable=True
+                )
+
+
+def _validate_routine(args):
+    _exact_keys(args, {"title", "folderId", "notes", "exercises"}, "routine")
+    _bounded_text(args.get("title"), "routine title", 120, required=True)
+    if "folderId" in args and args["folderId"] is not None:
+        if isinstance(args["folderId"], bool) or not isinstance(args["folderId"], int):
+            raise Refused("folderId must be an integer")
+        if args["folderId"] <= 0:
+            raise Refused("folderId must be positive")
+    if "notes" in args:
+        _bounded_text(args["notes"], "routine notes", 4000)
+    exercises = args.get("exercises")
+    if not isinstance(exercises, list) or not 1 <= len(exercises) <= 50:
+        raise Refused("routine must contain 1–50 exercises")
+    total_sets = 0
+    for exercise in exercises:
+        _exact_keys(
+            exercise,
+            {
+                "exerciseTemplateId",
+                "supersetId",
+                "restSeconds",
+                "notes",
+                "sets",
+            },
+            "exercise",
+        )
+        template_id = exercise.get("exerciseTemplateId")
+        if not isinstance(template_id, str) or not ID_RE.fullmatch(template_id):
+            raise Refused("exerciseTemplateId has an invalid shape")
+        if "supersetId" in exercise and exercise["supersetId"] is not None:
+            _bounded_number(exercise["supersetId"], "supersetId", 0, 10_000)
+        if "restSeconds" in exercise:
+            _bounded_number(exercise["restSeconds"], "restSeconds", 0, 900)
+        if "notes" in exercise:
+            _bounded_text(exercise["notes"], "exercise notes", 2000)
+        sets = exercise.get("sets")
+        if not isinstance(sets, list) or not 1 <= len(sets) <= 20:
+            raise Refused("each exercise must contain 1–20 sets")
+        total_sets += len(sets)
+        if total_sets > 200:
+            raise Refused("routine exceeds the 200-set limit")
+        for item in sets:
+            _validate_set(item)
+
+
+def _validate_template(args):
+    _exact_keys(
+        args,
+        {
+            "title",
+            "exerciseType",
+            "equipmentCategory",
+            "muscleGroup",
+            "otherMuscles",
+        },
+        "exercise template",
+    )
+    _bounded_text(args.get("title"), "exercise title", 120, required=True)
+    if args.get("exerciseType") not in EXERCISE_TYPES:
+        raise Refused("exerciseType is unsupported")
+    if args.get("equipmentCategory") not in EQUIPMENT:
+        raise Refused("equipmentCategory is unsupported")
+    if args.get("muscleGroup") not in MUSCLES:
+        raise Refused("muscleGroup is unsupported")
+    others = args.get("otherMuscles", [])
+    if not isinstance(others, list) or len(others) > 8:
+        raise Refused("otherMuscles must be a short list")
+    if any(item not in MUSCLES for item in others):
+        raise Refused("otherMuscles contains an unsupported value")
+
+
+def _validate_folder(args):
+    _exact_keys(args, {"name"}, "routine folder")
+    _bounded_text(args.get("name"), "folder name", 100, required=True)
+
+
+def validate_tool_call(name, args):
+    """Validate the complete trusted-side Hevy tool surface."""
+    if name not in ALLOWED_TOOLS:
+        raise Refused(f"Hevy tool '{name}' is not allowed")
+    if not isinstance(args, dict):
+        raise Refused("tool arguments must be an object")
+    if len(json.dumps(args, separators=(",", ":"), ensure_ascii=False)) > 256_000:
+        raise Refused("tool arguments are too large")
+    if name == "create-routine":
+        _validate_routine(args)
+    elif name == "create-exercise-template":
+        _validate_template(args)
+    elif name == "create-routine-folder":
+        _validate_folder(args)
+
+
+def filter_tools_response(response):
+    """Return an upstream tools/list response containing only the allowlist."""
+    value = json.loads(json.dumps(response))
+    tools = value.get("result", {}).get("tools")
+    if not isinstance(tools, list):
+        raise Refused("Hevy MCP returned an invalid tool catalog")
+    value["result"]["tools"] = [
+        tool for tool in tools if tool.get("name") in ALLOWED_TOOLS
+    ]
+    return value
+
+
+def _tool_error(request_id, message):
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "content": [{"type": "text", "text": message}],
+            "isError": True,
+        },
+    }
+
+
+def _protocol_error(request_id, code, message):
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {"code": code, "message": message},
+    }
+
+
+def _tool_failed(response):
+    return bool(
+        response.get("error")
+        or response.get("result", {}).get("isError")
+    )
+
+
+def _structured(response, key):
+    if _tool_failed(response):
+        raise Refused("Hevy duplicate check failed; nothing was created")
+    structured = response.get("result", {}).get("structuredContent")
+    if not isinstance(structured, dict) or not isinstance(structured.get(key), list):
+        raise Refused("Hevy duplicate check was inconclusive; nothing was created")
+    return structured[key]
+
+
+def _exact_title(rows, title, field="title"):
+    wanted = title.strip().casefold()
+    return next(
+        (
+            row
+            for row in rows
+            if isinstance(row, dict)
+            and isinstance(row.get(field), str)
+            and row[field].strip().casefold() == wanted
+        ),
+        None,
+    )
+
+
+def duplicate_for_create(tool, args, call_upstream):
+    """Return an exact existing object, or None after a conclusive preflight."""
+    title = args.get("title") or args.get("name")
+    if tool == "create-routine":
+        response = call_upstream(
+            "search-routines", {"query": title, "limit": 100}
+        )
+        return _exact_title(_structured(response, "routines"), title)
+    if tool == "create-exercise-template":
+        response = call_upstream(
+            "search-exercise-templates", {"query": title, "refresh": True}
+        )
+        return _exact_title(_structured(response, "exerciseTemplates"), title)
+    if tool == "create-routine-folder":
+        for page in range(1, 51):
+            response = call_upstream(
+                "get-routine-folders", {"page": page, "pageSize": 10}
+            )
+            rows = _structured(response, "routineFolders")
+            duplicate = _exact_title(rows, title)
+            if duplicate:
+                return duplicate
+            if len(rows) < 10:
+                return None
+        raise Refused("Hevy folder duplicate check exceeded its page limit")
+    return None
+
+
+def _audit(tool, args, status, peer_uid):
+    record = {
+        "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "peer_uid": peer_uid,
+        "tool": tool,
+        "args_sha256": hashlib.sha256(
+            json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest(),
+        "status": status,
+    }
+    line = json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n"
+    fd = os.open(AUDIT_FILE, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _api_key():
+    if os.path.islink(KEY_FILE):
+        raise RuntimeError("Hevy key file must not be a symlink")
+    found = None
+    with open(KEY_FILE, encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("HEVY_API_KEY="):
+                found = line.split("=", 1)[1].strip()
+                break
+    if not found or "\n" in found or "\r" in found:
+        raise RuntimeError("Hevy API key is missing")
+    return found
+
+
+def _child_environment():
+    runtime = os.path.dirname(SOCKET_PATH)
+    cache = os.path.join(runtime, "cache")
+    home = os.path.join(runtime, "home")
+    os.makedirs(cache, mode=0o700, exist_ok=True)
+    os.makedirs(home, mode=0o700, exist_ok=True)
+    return {
+        "HEVY_API_KEY": _api_key(),
+        "HEVY_MCP_API_TIMEOUT": "30000",
+        "HEVY_MCP_DEBUG": "0",
+        "SENTRY_DSN": "",
+        "XDG_CACHE_HOME": cache,
+        "HOME": home,
+        "PATH": f"{os.path.dirname(os.path.abspath(NODE))}:{os.defpath}",
+        "LANG": "C.UTF-8",
+    }
+
+
+class Upstream:
+    def __init__(self):
+        self.process = subprocess.Popen(
+            [NODE, HEVY_MCP],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=_child_environment(),
+            bufsize=0,
+        )
+
+    def close(self):
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=5)
+
+    def request(self, payload):
+        wire = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+        self.process.stdin.write(wire)
+        self.process.stdin.flush()
+        request_id = payload.get("id")
+        if request_id is None:
+            return None
+        while True:
+            ready, _, _ = select.select(
+                [self.process.stdout], [], [], UPSTREAM_TIMEOUT
+            )
+            if not ready:
+                raise TimeoutError("Hevy MCP response timed out")
+            line = self.process.stdout.readline()
+            if not line:
+                raise RuntimeError("Hevy MCP stopped unexpectedly")
+            if len(line) > MAX_LINE_BYTES:
+                raise RuntimeError("Hevy MCP response exceeded the size limit")
+            response = json.loads(line)
+            if response.get("id") == request_id:
+                return response
+
+    def tool_call(self, name, arguments):
+        return self.request(
+            {
+                "jsonrpc": "2.0",
+                "id": f"gateway-{uuid.uuid4().hex}",
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
+
+
+class GatewaySession:
+    def __init__(self, peer_uid, upstream=None):
+        self.peer_uid = peer_uid
+        self.upstream = upstream or Upstream()
+
+    def close(self):
+        self.upstream.close()
+
+    def handle(self, request):
+        if not isinstance(request, dict) or request.get("jsonrpc") != "2.0":
+            return _protocol_error(request.get("id") if isinstance(request, dict) else None, -32600, "Invalid request")
+        method = request.get("method")
+        request_id = request.get("id")
+        if method in {"notifications/initialized", "notifications/cancelled"}:
+            self.upstream.request(request)
+            return None
+        if method == "initialize":
+            response = self.upstream.request(request)
+            capabilities = response.get("result", {}).get("capabilities")
+            if isinstance(capabilities, dict):
+                response["result"]["capabilities"] = {
+                    key: value
+                    for key, value in capabilities.items()
+                    if key == "tools"
+                }
+            return response
+        if method == "ping":
+            return self.upstream.request(request)
+        if method == "tools/list":
+            try:
+                return filter_tools_response(self.upstream.request(request))
+            except Refused as exc:
+                return _protocol_error(request_id, -32603, str(exc))
+        if method != "tools/call":
+            if request_id is None:
+                return None
+            return _protocol_error(request_id, -32601, "Method not allowed")
+
+        params = request.get("params")
+        if not isinstance(params, dict):
+            return _tool_error(request_id, "Invalid Hevy tool request")
+        name = params.get("name")
+        args = params.get("arguments", {})
+        try:
+            validate_tool_call(name, args)
+        except Refused as exc:
+            return _tool_error(request_id, str(exc))
+        if name not in WRITE_TOOLS:
+            return self.upstream.request(request)
+
+        try:
+            _audit(name, args, "intent", self.peer_uid)
+        except OSError:
+            return _tool_error(request_id, "Hevy audit unavailable; nothing was created")
+        try:
+            duplicate = duplicate_for_create(
+                name, args, self.upstream.tool_call
+            )
+        except Refused as exc:
+            try:
+                _audit(name, args, "preflight_refused", self.peer_uid)
+            except OSError:
+                pass
+            return _tool_error(request_id, str(exc))
+        if duplicate:
+            try:
+                _audit(name, args, "duplicate_blocked", self.peer_uid)
+            except OSError:
+                pass
+            return _tool_error(
+                request_id,
+                "An exact-title Hevy item already exists; nothing was created",
+            )
+        response = self.upstream.request(request)
+        try:
+            _audit(
+                name,
+                args,
+                "upstream_error" if _tool_failed(response) else "created",
+                self.peer_uid,
+            )
+        except OSError:
+            print("WARN Hevy mutation result audit failed", file=sys.stderr)
+        return response
+
+
+def _peer_uid(connection):
+    raw = connection.getsockopt(
+        socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+    )
+    _pid, uid, _gid = struct.unpack("3i", raw)
+    return uid
+
+
+def _serve_connection(connection, allowed_uid):
+    peer_uid = _peer_uid(connection)
+    if peer_uid != allowed_uid:
+        connection.close()
+        return
+    session = None
+    try:
+        session = GatewaySession(peer_uid)
+        reader = connection.makefile("rb")
+        writer = connection.makefile("wb")
+        for line in reader:
+            if len(line) > MAX_LINE_BYTES:
+                break
+            try:
+                request = json.loads(line)
+                response = session.handle(request)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                response = _protocol_error(None, -32700, "Parse error")
+            except Exception:
+                response = _protocol_error(
+                    request.get("id") if isinstance(request, dict) else None,
+                    -32603,
+                    "Hevy gateway internal error",
+                )
+            if response is not None:
+                writer.write(
+                    json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode()
+                    + b"\n"
+                )
+                writer.flush()
+    finally:
+        if session is not None:
+            session.close()
+        connection.close()
+
+
+def main():
+    allowed_uid = pwd.getpwnam(ALLOWED_USER).pw_uid
+    grp.getgrnam(ALLOWED_USER)  # fail closed if the client group is absent
+    if os.path.lexists(SOCKET_PATH):
+        if not stat_is_socket(SOCKET_PATH):
+            raise SystemExit("refusing to replace a non-socket gateway path")
+        os.unlink(SOCKET_PATH)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(SOCKET_PATH)
+    os.chmod(SOCKET_PATH, 0o660)
+    server.listen(8)
+    semaphore = threading.BoundedSemaphore(MAX_CONNECTIONS)
+    stopped = threading.Event()
+
+    def stop(_signum, _frame):
+        stopped.set()
+        server.close()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    while not stopped.is_set():
+        try:
+            connection, _ = server.accept()
+        except OSError:
+            if stopped.is_set():
+                break
+            raise
+        if not semaphore.acquire(blocking=False):
+            connection.close()
+            continue
+
+        def run():
+            try:
+                _serve_connection(connection, allowed_uid)
+            finally:
+                semaphore.release()
+
+        threading.Thread(target=run, daemon=True).start()
+
+
+def stat_is_socket(path):
+    import stat
+
+    return stat.S_ISSOCK(os.lstat(path).st_mode)
+
+
+if __name__ == "__main__":
+    main()

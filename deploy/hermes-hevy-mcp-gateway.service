@@ -1,0 +1,48 @@
+# Protected Hermes -> Hevy MCP routine publisher.
+[Unit]
+Description=Allowlisted Hevy MCP gateway for the Hermes coach
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=hermes-hevy-mcp
+Group=hermes
+RuntimeDirectory=hermes-hevy-mcp
+RuntimeDirectoryMode=0750
+LogsDirectory=hermes-hevy-mcp
+LogsDirectoryMode=0700
+ExecStart=/usr/bin/python3 /usr/local/lib/hermes-hevy-mcp/hermes-hevy-mcp-gateway
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+
+# systemd exposes the root-owned provider file only as a private credential for
+# this dedicated service identity. The untrusted Node child inherits no access
+# to Hermes databases, home directories, or the source credential directory.
+LoadCredential=hevy.env:/etc/hermes/hevy.env
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+InaccessiblePaths=/etc/hermes /var/lib/hermes
+ReadWritePaths=/run/hermes-hevy-mcp /var/log/hermes-hevy-mcp
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+MemoryMax=512M
+TasksMax=64
+UMask=0007
+
+[Install]
+WantedBy=multi-user.target

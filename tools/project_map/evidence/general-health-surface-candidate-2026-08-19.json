@@ -1,0 +1,82 @@
+{
+  "contract": "openhealthatlas-general-health-surface-candidate-v1",
+  "recorded_on": "2026-08-19",
+  "status": "pushed_local_candidate_not_deployed",
+  "data_class": "fictional",
+  "deployment_authorized": false,
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/general-health-tool-surface",
+      "contract_candidate": "1ee909775abe2ae61eb0b34969e08d5865cab151",
+      "git_tree_id": "7043d64dd6c7e12211dcc30e20267e1e93079768",
+      "pushed": true
+    },
+    "external_hermes": {
+      "repository": "https://github.com/kajeesan/hermes-agent.git",
+      "branch": "codex/general-health-tool-surface",
+      "combined_candidate": "2602962029603d552dad4d5372999b41666edb8a",
+      "git_tree_id": "9e00ab0f182d67eac54c0320b81e5dad6e73c3e1",
+      "pushed": true
+    }
+  },
+  "openhealthatlas_artifacts_sha256": {
+    "RELEASE_MANIFEST.tsv": "sha256:e2778e8fe4eb63b3336d896fb38e010e14d6372d25c7a1711679b117af2f0e68",
+    "toolkit/hermes_insights/hermes_surface.py": "sha256:6301499a92a4d6b660e891a165f068f2d3be2a16842944d57d250c09b057aac6",
+    "deploy/hermes-openhealthatlas-tool": "sha256:7fdea344702ab946df813987eb369fa973c3b402e4c8673eb806f9c09009b11d",
+    "deploy/hermes-openhealthatlas-mcp": "sha256:f24357ee319821c2735a88d52bebfbbd34436278e38db508d98a6b9ecf2c906d",
+    "deploy/hermes-openhealthatlas-skill.md": "sha256:393fecb53890aba6aa81e85fafb15a42b0efd7e78fa240a424fcde711980ca59",
+    "deploy/hermes-openhealthatlas-delivery-plugin/__init__.py": "sha256:27e78d2abc5e352df8db3929ae1e554edd821d0bde1853d82971b8c2d05be55f",
+    "deploy/hermes-openhealthatlas-delivery-plugin/plugin.yaml": "sha256:7010fe751b9a8d64c5db45d09e869b788551f4bc97a418b839e0475fbe066b2b",
+    "deploy/recovery-item6-staging-manifest.json": "sha256:4e04d28fb26d7bbcc29270d6a25e97396c68fa5713aff49e986eb8b1ead6cb34"
+  },
+  "external_hermes_artifacts_sha256": {
+    "gateway/required_delivery.py": "sha256:feb47b1ddbd578b078f478039281cff32f56dac73c34fb8cb74db6d26c3a7e53",
+    "tests/gateway/test_required_delivery.py": "sha256:75af56bd5c3baca6815288b3089bf74a9226b58002796874f4669d8a38b4bd69",
+    "tests/integration/test_openhealthatlas_required_delivery.py": "sha256:1695227ed99c32399e338d85da8d662bc68a85afb455a5b9d759f367736d8b4d"
+  },
+  "mcp_registry": {
+    "server_alias": "openhealthatlas_fictional",
+    "existing_fixed_tools_preserved": 8,
+    "generic_tools_added": [
+      "openhealthatlas_health_catalog",
+      "openhealthatlas_health_query",
+      "openhealthatlas_health_analyze",
+      "openhealthatlas_health_evidence"
+    ],
+    "expected_total_tools": 12
+  },
+  "architecture": {
+    "openhealthatlas": "deterministic records calculations readiness associations and evidence",
+    "hermes": "question understanding tool selection follow-ups synthesis and explanation",
+    "model_runtime_inside_openhealthatlas": false,
+    "raw_sql_or_path_surface": false,
+    "interpretation_writeback": "disabled",
+    "real_data_activation": "disabled"
+  },
+  "verified": {
+    "openhealthatlas_focused_tests": 103,
+    "cross_repository_required_delivery_tests": 18,
+    "external_hermes_telegram_tests": 987,
+    "release_manifest_files": 406,
+    "positive_eligible_finding_and_replay": true,
+    "cross_domain_query_and_replay": true,
+    "database_hash_continuity": true,
+    "final_evidence_obligation_fail_closed": true,
+    "trusted_deterministic_summary_precedes_hermes_interpretation": true
+  },
+  "not_established": [
+    "Oracle VPS deployment or service restart",
+    "live Telegram selection across the four generic tools",
+    "real-data activation",
+    "interpretation write-back",
+    "every registered feature having sufficient fictional observations",
+    "diagnosis or causation"
+  ],
+  "scope": {
+    "private_health_data_accessed": false,
+    "vps_changed": false,
+    "telegram_message_sent": false,
+    "existing_fixed_tools_removed": false
+  }
+}

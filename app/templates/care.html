@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}External care{% endblock %}
+{% block content %}
+{# Configurable care routines over
+   skincare_log + skincare_products (/api/dash/care) — real, SQL aggregates
+   server-side (care activity streak, daily done/used counts), same spirit as the
+   Consistency habit ledger. skincare_products has no stock/opened column,
+   so the design's "Products low" KPI is honestly omitted (task-13 brief) —
+   two real KPIs only. Unseeded on the demo DB: every card below renders its
+   own honest empty state, not one blank page. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">External care</h1>
+    </div>
+    <div class="dd" data-dd="care">
+      <button class="ddbtn" type="button">Week <span class="cv">▾</span></button>
+      <div class="ddmenu">
+        <button type="button" data-val="Day">Day</button>
+        <button type="button" data-val="Week" class="on">Week</button>
+        <button type="button" data-val="Month">Month</button>
+        <button type="button" data-val="Year">Year</button>
+        <button type="button" data-val="All">All time</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis-2">
+    <div class="card">
+      <div class="label">Care activity streak</div>
+      <div class="kv mt-1"><span class="n" id="careStreak">—</span><span class="kv-u">days</span></div>
+      <span class="flag mt-1" id="careStreakFlag" hidden></span>
+    </div>
+    <div class="card">
+      <div class="label">Routine adherence</div>
+      <div class="kv mt-1"><span class="n" id="careAdh">—</span><span class="kv-u">%</span></div>
+      <span class="chip mt-1" id="careAdhCap"></span>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <h3 class="card-title mb-2">Morning</h3>
+      <div class="vstack" id="careMorning"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title mb-2">Evening</h3>
+      <div class="vstack" id="careEvening"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title mb-2">Weekly</h3>
+      <div class="vstack" id="careWeekly"></div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card col-2">
+      <div class="row between mb-1">
+        <h3 class="card-title">Adherence</h3>
+        <span class="muted micro">all routines done / partial / missed</span>
+      </div>
+      <div id="careHeat" class="h180"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title mb-2">Streaks &amp; product log</h3>
+      <div class="vstack gap-2" id="careLog"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{# no echarts: this page's only chart is the DOM-grid calendar (dayCal);
+   charts-common.js touches the echarts global only inside lineOpt, which
+   this page never calls #}
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/care.js') }}" defer></script>
+{% endblock %}

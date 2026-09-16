@@ -1,0 +1,37 @@
+{
+  "routines": {
+    "example-routine-lower": {
+      "title": "Quarterly Test 1 — Lower Body",
+      "templates": {
+        "example-template-leg-extension": "leg-extension",
+        "example-template-leg-curl": "leg-curl",
+        "example-template-calf-raise": "calf-raise",
+        "example-template-balance": "balance-stand"
+      }
+    },
+    "example-routine-upper": {
+      "title": "Quarterly Test 2 — Upper Body",
+      "templates": {
+        "example-template-shoulder-er": "shoulder-er",
+        "example-template-shoulder-ir": "shoulder-ir",
+        "example-template-row": "cable-row"
+      }
+    },
+    "example-routine-core": {
+      "title": "Quarterly Test 3 — Arms & Core",
+      "templates": {
+        "example-template-curl": "biceps-curl",
+        "example-template-triceps": "triceps-extension",
+        "example-template-flexor": "mcgill-flexor",
+        "example-template-extensor": "mcgill-extensor"
+      }
+    }
+  },
+  "unilateral_titles": [
+    "Single Leg Extensions",
+    "Seated Leg Curl (Machine)",
+    "Single Leg Standing Calf Raise",
+    "Quarterly Test — Tibialis Raise",
+    "Quarterly Test — Single-Leg Balance (Eyes Closed)"
+  ]
+}

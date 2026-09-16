@@ -1,0 +1,21 @@
+[Unit]
+Description=Google Health sync into Hermes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+LoadCredential=ghealth.json:/etc/hermes/ghealth.json
+ExecStart=/usr/local/lib/hermes-ghealth/ghealth-sync
+TimeoutStartSec=30min
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# The wrapper uses sudo only to drop to the hermes data owner for validated
+# imports, so NoNewPrivileges cannot be enabled on this unit.

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ group }} — sub-regions{% endblock %}
+{% block content %}
+{# §3b drill-down: exercises, exposure rollups, and the explicitly-labelled
+   relative-strength theory render health.py `muscle-detail` verbatim. The
+   bundled authored map is public configuration seeded at initialization;
+   logged exposure remains distinct from inferred strength. The left/right card is real too: per-side
+   volume doesn't exist for barbell sets (the engine hardcodes
+   insufficient_data for that), so it only ever has fitness_tests.side rows
+   to draw from — honest empty until some are logged (none on the demo DB). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.training') }}">◱ Body</a>
+      <h1 class="page-title" id="md-title">{{ group }} — sub-regions</h1>
+      <span class="muted micro">from the Muscle Balance axis · volume + exercises</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title mb-1">Sub-region development</h3>
+      <div id="md-sub-body"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <div class="row between mb-1">
+        <h3 class="card-title">Exercises driving it</h3>
+        <span class="muted micro" id="md-window"></span>
+      </div>
+      <div id="md-ex-body"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap mb-1">
+      <div>
+        <h3 class="card-title">Relative sub-region strength theory</h3>
+        <p class="muted micro m0">Personal-history estimate · activation is not measured</p>
+      </div>
+      <span class="chip" id="md-theory-status">Loading…</span>
+    </div>
+    <div id="md-theory-body"><p class="muted note-txt m0">Loading…</p></div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap mb-1">
+      <h3 class="card-title">Left / right — per exercise</h3>
+      <span class="muted micro" id="md-lr-note"></span>
+    </div>
+    <div id="md-lr-body"><p class="muted note-txt m0">Loading…</p></div>
+  </div>
+
+  {# §3f muscle figure, scoped placement (owner markup 2026-07-19): only this
+     group's regions are colored, everything else dims. Lighter interaction —
+     hover titles only, no lens selector (the full cockpit lives on Body). #}
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">On the body — front <span class="muted micro" id="mf-scope-f"></span></h3>
+      <div id="mf-front" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+      <div id="mf-legend-f" class="mf-legend"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">On the body — back <span class="muted micro" id="mf-scope-b"></span></h3>
+      <div id="mf-back" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+      <div id="mf-legend-b" class="mf-legend"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/body-muscles/body-muscles.umd.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/muscle-figure.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/muscle_detail.js') }}" defer></script>
+{% endblock %}

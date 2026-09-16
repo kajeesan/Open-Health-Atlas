@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} workspace{% endblock %}
+{% block content %}
+{# §3f Task C — Pain / Mobility WORKSPACE (one template, lens fixed by the route).
+   Reached by clicking a region on the Body-map figure under the Pain/Mobility
+   lens; the clicked region rides ?region= and is pre-selected on THIS page's own
+   map (report_workspace.js reads it CLIENT-side — never echoed here, so no
+   injection surface). Three parts: (1) your own body map to point at the exact
+   spot(s), including several; (2) a coach chat in a distinct server-owned
+   {{ lens }} conversation, with the selected canonical regions stored in the
+   immutable turn context; (3) the READ-ONLY physio-loop / mobility state,
+   rendered VERBATIM from `muscle-map --lens {{ lens }}` (determinism law).
+   The panel never writes pain/mobility values here; conversation is the only
+   capture path and the agent uses its existing validated tools. #}
+<div class="vstack" id="rw-root" data-lens="{{ lens }}">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.training') }}">◱ Body</a>
+      <h1 class="page-title">{{ label }} workspace</h1>
+      <span class="muted micro">point at the spot · talk it through with the coach</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    {# (1) your own body map — click one or more regions to point #}
+    <div class="card">
+      <div class="row between wrap">
+        <h3 class="card-title">Point at the spot <span class="muted micro">click one or more regions</span></h3>
+        <span class="chip" id="rw-selcount" aria-live="polite">none selected</span>
+      </div>
+      <div class="grid-2 mt-3">
+        <div>
+          <div class="label">Front · anterior</div>
+          <div id="mf-front" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+          <div id="mf-legend-f" class="mf-legend"></div>
+        </div>
+        <div>
+          <div class="label">Back · posterior</div>
+          <div id="mf-back" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+          <div id="mf-legend-b" class="mf-legend"></div>
+        </div>
+      </div>
+      <p class="muted micro m0 mt-2" id="rw-maphint"></p>
+    </div>
+
+    {# (2) the coach chat — scoped to one server-owned panel conversation #}
+    <div class="card">
+      <div class="row between wrap gap-2">
+        <h3 class="card-title">Tell the coach
+          <span class="muted micro">{{ 'what hurts' if lens == 'pain' else 'what feels tight' }}</span>
+        </h3>
+        <button class="btn quiet" id="rw-new-conversation" type="button">New investigation</button>
+      </div>
+      <label class="field-label mt-2">Conversation
+        <select class="select-input" id="rw-conversation" aria-label="{{ label }} conversation"></select>
+      </label>
+      <div class="row wrap gap-2 mt-2">
+        <span class="chip" id="rw-context">Loading scope…</span>
+        <a class="chip" href="{{ url_for('core.insights_conversations') }}">Manage ›</a>
+      </div>
+      <div class="muted note-txt mt-1 mb-3">Same agent as Telegram, reading your real data — your logged
+        imbalances, asymmetries, mobility and training. Describe what you feel and the coach works through it
+        with you (it considers the spot <em>and</em> related structures, asks questions, and organises
+        evidence). Selected map regions are saved with this investigation and with
+        each message. <span class="strong">The conversation is panel-only and never mixed with Telegram.</span></div>
+      <div id="rw-chat" class="chat-log ins-chat mb-3"></div>
+      <div class="row wrap gap-2 mb-3" id="rw-asking" hidden>
+        <span class="muted micro">Asking about:</span>
+        <span class="row wrap gap-2" id="rw-asking-chips"></span>
+        <button class="morebtn" type="button" id="rw-asking-clear">clear</button>
+      </div>
+      <form class="row gap-2" id="rw-form">
+        <input id="rw-input" class="ins-input grow"
+          placeholder="{{ 'Describe what you feel…' if lens == 'pain' else 'Describe the restriction…' }}"
+          aria-label="Message the Hermes coach" autocomplete="off">
+        <button id="rw-send" class="ins-send" type="submit" title="Send">→</button>
+      </form>
+      <div class="muted micro mt-2">replies from your connected Hermes agent</div>
+    </div>
+  </div>
+
+  {# (3) the READ-ONLY state for this lens — rendered verbatim from the engine
+     payload by window.HermesPhysio (the SAME renderer the Body page uses). #}
+  {% if lens == 'pain' %}
+  <div class="card" id="mf-loop">
+    <div class="row between wrap">
+      <div>
+        <h3 class="card-title">Pain &amp; physio loop</h3>
+        <div class="muted micro">cited candidate patterns · report pain by telling the coach</div>
+      </div>
+      <span class="chip" id="mf-loop-count"></span>
+    </div>
+    <p class="note-txt strong mt-2 mb-0" id="mf-boundary" hidden></p>
+    <div class="vstack gap-2 mt-3" id="mf-loop-body"></div>
+    <p class="muted micro m0 mt-3 pt-3 hair-top" id="mf-cv"></p>
+  </div>
+  {% else %}
+  <div class="card" id="mf-mobility">
+    <div class="row between wrap">
+      <div>
+        <h3 class="card-title">Mobility &amp; range</h3>
+        <div class="muted micro">cited movement screens · log a test by telling the coach</div>
+      </div>
+      <span class="chip" id="mf-mobility-count"></span>
+    </div>
+    <div class="vstack gap-2 mt-3" id="mf-mobility-body"></div>
+    <p class="muted micro m0 mt-3 pt-3 hair-top" id="mf-mobility-flex"></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/body-muscles/body-muscles.umd.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/muscle-figure.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/physio-render.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/report_workspace.js') }}" defer></script>
+{% endblock %}

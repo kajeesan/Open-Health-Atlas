@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Export{% endblock %}
+{% block content %}
+{# Export settings page (design v-export), in design chrome. The mock's Format
+   segmented control + Scope + Generate button are made REAL: Format = the app's
+   two actual formats (CSV · XLSX); Scope = a genuine multi-select over the
+   server's export whitelist (rendered from /api/export/tables — never a
+   hardcoded copy) plus an ISO date range that the server applies to tables with
+   a date column. Product-defined OMISSIONS (kept omitted, not faked): the mock's
+   JSON and "PDF report" formats (the app has neither) and the "Recent exports"
+   history panel (no export-history tracking exists). The real full-database
+   snapshot download fills the right column instead of a fabricated history. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Export</h1>
+      <span class="muted micro">take your data with you — pick tables &amp; a range, or grab the whole database</span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title mb-2">Format</h3>
+      <div class="seg" id="ex-fmt">
+        <button type="button" data-fmt="csv" class="on">CSV</button>
+        <button type="button" data-fmt="xlsx">Excel</button>
+      </div>
+
+      <h3 class="card-title mt-3 mb-2">Scope</h3>
+      <div class="date-range mb-2">
+        <label class="drx"><span class="label">From</span>
+          <input type="date" id="ex-from" class="select" aria-label="From date"></label>
+        <label class="drx"><span class="label">To</span>
+          <input type="date" id="ex-to" class="select" aria-label="To date"></label>
+      </div>
+      <p class="field-hint">Date range applies to tables with a date column; the rest export whole.</p>
+
+      <div class="row between mb-1">
+        <span class="label">Tables</span>
+        <div class="row gap-2">
+          <button type="button" id="ex-all" class="morebtn">Select all</button>
+          <button type="button" id="ex-none" class="morebtn">Clear</button>
+        </div>
+      </div>
+      <div class="tbl-picker" id="ex-tables" role="group" aria-label="Tables to export">
+        <p class="muted micro" id="ex-tables-loading">Loading tables…</p>
+      </div>
+
+      <button id="ex-generate" class="save-btn mt-3" type="button" disabled>Generate export</button>
+      <p class="field-hint mt-1" id="ex-status" aria-live="polite">Select at least one table.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-2">Everything</h3>
+      <p class="muted micro">A consistent snapshot of the full SQLite database — every table, every row, as a single <code>.db</code> file.</p>
+      <a id="ex-db" class="save-btn mt-2" href="/api/export/database" download>Download health_metrics.db</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/export.js') }}" defer></script>
+{% endblock %}

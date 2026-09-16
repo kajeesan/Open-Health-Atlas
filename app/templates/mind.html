@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Mind{% endblock %}
+{% block content %}
+{# Mind pillar (design v-mind): Medication/Social/General tabs. Medication =
+   installation-configured meds_log dose totals + a descriptive vitals strip
+   (BP from /api/dash/safety, RHR/HRV from /api/dash/metrics) + mood/focus +
+   user-defined assessment trends + brain-dump, all honest-empty where
+   unlogged. Social has no schema
+   yet (no social_log table) — the tab is honest SCAFFOLDING per design image 6
+   (every card laid out, every value slot empty, one pending banner), never a
+   replica of the mock's unbacked charts (task-31). Brain-dump + prescriber
+   cards drill to sub-pages (/mind/brain-dump real, /mind/prescriber-questions
+   honest-pending). General = 90-day mood + recent notes. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Mind</h1>
+    </div>
+    <div class="row gap-2 wrap">
+      <div class="tabrow" data-group="mind">
+        <button class="on" data-tab="meds" data-group="mind" type="button">Medication</button>
+        <button data-tab="social" data-group="mind" type="button">Social</button>
+        <button data-tab="gen" data-group="mind" type="button">General</button>
+      </div>
+      {# task-37: global period dd — windows the range-capable Medication/General
+         charts (dose, vitals trend, mood/focus, assessments, overall mood).
+         The brain-dump/notes cards are recency lists (latest N + live streak),
+         and Social/prescriber are honest-empty scaffolding — none subscribe
+         (T26 precedent: a card that can't honor the range never gets a dead
+         option). Default Year supports sparse, long-horizon observations.
+         Header order = task-50 item 2: tabrow-then-dd, dd
+         rightmost, matching the nutrition.html T41/r4 pattern globally. #}
+      <div class="dd" data-dd="mind">
+        <button class="ddbtn" type="button">Year <span class="cv">▾</span></button>
+        <div class="ddmenu">
+          <button type="button" data-val="Day">Day</button>
+          <button type="button" data-val="Week">Week</button>
+          <button type="button" data-val="Month">Month</button>
+          <button type="button" data-val="Year" class="on">Year</button>
+          <button type="button" data-val="All">All time</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subview on" data-pane="meds" data-group="mind">
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">Medication dose</h3>
+        <span class="chip" id="mDoseHistoryChip">loading…</span>
+      </div>
+      <div id="mDoseHistory" class="h210"></div>
+      <p class="muted micro m0">uses only the medication label configured by this installation</p>
+    </div>
+
+    <div class="card warn-edge">
+      <div class="row between wrap mb-3">
+        <h3 class="card-title">Vitals alongside medication</h3>
+        <span class="muted micro">your recorded blood pressure and pulse trends</span>
+      </div>
+      <div class="kpis-3">
+        <div>
+          <div class="label">Blood pressure</div>
+          <div class="kv mt-1"><span class="n" id="mBpVal">—</span></div>
+          <span class="flag mt-1" id="mBpFlag" hidden></span>
+          <div id="mBp" class="h70"></div>
+        </div>
+        <div>
+          <div class="label">Resting HR</div>
+          <div class="kv mt-1"><span class="n" id="mRhrVal">—</span><span class="kv-u">bpm</span></div>
+          <span class="flag mt-1" id="mRhrFlag" hidden></span>
+          <div id="mRhr" class="h70"></div>
+        </div>
+        <div>
+          {# Round-6 (was T55 flag 2, hover-only tooltip — owner wants it
+             visible; the KPI cell is tight so keep this short) — HRV
+             algorithm varies by source: apple=SDNN, fitbit=RMSSD (see
+             toolkit/SCHEMA.sql daily_metrics.hrv_ms). #}
+          <div class="label">HRV</div>
+          <div class="kv mt-1"><span class="n" id="mHrvVal">—</span><span class="kv-u">ms</span></div>
+          <p class="muted micro m0 mt-1">SDNN/RMSSD varies by source</p>
+          <span class="flag mt-1" id="mHrvFlag" hidden></span>
+          <div id="mHrv" class="h70"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="row between wrap mb-1">
+          <h3 class="card-title">Mood &amp; focus</h3>
+          <span class="muted micro" id="mMoodWin"></span>
+        </div>
+        <div id="mMood" class="h190"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Assessment trend</h3>
+        <div id="mAssessment" class="h190"></div>
+        <p class="muted micro m0 center">scale and interpretation are user-defined</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="row between wrap mb-2">
+          <h3 class="card-title">Brain-dump</h3>
+          <div class="row gap-2">
+            <span class="chip" id="bdChip"></span>
+            <a class="chip" href="{{ url_for('core.mind_braindump') }}">all ›</a>
+          </div>
+        </div>
+        <div class="vstack gap-2" id="braindump"></div>
+      </div>
+      <div class="card">
+        <div class="row between wrap mb-2">
+          <h3 class="card-title">Questions for prescriber</h3>
+          <div class="row gap-2">
+            <span class="chip muted">0 saved</span>
+            <a class="chip" href="{{ url_for('core.mind_prescriber') }}">all ›</a>
+          </div>
+        </div>
+        <p class="muted note-txt m0">Coming soon: this card will collect the accumulated
+          prescriber questions from <span class="strong">profile</span> and
+          <span class="strong">diagnosis-review</span> once that workflow feeds the panel.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="subview" data-pane="social" data-group="mind">
+    {# Social has NO schema in the health DB yet (no social_log table). The whole
+       tab is honest scaffolding per design image 6: every card is laid out ready,
+       every value slot is empty ("—" / "no social log yet") — NO fabricated
+       numbers, NO drawn chart lines. One pending banner states this plainly; the
+       cards read as intentional structure, not broken widgets. It populates on
+       its own the moment social logging exists. No logging UI is built here. #}
+    <div class="banner mb-2">
+      <span class="banner-ic" aria-hidden="true">◔</span>
+      <div>
+        <div class="strong">Social logging isn't built yet.</div>
+        <p class="muted note-txt m0">This page is ready and laid out. There's no social log
+          (who you saw, what you did) in the health DB yet, so every card below is empty on
+          purpose — it will populate the moment that logging lands. Nothing here is estimated.</p>
+      </div>
+    </div>
+
+    <div class="kpis-3">
+      <div class="card">
+        <div class="label">Days with people</div>
+        <div class="kv mt-1"><span class="n">—</span></div>
+        <p class="muted micro m0 mt-1">no social log yet</p>
+      </div>
+      <div class="card">
+        <div class="label">Longest stretch solo</div>
+        <div class="kv mt-1"><span class="n">—</span></div>
+        <p class="muted micro m0 mt-1">no social log yet</p>
+      </div>
+      <div class="card">
+        <div class="label">Most-seen</div>
+        <div class="kv mt-1"><span class="n">—</span></div>
+        <p class="muted micro m0 mt-1">no social log yet</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-1">Who-you-saw calendar — last 3 months</h3>
+        <div class="row gap-2 mb-2 micro muted">
+          <span><span class="dot good"></span>met</span>
+          <span><span class="dot okay"></span>brief / call</span>
+          <span><span class="dot bad"></span>solo</span>
+        </div>
+        <p class="muted note-txt m0">The day-grid (tap a day → who + what that day) draws here
+          once social days are logged.</p>
+      </div>
+      <div class="card">
+        <h3 class="card-title mb-2">Who I met</h3>
+        <p class="muted note-txt m0">People and groups you see — each with a per-month
+          frequency — list here once logging exists.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-2">What we did</h3>
+        <p class="muted note-txt m0">Meals out, training, walks / coffee, calls — tallied here
+          once social activities are logged.</p>
+      </div>
+      <div class="card">
+        <h3 class="card-title mb-1">How it lands</h3>
+        <div class="row gap-2 mb-2 micro muted">
+          <span><span class="dot good"></span>mood · social days</span>
+          <span><span class="dot mut"></span>mood · solo days</span>
+        </div>
+        <p class="muted note-txt m0">Whether days with people track higher mood + next-day
+          focus is worth testing — this chart compares social vs solo days once there are
+          social days to compare. Association only, never causal.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="subview" data-pane="gen" data-group="mind">
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">Overall mood</h3>
+        <span class="muted micro" id="mGenWin"></span>
+      </div>
+      <div id="mGen" class="h220"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title mb-2">Recent notes</h3>
+      <div class="vstack gap-2" id="genNotes"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/mind.js') }}" defer></script>
+{% endblock %}

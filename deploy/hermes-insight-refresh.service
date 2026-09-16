@@ -1,0 +1,20 @@
+[Unit]
+Description=Hermes deterministic autonomous insight refresh
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+WorkingDirectory=/opt/hermes
+EnvironmentFile=-/etc/hermes/insights.env
+ExecStart=/opt/hermes/toolkit/health.py analysis-refresh --kind nightly
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/hermes
+TimeoutStartSec=3600
+# Per-service safety ceiling; adjust for the deployment after measuring the
+# synthetic workflow and expected data volume.
+MemoryMax=11G

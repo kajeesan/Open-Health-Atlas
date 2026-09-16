@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Conversations with Hermes{% endblock %}
+{% block content %}
+<div class="vstack" id="conversations-root">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.insights') }}">◱ Insight Explorer</a>
+      <h1 class="page-title">Conversations with Hermes</h1>
+      <span class="muted micro">General panel chat, pain, and mobility stay separate · not workspaces or Telegram</span>
+    </div>
+    <a class="chip" href="{{ url_for('core.insights') }}">Open Explorer ›</a>
+  </div>
+
+  <div class="conversation-layout">
+    <aside class="card conversation-index" aria-label="Conversation list">
+      <div class="row between wrap gap-2">
+        <h2 class="card-title">Conversations</h2>
+        <button class="btn quiet" id="conv-new" type="button">New</button>
+      </div>
+      <div class="row gap-2 mt-2">
+        <select class="select-input grow" id="conv-lens" aria-label="Filter by lens">
+          <option value="">All lenses</option>
+          <option value="general">General</option>
+          <option value="pain">Pain</option>
+          <option value="mobility">Mobility</option>
+        </select>
+        <label class="archive-filter"><input id="conv-archived" type="checkbox"> Archived</label>
+      </div>
+      <div class="conversation-list mt-3" id="conv-list"><p class="muted note-txt m0">Loading…</p></div>
+      <button class="morebtn" id="conv-more" type="button" hidden>Load more</button>
+    </aside>
+
+    <section class="card conversation-detail" id="conv-detail" aria-label="Conversation detail">
+      <div class="conversation-empty" id="conv-empty">
+        <h2 class="card-title">Choose a conversation</h2>
+        <p class="muted note-txt">Its title, lens, exact window, and messages will appear here.</p>
+      </div>
+      <div id="conv-open" hidden>
+        <div class="row between wrap gap-2">
+          <div>
+            <h2 class="page-title conversation-title" id="conv-title"></h2>
+            <p class="muted micro m0 mt-1" id="conv-meta"></p>
+          </div>
+          <button class="btn quiet" id="conv-archive-toggle" type="button"></button>
+        </div>
+        <div class="row wrap gap-2 mt-2">
+          <span class="chip" id="conv-context"></span>
+          <span class="chip" id="conv-updated"></span>
+        </div>
+        <button class="morebtn mt-3" id="conv-older" type="button" hidden>Load older messages</button>
+        <div class="chat-log conversation-chat mt-2" id="conv-messages" aria-live="polite"></div>
+        <form class="row gap-2 mt-3" id="conv-resume-form">
+          <input class="ins-input grow" id="conv-input" maxlength="4000"
+            placeholder="Resume this conversation…" aria-label="Message Hermes" autocomplete="off">
+          <button class="ins-send" id="conv-send" type="submit" title="Send">→</button>
+        </form>
+        <p class="muted micro m0 mt-2" id="conv-status" role="status"></p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/insights_conversations.js') }}" defer></script>
+{% endblock %}

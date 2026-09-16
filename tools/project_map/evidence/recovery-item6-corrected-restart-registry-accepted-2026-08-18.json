@@ -1,0 +1,114 @@
+{
+  "contract": "openhealthatlas-recovery-item6-corrected-restart-acceptance-v11",
+  "recorded_on": "2026-08-18",
+  "status": "corrected_fictional_gateway_active_exact_registry_verified",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-restart-attempt-rolled-back-2026-08-18.json",
+    "record_commit": "c6407ab04d953d4eb24abde82d8f41442060bc14",
+    "sha256": "sha256:85cecbfaf23080e4dedf892693a33777ec891a0a3ff081138ae7c17dd96746ed",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "fictional_only": true,
+    "corrected_restage_authorized": true,
+    "one_corrected_daemon_reload_and_restart_authorized": true,
+    "exact_current_start_registry_marker_accepted_as_registry_proof": true,
+    "auxiliary_child_process_count_required": false,
+    "telegram_send_authorized": false,
+    "fault_injection_authorized": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "active_release": {
+    "openhealthatlas_commit": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "external_hermes_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+    "clean_release_working_directory_loaded": true,
+    "systemd_active": true,
+    "systemd_running": true,
+    "loopback_health_ok": true,
+    "gateway_runtime_state_running": true,
+    "gateway_active_agents": 0,
+    "process_stable_after_registration": true
+  },
+  "registry_verification": {
+    "mcp_alias": "openhealthatlas_fictional",
+    "registered_tool_count": 8,
+    "exact_tool_set_verified": true,
+    "tool_names": [
+      "mcp_openhealthatlas_fictional_openhealthatlas_analysis_refresh",
+      "mcp_openhealthatlas_fictional_openhealthatlas_data_readiness",
+      "mcp_openhealthatlas_fictional_openhealthatlas_feature_frame",
+      "mcp_openhealthatlas_fictional_openhealthatlas_feature_registry",
+      "mcp_openhealthatlas_fictional_openhealthatlas_finding_evidence",
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_detail",
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_snapshot",
+      "mcp_openhealthatlas_fictional_openhealthatlas_synthesis_prepare"
+    ],
+    "connection_failure_observed": false,
+    "bare_or_legacy_alias_accepted": false
+  },
+  "plugin_and_delivery_state": {
+    "plugin_discovery_found": 52,
+    "plugin_discovery_enabled": 44,
+    "prior_gateway_discovery_found": 51,
+    "prior_gateway_discovery_enabled": 43,
+    "delivery_plugin_load_failure_observed": false,
+    "health_actions_registered": true,
+    "exact_in_process_renderer_execution": "Unverified until the owner-authorized Telegram acceptance",
+    "separate_process_plugin_probe_used_as_runtime_proof": false
+  },
+  "deterministic_and_storage_continuity": {
+    "fixture_lane": "accepted-v5",
+    "schema_version": 5,
+    "database_accepted_identity_matched": true,
+    "database_hash_and_stats_unchanged": true,
+    "sqlite_companions_absent": true,
+    "ancestry_sidecar_verified": true,
+    "historical_generation_event_proven": false,
+    "fictional_tool_audit_unchanged": true,
+    "hermes_receipt_unchanged": true,
+    "recovery_receipt_unchanged": true,
+    "fictional_tool_execution_observed": false,
+    "telegram_response_sent": false,
+    "writeback_disabled": true,
+    "real_data_activation_denied": true
+  },
+  "rollback_readiness": {
+    "v8_backup_and_inventory_retained": true,
+    "isolated_restore_rehearsal_passed": true,
+    "prior_failed_candidate_artifacts_quarantined": true,
+    "original_dirty_checkout_untouched": true,
+    "automatic_rollback_remains_required_on_future_live_failure": true
+  },
+  "independent_verification": {
+    "service_and_clean_cwd_matched": true,
+    "current_runtime_identity_matched_private_restart_receipt": true,
+    "eight_runtime_file_hashes_matched": true,
+    "exact_registry_marker_replayed_as_set": true,
+    "database_and_receipt_continuity_matched": true,
+    "no_private_identity_committed": true
+  },
+  "next_gate": {
+    "owner_telegram_send_required": true,
+    "snapshot_question": "Using only the OpenHealthAtlas fictional fixture, how recovered is the fictional person on 2026-06-30?",
+    "follow_up": "Training.",
+    "telegram_acceptance_complete": false,
+    "fault_injection_complete": false,
+    "browser_chat_required": false
+  },
+  "proof_limits": [
+    "Registry acceptance proves the named tools are connected to the current gateway; it does not prove a tool call, model interpretation, renderer execution, or Telegram delivery.",
+    "The delivery renderer remains unexecuted until the fresh owner-authorized Telegram turn.",
+    "The current-snapshot ancestry sidecar does not prove the original historical fixture-generation event.",
+    "Live fault behavior and real-data governance remain separate unresolved gates."
+  ],
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "corrected_release_currently_active": true,
+    "restart_and_registry_gate_complete": true,
+    "ready_for_owner_telegram_acceptance": true,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

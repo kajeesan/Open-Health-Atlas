@@ -1,0 +1,132 @@
+{
+  "contract": "openhealthatlas-product-authority-route-inventory-v2",
+  "recorded_on": "2026-08-17",
+  "authority": {
+    "deterministic_calculation_and_evidence": "OpenHealthAtlas governed engine",
+    "reasoning_and_conversation": "external genuine Hermes",
+    "optional_interpretation_storage": "OpenHealthAtlas synthesis-v1 with write-back off by default"
+  },
+  "paths": [
+    {
+      "surface": "/api/recovery/readiness",
+      "classification": "Working",
+      "reachability": "normal authenticated panel and accepted fictional Hermes journey",
+      "authority_role": "governed deterministic recovery result",
+      "evidence": "fictional-recovery-dashboard-parity-2026-08-17.json"
+    },
+    {
+      "surface": "/api/insights/dashboard-green-days",
+      "classification": "Working",
+      "reachability": "normal authenticated panel with server-owned scope",
+      "authority_role": "governed deterministic Green-vs-non-Green dashboard result",
+      "evidence": "competing-paths-consolidation-2026-08-17.json",
+      "fixture_binding": "manifest-verified green-days-actionable-v1 database on an outcome-associations-only localhost broker",
+      "scope_limit": "accepted runtime parity is restricted to green-days-actionable-v1; comprehensive-persona-v1 Green-day analysis currently exceeds the broker timeout"
+    },
+    {
+      "surface": "/api/insights/outcomes and /api/insights/readiness",
+      "classification": "Working",
+      "reachability": "normal authenticated panel",
+      "authority_role": "governed deterministic analysis and data-readiness authority",
+      "scope_limit": "only the migrated Green-day and Recovery displays have cross-surface runtime parity"
+    },
+    {
+      "surface": "/api/chat/conversations/*",
+      "classification": "Partially built",
+      "reachability": "normal authenticated panel",
+      "authority_role": "optional browser transport to external Hermes plus transcript and verified evidence-receipt storage",
+      "completed_boundary": "maximum three identifier-only findings, server-owned bounded range, exact same-turn OpenHealthAtlas replay and separate receipt rendering",
+      "remaining_proof": "one genuine browser-Hermes turn; local API, transport-contract and visual checks are not that proof"
+    },
+    {
+      "surface": "/api/chat/send and /api/chat/history",
+      "classification": "Test-only",
+      "reachability": "HTTP 410 in every normal panel process; explicit Flask test override only",
+      "authority_role": "superseded all-time compatibility adapter",
+      "replacement": "/api/chat/conversations/*"
+    },
+    {
+      "surface": "/api/insights/interpretations and /api/insights/interpretations/<id>",
+      "classification": "Synthetic-only",
+      "reachability": "HTTP 503 in every normal panel process; explicit Flask test override and in-memory fixtures required",
+      "authority_role": "conformance fixture, never product reasoning"
+    },
+    {
+      "surface": "/api/insights/brief",
+      "classification": "Test-only",
+      "reachability": "HTTP 410 in every normal panel process; explicit Flask test override only",
+      "authority_role": "superseded unvalidated vault Markdown compatibility read",
+      "replacement": "/api/insights/syntheses"
+    },
+    {
+      "surface": "/api/insights/correlations",
+      "classification": "Test-only",
+      "reachability": "HTTP 410 in every normal panel process; explicit Flask test override only",
+      "authority_role": "superseded legacy correlation API with no current product JavaScript consumer",
+      "panel_broker_command_reachable": false,
+      "replacement": "/api/insights/outcomes"
+    },
+    {
+      "surface": "/api/insights/signature",
+      "classification": "Test-only",
+      "reachability": "HTTP 410 in every normal panel process; explicit Flask test override only",
+      "authority_role": "superseded legacy Green-day signature display",
+      "panel_broker_command_reachable": false,
+      "replacement": "/api/insights/dashboard-green-days"
+    },
+    {
+      "surface": "/api/insights/syntheses and synthesis-v1",
+      "classification": "Partially built",
+      "reachability": "readable in the normal panel; accepted MCP omits writes, panel traces reject writes, and installed fictional adapter config has synthesis_writeback_enabled=false",
+      "authority_role": "sole optional interpretation envelope",
+      "completed_boundary": "schema v6 validates bounded provider-neutral external provenance while preserving legacy rows and evidence ancestry",
+      "remaining_proof": "owner-authorized genuine-Hermes write and replay; write-back remains off by default"
+    },
+    {
+      "surface": "panel chat_log",
+      "classification": "Working",
+      "reachability": "normal scoped browser conversations",
+      "authority_role": "conversation transcript plus separately typed evidence receipt, never interpretation authority",
+      "schema": "chat schema v2 with additive nullable evidence_json"
+    },
+    {
+      "surface": "editable vault notes and raw qualitative captures",
+      "classification": "Unverified",
+      "reachability": "separate document and capture paths; not supplied to Hermes evidence",
+      "authority_role": "owner-authored material outside the governed evidence chain pending ancestry and consent work"
+    }
+  ],
+  "quarantine_checks": {
+    "normal_process_can_enable_legacy_routes_by_environment": false,
+    "current_product_javascript_uses_legacy_chat_routes": false,
+    "current_product_javascript_uses_vault_brief": false,
+    "current_product_javascript_uses_legacy_correlations": false,
+    "current_product_javascript_uses_legacy_signature": false,
+    "panel_brokers_allow_day_signature": false,
+    "normal_process_constructs_synthetic_reasoning_runtime": false,
+    "legacy_implementation_deleted": false,
+    "private_data_accessed": false
+  },
+  "localhost_runtime_status": {
+    "GET /api/chat/history": 410,
+    "POST /api/chat/send": 410,
+    "GET /api/insights/brief": 410,
+    "GET /api/insights/correlations": 410,
+    "GET /api/insights/signature": 410,
+    "GET /api/chat/conversations?archived=0&limit=1": 200,
+    "GET /api/recovery/readiness": 200,
+    "recovery_result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+    "GET /api/insights/dashboard-green-days on green-days-actionable-v1": 200,
+    "green_day_result_sha256": "sha256:8b8dbb85d2dff5813680fc1ba1e2c1e2f9ee2bd6f1ef87f979d9f5b1426a9527",
+    "green_day_database_sha256": "sha256:87a7db878ee2b1391affbcccba227776b594498ecb994df221e94b9696ce1f87",
+    "green_day_database_unchanged_after_analysis": true,
+    "green_day_broker_write_attempt_rejected": true
+  },
+  "remaining_item_4_gates": [],
+  "separate_unverified_proof_or_follow_up": [
+    "run one genuine browser-Hermes selected-evidence turn",
+    "resolve or explicitly bound the comprehensive-persona-v1 Green-day analysis timeout",
+    "perform an owner-authorized synthesis-v1 write acceptance only if write-back is enabled later",
+    "govern qualitative and vault ancestry plus consent before exposing either as Hermes evidence"
+  ]
+}

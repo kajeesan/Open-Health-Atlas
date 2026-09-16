@@ -1,0 +1,137 @@
+{
+  "contract": "openhealthatlas-recovery-item6-prestage-contract-v5",
+  "recorded_on": "2026-08-18",
+  "status": "pushed_clean_candidate_and_closed_prestage_contract_not_deployed",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-clean-hermes-candidate-no-deployment-2026-08-18.json",
+    "record_commit": "4bb4f276a7f4c3ca102ecde49d546f1117576a89",
+    "sha256": "sha256:b7887ec9c0787e47ccd7fd1d735953d9462ef1860a08f25f8f842536398aebb2",
+    "byte_preserved": true
+  },
+  "scope": {
+    "data_class": "fictional",
+    "local_contract_correction_only": true,
+    "vps_mutation_performed": false,
+    "staging_performed": false,
+    "backup_or_restore_rehearsal_performed": false,
+    "configuration_changed": false,
+    "sidecar_generated": false,
+    "service_restarted": false,
+    "telegram_message_sent": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/recovery-item6-evidence-v2",
+      "contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+      "git_tree_id": "918050f78de81de28625bf4d6d88baaa3d4948b9",
+      "remote_branch_contains_candidate": true
+    },
+    "external_hermes": {
+      "canonical_upstream_repository": "https://github.com/NousResearch/hermes-agent.git",
+      "approved_candidate_repository": "https://github.com/kajeesan/hermes-agent.git",
+      "upstream_base_commit": "a6b9597d5fb92969d605a858d5f14536e805553a",
+      "combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "git_tree_id": "fecece29b29189aee3de4ec8731a11412977442a",
+      "remote_branch_contains_candidate": true
+    }
+  },
+  "artifact_sha256": {
+    "openhealthatlas_contract_candidate": {
+      "RELEASE_MANIFEST.tsv": "sha256:a1f70b070c88a0a93502298bbed88d311da7f1cf0c78bf96c48de0d8e1e59a3c",
+      "deploy/recovery-item6-deployment-runbook.md": "sha256:3d8ecdc7a04cbf8630bf8fab5d38fbb7fc087dab2f008d166c0b558bb8cb5d4c",
+      "deploy/recovery-item6-staging-manifest.json": "sha256:296e9bb1193b200c9630e30bb3b6fd61bdae5ff0cb84a39cbced7a91a4fc0d30",
+      "tests/test_openhealthatlas_tool.py": "sha256:b4c901f3a1ead3cab9a58001c15682730f3a91583da8103946c4ec27b1b40089"
+    },
+    "external_hermes_combined_candidate": {
+      "plugins/platforms/telegram/adapter.py": "sha256:d8eb3186de8efb0b28bdcc9ab40e24f94dc82b2e05b4b13212504e142819d0d4",
+      "plugins/platforms/telegram/health_actions.py": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a"
+    }
+  },
+  "mechanically_closed_contract": {
+    "staging_manifest": "openhealthatlas-recovery-item6-staging-manifest-v2",
+    "openhealthatlas_commit_pointer": "candidate_commits.openhealthatlas.contract_candidate",
+    "external_hermes_commit_pointer": "candidate_commits.external_hermes.combined_candidate",
+    "planned_mutation_targets_are_separate_from_protected_controls": true,
+    "all_planned_mutations_must_be_inventory_covered": true,
+    "all_mandatory_protected_controls_must_be_inventoried": true,
+    "prestage_backup_and_restore_rehearsal_are_classified_as_mutations": true,
+    "full_clean_release_tree_materialization_is_specified": true,
+    "runtime_python_is_preserved_from_existing_exec_start": true,
+    "mcp_server_post_state_is_exact": true,
+    "plugin_enablement_merge_is_exact_and_preserves_existing_entries": true,
+    "gateway_working_directory_dropin_is_exact": true,
+    "failed_release_and_sidecar_quarantine_restore_prechange_absence": true,
+    "generated_deployed_manifest_is_runtime_provenance_input": true
+  },
+  "verification_gates": [
+    {
+      "gate_id": "openhealthatlas_contract_candidate",
+      "candidate_commit": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+      "command": "<openhealthatlas-python> -m pytest -q tests/test_openhealthatlas_tool.py tests/test_project_map_item6.py",
+      "passed": 38,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_release_manifest",
+      "candidate_commit": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+      "verified_entry_count": 393,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_full_telegram_with_health_actions",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "passed": 987,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_model_tools_and_turn_finalizer",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "passed": 42,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "tracked_cross_repository_recovery_delivery",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "passed": 1,
+      "failed": 0,
+      "result": "pass"
+    }
+  ],
+  "v4_evidence_correction": {
+    "source_record": "tools/project_map/evidence/recovery-item6-clean-hermes-candidate-no-deployment-2026-08-18.json",
+    "incorrect_gate": "openhealthatlas_staging_and_record_contract",
+    "incorrect_candidate_commit": "0efc8d42020e93b24ce928a3ae2af8fa28666ce9",
+    "reason": "The v4 record test did not exist at the earlier contract candidate.",
+    "corrected_contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "corrected_pass_count": 38
+  },
+  "live_gates_unresolved": [
+    "The separately approved pre-stage backup and restore rehearsal has not run.",
+    "The clean release tree and generated DEPLOYED.manifest have not been materialized.",
+    "The exact Hermes config merge, skill and plugin files have not been staged.",
+    "The openhealthatlas_fictional MCP alias and delivery plugin are not active.",
+    "The accepted-v5 ancestry sidecar has not been generated.",
+    "The gateway drop-in has not been created and the service has not been restarted.",
+    "Running registry names, live Telegram acceptance and fault injection remain unverified."
+  ],
+  "privacy_verification": {
+    "openhealthatlas_contract_changed_paths": 4,
+    "openhealthatlas_contract_findings": 0,
+    "no_private_paths_database_identities_messages_secrets_or_health_content_recorded": true
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "clean_candidate_ready_for_review": true,
+    "prestage_contract_mechanically_closed": true,
+    "ready_to_stage": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

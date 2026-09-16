@@ -1,0 +1,768 @@
+#!/usr/bin/env python3
+"""hermesctl — agent/model operations for the panel, run AS hermes via the broker.
+
+Separate from health.py on purpose: health.py owns health DATA; this owns the
+Hermes AGENT (model config, gateway service, spend, Fitbit token). The broker
+routes the hermes-* subcommands here. API keys are read but NEVER printed.
+
+Subcommands (all emit one JSON object on stdout):
+  status      — current model/provider (config.yaml) + gateway active state
+  spend       — OpenRouter key usage/limits (GET /api/v1/key)
+  model-set   — set model, restart gateway, health-check, AUTO-ROLLBACK on failure
+  fitbit-status — ghealth auth state + re-auth instructions
+"""
+import json
+import hashlib
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+import pwd
+import secrets
+import stat
+from datetime import date
+
+HOME = pwd.getpwuid(os.getuid()).pw_dir  # robust vs missing $HOME
+CONFIG = os.path.join(HOME, ".hermes", "config.yaml")
+ENV_FILE = os.path.join(HOME, ".hermes", ".env")
+RUNTIME = f"/run/user/{os.getuid()}"
+GATEWAY_HEALTH = "http://127.0.0.1:8644/health"
+HERMES_BIN = next((p for p in (os.path.join(HOME, ".local/bin/hermes"),
+                               "/usr/local/bin/hermes") if os.path.exists(p)), "hermes")
+CHAT_SESSION = "hermes-panel"  # canonical General conversation
+CHAT_SESSIONS = {CHAT_SESSION, "hermes-panel-pain", "hermes-panel-mobility"}
+GENERATED_CHAT_SESSION = re.compile(r"hermes-panel-c-([0-9a-f]{32})")
+# Deployment paths come only from the trusted service environment, never from
+# a panel turn. Keep the existing context and execution-receipt validation.
+VAULT = os.environ.get("HERMES_VAULT", "/var/lib/hermes")
+AUTONOMOUS_CONTEXT = os.path.join(VAULT, "AUTONOMOUS-INSIGHT-CONTEXT.md")
+AUTONOMOUS_MANIFEST = os.path.join(VAULT, "AUTONOMOUS-INSIGHT-CONTEXT.manifest.json")
+OPENHEALTHATLAS_TOOL = (
+    "/usr/local/lib/hermes-openhealthatlas-fictional/hermes-openhealthatlas-tool"
+)
+OPENHEALTHATLAS_TOOL_AUDIT = os.environ.get(
+    "OPENHEALTHATLAS_TOOL_AUDIT_LOG",
+    "/var/lib/hermes/audit/openhealthatlas-tools.jsonl"
+)
+# Receipt identity matches the protected adapter, independently of collectors.
+OPENHEALTHATLAS_HEALTH_CLI = os.environ.get(
+    "OPENHEALTHATLAS_TOOL_HEALTH_CLI", "/opt/hermes/toolkit/health.py"
+)
+PANEL_TURN_MAX_CONTEXT_BYTES = 8 * 1024
+PANEL_TURN_SESSIONS = {
+    "hermes-panel": ("general", "legacy-general"),
+    "hermes-panel-pain": ("pain", "legacy-pain"),
+    "hermes-panel-mobility": ("mobility", "legacy-mobility"),
+}
+REGION_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,79}")
+GREEN_DAY_QUESTION = re.compile(r"\bgreen\b", re.IGNORECASE)
+SHA256_ID = re.compile(r"sha256:[0-9a-f]{64}")
+OPENHEALTHATLAS_SEQUENCE = (
+    "feature-frame", "data-readiness", "analysis-refresh",
+)
+OPENHEALTHATLAS_FIXTURES = {
+    "green-days-v1",
+    "green-days-actionable-v1",
+    "green-days-marker-only-v1",
+    "comprehensive-persona-v1",
+}
+
+
+def out(d):
+    print(json.dumps(d, ensure_ascii=False))
+
+
+def die(msg, **extra):
+    out({"ok": False, "error": msg, **extra})
+    sys.exit(1)
+
+
+def _hermes_executable():
+    """Return the local Hermes CLI or a securely configured transport shim."""
+
+    raw = os.environ.get("HERMES_TRANSPORT_BIN", "").strip()
+    if not raw:
+        return HERMES_BIN
+    if not os.path.isabs(raw) or os.path.islink(raw) or not os.path.isfile(raw):
+        die("Hermes transport executable is invalid")
+    resolved = os.path.realpath(raw)
+    if resolved != raw:
+        die("Hermes transport executable must not traverse a symlink")
+    details = os.stat(raw)
+    if (
+        not stat.S_ISREG(details.st_mode)
+        or not os.access(raw, os.X_OK)
+        or stat.S_IMODE(details.st_mode) & 0o022
+    ):
+        die("Hermes transport executable has unsafe permissions")
+    source_tree = os.path.basename(os.path.dirname(os.path.abspath(__file__))) == "deploy"
+    allowed_owners = {0, os.getuid()} if source_tree else {0}
+    if details.st_uid not in allowed_owners:
+        die("Hermes transport executable has an unsafe owner")
+    return raw
+
+
+def _hermes_working_directory(executable):
+    """Keep an external transport outside the private Hermes vault."""
+
+    if os.environ.get("HERMES_TRANSPORT_BIN", "").strip():
+        return os.path.dirname(executable)
+    return VAULT
+
+
+def _hermes_timeout():
+    """Allow a bounded longer loop only for an explicitly selected transport."""
+
+    if not os.environ.get("HERMES_TRANSPORT_BIN", "").strip():
+        return 110
+    raw = os.environ.get("HERMES_TRANSPORT_TIMEOUT_SECONDS", "110")
+    if not raw.isascii() or not raw.isdigit() or str(int(raw)) != raw:
+        die("Hermes transport timeout is invalid")
+    value = int(raw)
+    if not 110 <= value <= 900:
+        die("Hermes transport timeout is outside the supported range")
+    return value
+
+
+def _read_model():
+    """model/provider from config.yaml. Line-based on purpose: no yaml dep on
+    the server, and we only need the two keys under the top-level `model:`."""
+    model = provider = None
+    in_model = False
+    for line in open(CONFIG, encoding="utf-8"):
+        if re.match(r"^model:\s*$", line):
+            in_model = True
+            continue
+        if in_model:
+            if line.strip() and not line.startswith((" ", "\t")):
+                break  # left the model: block
+            m = re.match(r"\s+default:\s*(\S+)", line)
+            if m:
+                model = m.group(1).strip("'\"")
+            m = re.match(r"\s+provider:\s*(\S+)", line)
+            if m and provider is None:
+                provider = m.group(1).strip("'\"")
+    return model, provider
+
+
+def _openrouter_key():
+    for line in open(ENV_FILE, encoding="utf-8"):
+        if line.startswith("OPENROUTER_API_KEY"):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return None
+
+
+def _sysctl_user(*args, timeout=20):
+    return subprocess.run(
+        ["systemctl", "--user", *args],
+        env={**os.environ, "XDG_RUNTIME_DIR": RUNTIME},
+        capture_output=True, text=True, timeout=timeout)
+
+
+def _gateway_active():
+    return _sysctl_user("is-active", "hermes-gateway").stdout.strip() == "active"
+
+
+def _gateway_healthy(wait_s=30):
+    """active unit + /health responding, polled up to wait_s."""
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        if _gateway_active():
+            try:
+                urllib.request.urlopen(GATEWAY_HEALTH, timeout=3)
+                return True
+            except OSError:
+                pass
+        time.sleep(2)
+    return False
+
+
+def status(_args):
+    model, provider = _read_model()
+    out({"ok": True, "model": model, "provider": provider,
+         "gateway_active": _gateway_active()})
+
+
+def spend(_args):
+    key = _openrouter_key()
+    if not key:
+        die("no OpenRouter key configured")
+    req = urllib.request.Request("https://openrouter.ai/api/v1/key",
+                                 headers={"Authorization": f"Bearer {key}"})
+    try:
+        data = json.loads(urllib.request.urlopen(req, timeout=15).read())["data"]
+    except OSError as exc:
+        die(f"OpenRouter API unreachable: {exc}")
+    except (ValueError, KeyError):
+        die("unexpected OpenRouter response")
+    out({"ok": True,
+         "limit_usd": data.get("limit"),
+         "remaining_usd": data.get("limit_remaining"),
+         "usage_usd": data.get("usage"),
+         "usage_daily_usd": data.get("usage_daily"),
+         "usage_weekly_usd": data.get("usage_weekly"),
+         "usage_monthly_usd": data.get("usage_monthly")})
+
+
+def _config_set_model(model_id):
+    """Try dotted then plain key; verify by re-reading config.yaml."""
+    for key in ("model.default", "model"):
+        subprocess.run([HERMES_BIN, "config", "set", key, model_id],
+                       capture_output=True, text=True, timeout=30)
+        if _read_model()[0] == model_id:
+            return True
+    return False
+
+
+def model_set(args):
+    if not args:
+        die("model id required")
+    new = args[0]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9/_.:\-]{0,79}", new):
+        die("model id has an unexpected shape")
+    prior, _ = _read_model()
+    if not prior:
+        die("could not read current model from config.yaml")
+    if new == prior:
+        out({"ok": True, "model": prior, "changed": False,
+             "note": "already the active model"})
+        return
+    if not _config_set_model(new):
+        die("hermes config set did not take effect", prior=prior)
+    r = _sysctl_user("restart", "hermes-gateway", timeout=30)
+    if r.returncode != 0 or not _gateway_healthy(30):
+        # AUTO-ROLLBACK: a bad switch must never leave Telegram coaching dead.
+        _config_set_model(prior)
+        _sysctl_user("restart", "hermes-gateway", timeout=30)
+        healthy = _gateway_healthy(20)
+        die(f"gateway unhealthy on '{new}' — rolled back to '{prior}'",
+            rolled_back=True, gateway_recovered=healthy)
+    out({"ok": True, "model": new, "prior": prior, "changed": True,
+         "gateway_active": True})
+
+
+def fitbit_status(_args):
+    """Best-effort ghealth token state + the documented re-auth steps."""
+    state = "unknown"
+    try:
+        r = subprocess.run(["ghealth", "auth", "status"],
+                           capture_output=True, text=True, timeout=15)
+        state = (r.stdout or r.stderr).strip()[:200] or f"exit {r.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        state = f"ghealth not reachable: {exc}"
+    out({"ok": True, "auth_status": state,
+         "reauth_steps": [
+             "Create a local callback tunnel: ssh -L 53682:localhost:53682 <user>@<host>",
+             "In that session: sudo -u hermes -i ghealth auth login",
+             "Open the printed URL in your Mac browser and approve — the callback lands through the tunnel.",
+         ]})
+
+
+def _exact_keys(value, expected, label):
+    if not isinstance(value, dict) or set(value) != set(expected):
+        die(f"invalid {label} keys")
+
+
+def _unique_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON key")
+        value[key] = item
+    return value
+
+
+def _panel_turn(raw, session):
+    """Parse the only accepted panel turn contract and bind it to the fixed
+    server-owned continuation selected by the broker."""
+    try:
+        turn = json.loads(raw, object_pairs_hook=_unique_object)
+    except (TypeError, ValueError):
+        die("invalid panel turn JSON")
+    _exact_keys(turn, ("contract", "message", "context"), "panel turn")
+    if turn["contract"] not in {"hermes-panel-turn-v1", "hermes-panel-turn-v2"}:
+        die("unsupported panel turn contract")
+    message = turn["message"]
+    if not isinstance(message, str) or not message.strip() or len(message) > 4000:
+        die("invalid panel message")
+    ctx = turn["context"]
+    context_keys = (
+        "version", "surface", "lens", "conversation_id", "range",
+        "selected_region_ids", "evidence_contract",
+    )
+    selected_findings = []
+    if turn["contract"] == "hermes-panel-turn-v2":
+        context_keys += ("selected_findings",)
+    _exact_keys(ctx, context_keys, "panel context")
+    expected_version = 2 if turn["contract"] == "hermes-panel-turn-v2" else 1
+    expected_evidence_contract = (
+        "health-tool-v2" if expected_version == 2 else "health-tool-v1"
+    )
+    if type(ctx["version"]) is not int or ctx["version"] != expected_version or \
+            ctx["surface"] != "panel" or \
+            ctx["evidence_contract"] != expected_evidence_contract:
+        die("invalid panel context contract")
+    if expected_version == 2:
+        selected_findings = ctx["selected_findings"]
+        if not isinstance(selected_findings, list) or not 1 <= len(selected_findings) <= 3:
+            die("invalid selected findings")
+        seen_findings = set()
+        normalized = []
+        for item in selected_findings:
+            _exact_keys(
+                item,
+                ("outcome", "finding_id", "input_fingerprint"),
+                "selected finding",
+            )
+            if item["outcome"] != "subjective.day_rating" or \
+                    not isinstance(item["finding_id"], str) or \
+                    SHA256_ID.fullmatch(item["finding_id"]) is None or \
+                    not isinstance(item["input_fingerprint"], str) or \
+                    SHA256_ID.fullmatch(item["input_fingerprint"]) is None or \
+                    item["finding_id"] in seen_findings:
+                die("invalid selected findings")
+            seen_findings.add(item["finding_id"])
+            normalized.append({
+                "outcome": item["outcome"],
+                "finding_id": item["finding_id"],
+                "input_fingerprint": item["input_fingerprint"],
+            })
+        selected_findings = normalized
+    generated = GENERATED_CHAT_SESSION.fullmatch(session)
+    if generated is not None:
+        if ctx["lens"] not in {"general", "pain", "mobility"} or \
+                ctx["conversation_id"] != generated.group(1):
+            die("panel context does not match generated session")
+    else:
+        expected_lens, expected_conversation = PANEL_TURN_SESSIONS[session]
+        if ctx["lens"] != expected_lens or ctx["conversation_id"] != expected_conversation:
+            die("panel context does not match fixed session")
+    range_value = ctx["range"]
+    if not isinstance(range_value, dict):
+        die("invalid panel range")
+    if set(range_value) == {"kind"} and range_value.get("kind") == "all":
+        pass
+    elif set(range_value) == {"kind", "from", "to"} and range_value.get("kind") == "bounded":
+        try:
+            start = date.fromisoformat(range_value["from"])
+            end = date.fromisoformat(range_value["to"])
+        except (TypeError, ValueError):
+            die("invalid bounded panel range")
+        if start.isoformat() != range_value["from"] or end.isoformat() != range_value["to"] or start > end:
+            die("invalid bounded panel range")
+    else:
+        die("invalid panel range")
+    if selected_findings and range_value.get("kind") != "bounded":
+        die("selected findings require a bounded panel range")
+    regions = ctx["selected_region_ids"]
+    if not isinstance(regions, list) or len(regions) > 20 or \
+            any(not isinstance(v, str) or not REGION_ID.fullmatch(v) for v in regions) or \
+            len(regions) != len(set(regions)):
+        die("invalid selected region ids")
+    canonical_context = json.dumps(ctx, ensure_ascii=False, sort_keys=True,
+                                   separators=(",", ":"))
+    if len(canonical_context.encode("utf-8")) > PANEL_TURN_MAX_CONTEXT_BYTES:
+        die("panel context too large")
+    return message.strip(), canonical_context, selected_findings
+
+
+def _installed_context():
+    """Read only a manifest-bound regular context file. Missing or drifted
+    identity must stop the turn instead of silently losing system context."""
+    for path in (AUTONOMOUS_CONTEXT, AUTONOMOUS_MANIFEST):
+        if os.path.islink(path) or not os.path.isfile(path):
+            die("autonomous context is not installed")
+    try:
+        with open(AUTONOMOUS_CONTEXT, "rb") as handle:
+            raw = handle.read(128 * 1024 + 1)
+        with open(AUTONOMOUS_MANIFEST, "rb") as handle:
+            manifest_raw = handle.read(64 * 1024 + 1)
+        if len(manifest_raw) > 64 * 1024 or b"\x00" in manifest_raw:
+            die("autonomous context manifest is invalid")
+        manifest = json.loads(manifest_raw, object_pairs_hook=_unique_object)
+    except (OSError, ValueError):
+        die("autonomous context is unreadable")
+    if not isinstance(manifest, dict) or len(raw) > 128 * 1024 or b"\x00" in raw:
+        die("autonomous context is invalid")
+    digest = hashlib.sha256(raw).hexdigest()
+    contract_version = manifest.get("contract_version")
+    if type(contract_version) is not int or contract_version not in {1, 2} or \
+            manifest.get("context_sha256") != digest:
+        die("autonomous context drift detected")
+    if not raw.startswith(b"# Hermes Autonomous Health Context\n") or \
+            f"Contract-Version: {contract_version}\n".encode() not in raw or \
+            b"</HERMES_TRUSTED_AUTONOMOUS_CONTEXT>" in raw:
+        die("autonomous context is invalid")
+    try:
+        return raw.decode("utf-8").strip(), digest
+    except UnicodeDecodeError:
+        die("autonomous context is not UTF-8")
+
+
+def _openhealthatlas_trace(turn_id):
+    """Return this turn's adapter result records without exposing old turns."""
+
+    path = OPENHEALTHATLAS_TOOL_AUDIT
+    if os.path.islink(path) or not os.path.isfile(path):
+        return []
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - 4 * 1024 * 1024))
+            raw = handle.read(4 * 1024 * 1024)
+    except OSError:
+        return []
+    if size > len(raw):
+        raw = raw.split(b"\n", 1)[-1]
+    records = []
+    for line in raw.splitlines():
+        try:
+            item = json.loads(line)
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if (
+            isinstance(item, dict)
+            and item.get("contract") == "openhealthatlas-hermes-tool-v1"
+            and item.get("phase") == "result"
+            and item.get("turn_id") == turn_id
+        ):
+            records.append(item)
+    return records
+
+
+def _trace_flags(args):
+    flags = {}
+    no_value = {"--all", "--include-provenance", "--stdin"}
+    index = 0
+    while index < len(args):
+        key = args[index]
+        if not isinstance(key, str) or not key.startswith("--") or key in flags:
+            die("OpenHealthAtlas trace contains a non-canonical command")
+        if key in no_value:
+            flags[key] = True
+        else:
+            index += 1
+            if index >= len(args) or not isinstance(args[index], str):
+                die("OpenHealthAtlas trace contains a non-canonical command")
+            flags[key] = args[index]
+        index += 1
+    return flags
+
+
+def _validate_trace_range(flags, panel_range):
+    if panel_range["kind"] == "all":
+        if flags.get("--all") is not True or any(
+            key in flags for key in ("--from", "--to", "--days")
+        ):
+            die("OpenHealthAtlas trace escaped the trusted panel range")
+        return
+    if (
+        flags.get("--from") != panel_range["from"]
+        or flags.get("--to") != panel_range["to"]
+        or "--all" in flags
+        or "--days" in flags
+    ):
+        die("OpenHealthAtlas trace escaped the trusted panel range")
+
+
+def _validate_openhealthatlas_trace(trace, panel_range, selected_findings=None):
+    """Validate the same-turn execution receipt before exposing it to the UI."""
+
+    selected_findings = list(selected_findings or [])
+    names = []
+    replayed_findings = []
+    fixture_ids = set()
+    assessment_state = None
+    for index, record in enumerate(trace):
+        command = record.get("command")
+        evidence_ids = record.get("evidence_ids")
+        if (
+            record.get("returncode") != 0
+            or record.get("data_class") != "fictional"
+            or record.get("fixture_id") not in OPENHEALTHATLAS_FIXTURES
+            or not isinstance(command, list)
+            or len(command) < 3
+            or not all(isinstance(item, str) for item in command)
+            or command[1] != OPENHEALTHATLAS_HEALTH_CLI
+            or not isinstance(evidence_ids, list)
+            or any(SHA256_ID.fullmatch(item) is None for item in evidence_ids)
+            or SHA256_ID.fullmatch(str(record.get("result_sha256"))) is None
+            or SHA256_ID.fullmatch(str(record.get("database_before_sha256"))) is None
+            or SHA256_ID.fullmatch(str(record.get("database_after_sha256"))) is None
+        ):
+            die("OpenHealthAtlas trace failed its execution contract")
+        if index and trace[index - 1].get("database_after_sha256") != record.get(
+            "database_before_sha256"
+        ):
+            die("OpenHealthAtlas trace database identity is discontinuous")
+        fixture_ids.add(record["fixture_id"])
+        name = command[2]
+        names.append(name)
+        flags = _trace_flags(command[3:])
+        range_keys = (
+            {"--all"}
+            if panel_range["kind"] == "all"
+            else {"--from", "--to"}
+        )
+        if name in {"feature-frame", "data-readiness", "analysis-refresh", "finding-evidence"}:
+            _validate_trace_range(flags, panel_range)
+        if name == "feature-registry" and flags:
+            die("OpenHealthAtlas trace contains an invalid feature registry read")
+        if name == "feature-frame":
+            if set(flags) != range_keys | {"--family", "--include-provenance"} or (
+                flags.get("--family") != "subjective"
+                or flags.get("--include-provenance") is not True
+            ):
+                die("OpenHealthAtlas trace contains the wrong feature-frame")
+        if name == "data-readiness" and (
+            set(flags) != range_keys | {"--outcome"}
+            or flags.get("--outcome") != "subjective.day_rating"
+        ):
+            die("OpenHealthAtlas trace contains the wrong readiness query")
+        if name == "analysis-refresh" and (
+            set(flags) != range_keys | {"--kind", "--outcome", "--mode"} | (
+                {"--anchor"} if panel_range["kind"] == "bounded" else set()
+            )
+            or
+            flags.get("--kind") != "manual"
+            or flags.get("--outcome") != "subjective.day_rating"
+            or flags.get("--mode") != "green-vs-non-green"
+            or (
+                panel_range["kind"] == "bounded"
+                and flags.get("--anchor") != panel_range["to"]
+            )
+        ):
+            die("OpenHealthAtlas trace contains the wrong analysis")
+        if name == "finding-evidence" and (
+            set(flags) != range_keys | {
+                "--outcome", "--finding-id", "--input-fingerprint",
+            }
+            or flags.get("--outcome") != "subjective.day_rating"
+            or SHA256_ID.fullmatch(str(flags.get("--finding-id"))) is None
+            or SHA256_ID.fullmatch(str(flags.get("--input-fingerprint"))) is None
+        ):
+            die("OpenHealthAtlas trace contains invalid evidence replay")
+        if name == "finding-evidence":
+            replayed_findings.append({
+                "outcome": flags["--outcome"],
+                "finding_id": flags["--finding-id"],
+                "input_fingerprint": flags["--input-fingerprint"],
+            })
+        if name == "synthesis-prepare" and (
+            set(flags) != {"--batch-id"}
+            or SHA256_ID.fullmatch(str(flags.get("--batch-id"))) is None
+        ):
+            die("OpenHealthAtlas trace contains invalid synthesis preparation")
+        if name == "synthesis-prepare":
+            if record.get("assessment_state") not in {
+                "assessed", "insufficient_data",
+            }:
+                die("OpenHealthAtlas trace has an invalid assessment state")
+            assessment_state = record["assessment_state"]
+        if name == "synthesis-record":
+            die("OpenHealthAtlas interpretation write-back is disabled for panel turns")
+    if len(fixture_ids) != 1:
+        die("OpenHealthAtlas trace changed fictional fixture identity")
+    cursor = 0
+    if tuple(names[:3]) != OPENHEALTHATLAS_SEQUENCE:
+        die("Hermes did not follow the OpenHealthAtlas tool sequence")
+    cursor = 3
+    used_registry = False
+    if cursor < len(names) and names[cursor] == "feature-registry":
+        used_registry = True
+        cursor += 1
+    while cursor < len(names) and names[cursor] == "finding-evidence":
+        cursor += 1
+    if cursor >= len(names) or names[cursor] != "synthesis-prepare":
+        die("Hermes did not prepare the OpenHealthAtlas synthesis boundary")
+    cursor += 1
+    if cursor != len(names):
+        die("Hermes used an unexpected OpenHealthAtlas tool sequence")
+    if assessment_state == "assessed" and not used_registry:
+        die("Hermes did not retrieve OpenHealthAtlas classification metadata")
+    if selected_findings:
+        selected_keys = {
+            (item["outcome"], item["finding_id"], item["input_fingerprint"])
+            for item in selected_findings
+        }
+        replayed_keys = {
+            (item["outcome"], item["finding_id"], item["input_fingerprint"])
+            for item in replayed_findings
+        }
+        if (
+            len(replayed_findings) != len(selected_findings)
+            or len(replayed_findings) != len(replayed_keys)
+            or replayed_keys != selected_keys
+        ):
+            die("Hermes did not replay exactly the selected OpenHealthAtlas findings")
+    return assessment_state
+
+
+def _validate_openhealthatlas_reply(
+    reply, trace, *, required=False, assessment_state=None,
+):
+    if not trace:
+        if required:
+            die("Hermes did not use OpenHealthAtlas for the required evidence")
+        return []
+    required_headings = (
+        "## Deterministic result",
+        "## Hermes interpretation",
+        "### What the user did",
+        "### What the body showed",
+        "### What remains unknown",
+    )
+    if any(heading not in reply for heading in required_headings):
+        die("Hermes did not keep deterministic results separate from interpretation")
+    interpretation = reply.split("## Hermes interpretation", 1)[1]
+    authorized = {
+        item
+        for record in trace
+        for item in record.get("evidence_ids", [])
+        if isinstance(item, str)
+    }
+    cited = sorted(set(SHA256_ID.findall(interpretation)))
+    if set(cited) - authorized:
+        die("Hermes interpretation cited evidence not returned by OpenHealthAtlas")
+    if authorized and not authorized.intersection(cited):
+        die("Hermes interpretation did not cite returned OpenHealthAtlas evidence")
+    if assessment_state == "insufficient_data" and (
+        "### Ranked hypotheses" in interpretation
+        or re.search(r"\binsufficient data\b", interpretation, re.IGNORECASE) is None
+    ):
+        die("Hermes ranked an explanation despite insufficient OpenHealthAtlas data")
+    return cited
+
+
+def _run_hermes(argv, *, cwd, env, timeout):
+    """Run one Hermes process group so a timeout also stops its tool children."""
+
+    process = subprocess.Popen(
+        argv,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.communicate(timeout=3)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+        raise
+    return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+
+def chat(args):
+    """One agent turn (same SOUL/model/tools as Telegram). Message on stdin so it
+    never lands in argv/audit as a flag. The three legacy conversations keep
+    their fixed continuations; generated panel conversations use IDs bound to
+    their exact server-owned continuation so histories cannot bleed. The agent
+    may write via its own health.py tools — same conversational-logging path as
+    Telegram."""
+    session = CHAT_SESSION
+    if args:
+        if len(args) != 2 or args[0] != "--session" or (
+            args[1] not in CHAT_SESSIONS
+            and GENERATED_CHAT_SESSION.fullmatch(args[1]) is None
+        ):
+            die("unknown chat session")
+        session = args[1]
+    message, trusted_context, selected_findings = _panel_turn(
+        sys.stdin.read(), session,
+    )
+    autonomous_context, autonomous_sha256 = _installed_context()
+    turn_id = "oha-" + secrets.token_hex(16)
+    owner_json = json.dumps(message, ensure_ascii=False, separators=(",", ":"))
+    # Prevent owner text from creating a literal trusted/untrusted closing tag;
+    # JSON escapes keep the content legible to the model without changing it.
+    owner_json = owner_json.replace("<", "\\u003c").replace(">", "\\u003e")
+    prompt = (
+        "<HERMES_TRUSTED_AUTONOMOUS_CONTEXT sha256=\"" + autonomous_sha256 + "\">\n" +
+        autonomous_context + "\n</HERMES_TRUSTED_AUTONOMOUS_CONTEXT>\n" +
+        "<HERMES_TRUSTED_PANEL_CONTEXT>" + trusted_context +
+        "</HERMES_TRUSTED_PANEL_CONTEXT>\n" +
+        "<HERMES_TRUSTED_OPENHEALTHATLAS_TOOL>"
+        "For Green-day evidence questions or an explicit selected_findings "
+        "context, use only " + OPENHEALTHATLAS_TOOL +
+        " and follow the installed OpenHealthAtlas skill. The adapter returns "
+        "OpenHealthAtlas deterministic JSON; you remain the reasoning layer. "
+        "Keep exact headings '## Deterministic result' and "
+        "'## Hermes interpretation', with '### What the user did', "
+        "'### What the body showed', and '### What remains unknown'. Preserve "
+        "the raw statistical ranking, use registry metadata to rank actionable "
+        "upstream behavior separately, replay at most three selected findings, "
+        "and when explicit selected_findings are present replay exactly those, "
+        "for each selected replay cite at least one sha256 evidence ID returned "
+        "by that exact replay, and "
+        "do not rank hypotheses when the deterministic result is insufficient. "
+        "Do not call synthesis-record; interpretation write-back is disabled "
+        "for panel turns. "
+        "turn_id=" + turn_id +
+        "</HERMES_TRUSTED_OPENHEALTHATLAS_TOOL>\n" +
+        "<HERMES_UNTRUSTED_OWNER_MESSAGE encoding=\"json-string\">\n" + owner_json +
+        "\n</HERMES_UNTRUSTED_OWNER_MESSAGE>"
+    )
+    child_env = os.environ.copy()
+    child_env["OPENHEALTHATLAS_HERMES_TURN_ID"] = turn_id
+    child_env["OPENHEALTHATLAS_TRANSPORT_TOOL"] = OPENHEALTHATLAS_TOOL
+    try:
+        hermes_executable = _hermes_executable()
+        r = _run_hermes(
+            [hermes_executable, "-z", prompt, "--cli", "--continue", session],
+            cwd=_hermes_working_directory(hermes_executable),
+            env=child_env,
+            timeout=_hermes_timeout(),
+        )
+    except subprocess.TimeoutExpired:
+        die("Hermes took too long to respond. The turn was stopped; please try again.")
+    except OSError:
+        die("Hermes runtime is unavailable; the turn was not run.")
+    reply = (r.stdout or "").strip()
+    if r.returncode != 0 and not reply:
+        die(f"agent error: {(r.stderr or '').strip()[:200]}")
+    trace = _openhealthatlas_trace(turn_id)
+    assessment_state = None
+    if trace:
+        assessment_state = _validate_openhealthatlas_trace(
+            trace, json.loads(trusted_context)["range"], selected_findings,
+        )
+    evidence_refs = _validate_openhealthatlas_reply(
+        reply,
+        trace,
+        required=(
+            bool(selected_findings)
+            or GREEN_DAY_QUESTION.search(message) is not None
+        ),
+        assessment_state=assessment_state,
+    )
+    out({
+        "ok": True,
+        "reply": reply or "(no reply)",
+        "openhealthatlas_tool_trace": trace,
+        "openhealthatlas_evidence_refs": evidence_refs,
+    })
+
+
+COMMANDS = {"status": status, "spend": spend, "model-set": model_set,
+            "fitbit-status": fitbit_status, "chat": chat}
+
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
+        die(f"usage: hermesctl {{{'|'.join(COMMANDS)}}}")
+    COMMANDS[sys.argv[1]](sys.argv[2:])
+
+
+if __name__ == "__main__":
+    main()

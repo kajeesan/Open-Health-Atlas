@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Consistency{% endblock %}
+{% block content %}
+{# Consistency pillar (design v-consistency): kept-word ring (engine score),
+   habit streaks + per-habit ledger (habits_log aggregates, SQL-side),
+   follow-through trend (engine adherence), 12-month day-ratings calendar.
+   XP / levels are an honest placeholder — the game engine isn't built yet.
+   Header range dd windows the ledger + follow-through cards (server-side
+   `days` param); the calendar stays a fixed 12-month view — a deliberate
+   divergence from the design's mock (which varies calendar granularity per
+   range) to avoid duplicating Insight Explorer's range-aware calendar; see
+   consistency.js header comment. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Consistency</h1>
+    </div>
+    <div class="dd" data-dd="consistency">
+      <button class="ddbtn" type="button">Year <span class="cv">▾</span></button>
+      <div class="ddmenu">
+        <button type="button" data-val="Day">Day</button>
+        <button type="button" data-val="Week">Week</button>
+        <button type="button" data-val="Month">Month</button>
+        <button type="button" data-val="Year" class="on">Year</button>
+        <button type="button" data-val="All">All time</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row gap-2 wrap" id="cons-chips">
+    <span class="chip muted">XP · levels — pending the game engine (habits.md rules)</span>
+  </div>
+
+  <div class="grid-3">
+    <div class="card center">
+      <div id="cons-ring" class="gauge-sm"></div>
+      <div class="muted note-txt" id="cons-ring-cap">Loading…</div>
+    </div>
+    <div class="card col-2">
+      <div class="row between mb-3">
+        <h3 class="card-title">Streaks</h3>
+        <span class="chip">per-habit ledger below</span>
+      </div>
+      <div class="vstack gap-2" id="cons-streaks">
+        <span class="muted note-txt">Habit streaks appear when the coach loop logs them.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap mb-1">
+      <h3 class="card-title">Kept your word — follow-through</h3>
+      <span class="chip" id="adh-meta2"></span>
+    </div>
+    <div id="cons-adh" class="h190"></div>
+    <p class="muted micro m0" id="cons-adh-note"></p>
+  </div>
+
+  {# task-35: whole-card link → the habit-ledger drill sub-page (design image
+     11), same card-klink pattern as the dashboard's radar cards; the in-card
+     table stays as the on-page summary. #}
+  <a class="card klink" href="{{ url_for('core.consistency_habits') }}">
+    <div class="row between wrap mb-2">
+      <h3 class="card-title">Habit ledger</h3>
+      <div class="row gap-2">
+        <span class="muted micro" id="ledger-meta">aggregates computed in SQL · streaks written by health.py</span>
+        <span class="chip">all ›</span>
+      </div>
+    </div>
+    <div class="table-wrap"><table class="ltab" id="ledger-table" hidden>
+      <thead><tr><th>Habit</th><th>Current</th><th>Best</th><th>Done / logged</th><th>Since</th><th>Last</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="muted note-txt" id="ledger-empty" hidden></p>
+  </a>
+
+  <div class="card">
+    <div class="row between wrap mb-1">
+      <h3 class="card-title">Day ratings</h3>
+      <div class="row gap-2">
+        <span class="chip"><span class="dot good"></span>good</span>
+        <span class="chip"><span class="dot okay"></span>ok</span>
+        <span class="chip"><span class="dot bad"></span>hard</span>
+      </div>
+    </div>
+    <div id="cons-heat" class="h180"></div>
+    <div class="row between wrap mt-1">
+      <span class="muted micro">cells summarize logged days · from the evening check-in</span>
+      <a class="muted micro klink" href="{{ url_for('core.insights') }}">open Insight Explorer →</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/consistency.js') }}" defer></script>
+{% endblock %}

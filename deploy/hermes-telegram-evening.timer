@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes tap-first evening check-in at 20:30 UTC
+
+[Timer]
+OnCalendar=*-*-* 20:30 UTC
+RandomizedDelaySec=5m
+Persistent=false
+Unit=hermes-telegram-evening.service
+
+[Install]
+WantedBy=timers.target

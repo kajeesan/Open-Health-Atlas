@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} — recovery breakdown{% endblock %}
+{% block content %}
+{# task-30 drill sub-page (shared by sleep / hrv / rhr — the metric is fixed by
+   the URL, validated in core.py, 404 otherwise). recovery_detail.js fetches
+   /api/dash/recovery-detail?metric=&days= and renders the three cards from
+   REAL daily_metrics data only: a provenance-honest trend (apple solid /
+   fitbit dashed where both exist), a deterministic stats breakdown vs the
+   60-day personal-median baseline, and factual "what stands out" statements
+   (no invented coaching). Honest empty state when the metric has no rows. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.recovery') }}">◱ Recovery</a>
+      <h1 class="page-title" id="rd-title">{{ label }} — recovery breakdown</h1>
+      <span class="muted micro" id="rd-sub">latest vs your personal baseline · last-range trend</span>
+    </div>
+    <div class="row">
+      <span class="flag" id="rd-header-chip" hidden></span>
+      <div class="dd" data-dd="rdrange">
+        <button class="ddbtn" type="button">Month <span class="cv">▾</span></button>
+        <div class="ddmenu">
+          <button type="button" data-val="Day">Day</button>
+          <button type="button" data-val="Week">Week</button>
+          <button type="button" data-val="Month" class="on">Month</button>
+          <button type="button" data-val="Year">Year</button>
+          <button type="button" data-val="All">All time</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# honest whole-page empty state — shown only when the metric has no rows #}
+  <div class="card" id="rd-empty" hidden>
+    <h3 class="card-title mb-1" id="rd-empty-title">{{ label }} — no data yet</h3>
+    <p class="muted note-txt m0" id="rd-empty-body">Loading…</p>
+  </div>
+
+  <div id="rd-grid" hidden>
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title" id="rd-trend-title">{{ label }} — trend</h3>
+        <span class="muted micro" id="rd-trend-note"></span>
+      </div>
+      <div id="rd-chart" class="h230"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-1">Component breakdown</h3>
+        <div id="rd-breakdown"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title mb-1">What stands out</h3>
+        <div id="rd-advice"><p class="muted note-txt m0">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/recovery_detail.js') }}" defer></script>
+{% endblock %}

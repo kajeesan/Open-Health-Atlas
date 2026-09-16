@@ -1,0 +1,24 @@
+# Scheduled Hevy → health.py sync. Triggered by hermes-hevy-sync.timer.
+# Runs as root ON PURPOSE: /etc/hermes/hevy.env is root-only, and the
+# collector drops privileges per-import via `sudo -u hermes` — see the
+# docstring in /usr/local/lib/hermes-hevy/hevy-collector.
+[Unit]
+Description=Hevy workout sync into the health DB
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/hermes-hevy/hevy-collector
+# A oneshot's default start timeout is infinity — a hung API would pin this
+# root unit forever AND make every later timer firing a silent no-op.
+TimeoutStartSec=30min
+# PrivateTmp: the staging dir disappears from the shared /tmp (no symlink
+# games, no exposure of fetched data); the `sudo -u hermes` child inherits
+# this mount namespace, so the root→hermes file handoff still works.
+# NoNewPrivileges must stay OFF — the privilege DROP via sudo needs setuid.
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

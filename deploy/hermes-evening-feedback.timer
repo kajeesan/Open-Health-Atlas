@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes evening feedback at 20:30 UTC (disabled by default)
+
+[Timer]
+OnCalendar=*-*-* 20:30 UTC
+RandomizedDelaySec=5m
+Persistent=false
+Unit=hermes-evening-feedback.service
+
+[Install]
+WantedBy=timers.target

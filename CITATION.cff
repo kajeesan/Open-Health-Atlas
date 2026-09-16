@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: >-
+  If you use OpenHealthAtlas in research, education, or a derived project,
+  please cite it using this metadata.
+title: Open Health Atlas
+type: software
+version: 0.1.0
+authors:
+  - given-names: Kajeesan
+    family-names: Jeevendra
+repository-code: https://github.com/kajeesan/Open-Health-Atlas
+url: https://github.com/kajeesan/Open-Health-Atlas
+license: MIT
+abstract: >-
+  A local-first, provenance-aware system for connecting physical health,
+  mental wellbeing, behaviour, and clinical data into traceable,
+  uncertainty-labelled patterns.
+keywords:
+  - personal health data
+  - local-first software
+  - provenance
+  - deterministic analytics
+  - health visualization

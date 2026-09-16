@@ -1,0 +1,267 @@
+{
+  "contract": "openhealthatlas-acceptance-proof-levels-v1",
+  "recorded_on": "2026-08-17",
+  "recovery_item": "recovery_5",
+  "status": "Working",
+  "scope": {
+    "source_commit": "47c2ca51f624d2a455117736695b459d4967edd7",
+    "vps_source_snapshot_is_git_checkout": false,
+    "deployed_checkout_commit_attestation": "Unverified",
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "range_from": "2026-03-02",
+    "range_to": "2026-06-30",
+    "anchor_date": "2026-06-30",
+    "primary_transport": "Telegram",
+    "browser_chat_required_for_primary_journey": false,
+    "interpretation_writeback_enabled": false,
+    "private_data_accessed": false
+  },
+  "deployment": {
+    "scope": "fictional adapter, root-owned configuration and Hermes skill only",
+    "source_commit_for_deployed_artifacts": "47c2ca51f624d2a455117736695b459d4967edd7",
+    "source_snapshot_root": "/opt/openhealthatlas-fictional",
+    "installed_profile_root": "/usr/local/lib/hermes-openhealthatlas-fictional",
+    "fixture_root": "/var/lib/openhealthatlas-fictional",
+    "artifacts": {
+      "adapter_sha256": "sha256:4b6db941e88dccfd0e60ae8b327be5866664515fff99a7768b8df6f7a1a4e0be",
+      "config_sha256": "sha256:ef8375c2baae5034e8c2be4b9080aa9dc313aff332c90e7dab195e71572ccf8c",
+      "skill_sha256": "sha256:d88fb0ff0f8dd6ec5a82a25350c2b9744b37d468fa6639c6f6f97ff180b601cd",
+      "unchanged_mcp_sha256": "sha256:4dd043ff651ca305eb7eee373ea7711fb9565c85c64487d95a8bc1d71d040560"
+    },
+    "registered_mcp_tools": [
+      "openhealthatlas_analysis_refresh",
+      "openhealthatlas_data_readiness",
+      "openhealthatlas_feature_frame",
+      "openhealthatlas_feature_registry",
+      "openhealthatlas_finding_evidence",
+      "openhealthatlas_recovery_detail",
+      "openhealthatlas_recovery_snapshot",
+      "openhealthatlas_synthesis_prepare"
+    ],
+    "synthesis_record_registered": false,
+    "synthesis_writeback_enabled": false,
+    "negative_writeback_preflight": {
+      "command": "synthesis-record --stdin",
+      "exit_code": 2,
+      "error": "synthesis-record is disabled by the owner-controlled writeback gate",
+      "database_sha256_unchanged": true,
+      "audit_unchanged": true,
+      "synthesis_runs_before": 0,
+      "synthesis_runs_after": 0
+    },
+    "gateway_restart_scope": "hermes-gateway.service only",
+    "browser_or_panel_deployed": false,
+    "rollback_backup": "[REDACTED backup-location 01]"
+  },
+  "proof_rules": {
+    "gates_are_independent": true,
+    "synthetic_can_satisfy_genuine": false,
+    "direct_can_satisfy_telegram": false,
+    "telegram_can_satisfy_browser": false,
+    "passing_tests_are_end_to_end_proof": false,
+    "stale_or_other_fixture_proof_can_be_inherited": false,
+    "product_claim_is_scoped_to_named_journey_and_transport": true
+  },
+  "gates": [
+    {
+      "id": "deterministic_calculation_and_replay",
+      "status": "Working",
+      "proof_level": "current VPS runtime deterministic",
+      "path": "comprehensive-persona-v1 -> OpenHealthAtlas readiness",
+      "turn_id": "[REDACTED runtime-turn 01]",
+      "executions": 2,
+      "result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+      "database_sha256_before": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+      "database_sha256_after": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+      "database_mtime_unchanged": true,
+      "result": {
+        "score": 58,
+        "band": "warn",
+        "sleep": 92,
+        "hrv": 27,
+        "rhr": 55,
+        "sore_groups": [
+          "Legs",
+          "Glutes"
+        ]
+      },
+      "evidence": [
+        "VPS /var/lib/openhealthatlas-fictional/last-recovery-receipt.json (sanitized fields embedded in this ledger)",
+        "tools/project_map/evidence/fictional-recovery-local-2026-08-17.json",
+        "tools/project_map/evidence/fictional-recovery-dashboard-parity-2026-08-17.json"
+      ],
+      "limitations": [
+        "This proves one deterministic fictional recovery slice, not Hermes reasoning.",
+        "It does not prove a private-data or other-date result."
+      ]
+    },
+    {
+      "id": "synthetic_transport_wiring",
+      "status": "Synthetic-only",
+      "proof_level": "simulated external model executable through the panel and broker",
+      "path": "panel -> broker -> hermesctl -> simulated executable -> OpenHealthAtlas",
+      "genuine_model_invoked": false,
+      "evidence": [
+        "tests/e2e/test_hermes_green_days_acceptance.py",
+        "tests/e2e/fake_external_hermes_green_days.py",
+        "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json"
+      ],
+      "limitations": [
+        "This is a fast connection regression, not genuine Hermes evidence.",
+        "It cannot satisfy the genuine Telegram, direct or browser gates."
+      ]
+    },
+    {
+      "id": "genuine_direct_hermes",
+      "status": "Unverified",
+      "proof_level": "genuine direct transport",
+      "path": null,
+      "evidence": [],
+      "limitations": [
+        "No fresh direct genuine-Hermes turn was run for this source snapshot and fixture.",
+        "The accepted Telegram turn does not transfer PASS to direct transport."
+      ]
+    },
+    {
+      "id": "genuine_primary_telegram",
+      "status": "Working",
+      "proof_level": "current user-visible genuine two-turn Telegram acceptance",
+      "path": "User -> Telegram -> genuine Hermes on Oracle VPS -> OpenHealthAtlas recovery tools -> Hermes -> Telegram",
+      "question": "Using only the OpenHealthAtlas fictional fixture, how recovered is the fictional person on 2026-06-30?",
+      "follow_up": "Training.",
+      "runtime_receipt": {
+        "status": "Working",
+        "turn_id": "[REDACTED runtime-turn 01]",
+        "started_at": "2026-08-17T17:54:41.094471+00:00",
+        "updated_at": "2026-08-17T18:31:02.495884+00:00",
+        "phase": 2,
+        "selected_focus": "training",
+        "executions": 2,
+        "all_envelopes_fictional": true,
+        "result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+        "model_interpretation_stored": false
+      },
+      "model_attestation": {
+        "status": "Working",
+        "operational_genuine_invocation": "Working",
+        "cryptographic_model_to_openhealthatlas_turn_binding": "Unverified",
+        "model": "gpt-5.6-sol",
+        "provider": "openai-codex",
+        "gateway_active": true,
+        "gateway_health": "ok",
+        "same_gateway_process_started_before_turn_and_remained_active": true,
+        "server_attested_per_turn": false,
+        "session_correlation": "[REDACTED runtime-session 01]",
+        "sanitized_log_source": "<redacted-local-artifact-1>",
+        "correlated_events": [
+          "18:31:02.080 API call 3 used gpt-5.6-sol through openai-codex",
+          "18:31:02.495 recovery receipt reached phase 2",
+          "18:31:02.500 OpenHealthAtlas recovery_detail completed",
+          "18:31:02.550 a new OpenAI Codex stream began",
+          "18:31:11.115 API call 4 used the same model and provider",
+          "the turn ended normally and the Telegram response was sent"
+        ],
+        "attestation_strength": "operational same-session correlation, not a cryptographic or provider-signed per-turn receipt"
+      },
+      "observed_checks": {
+        "fictional_scope_visible": true,
+        "snapshot_returned": true,
+        "bounded_follow_up_offered": true,
+        "user_selected_follow_up": true,
+        "detail_returned": true,
+        "deterministic_and_hermes_sections_separate": true,
+        "heuristic_limit_visible": true,
+        "diagnosis_or_causation_claimed": false
+      },
+      "evidence": [
+        "VPS /var/lib/openhealthatlas-fictional/last-recovery-receipt.json (sanitized fields embedded in this ledger)",
+        "VPS <redacted-local-artifact-1> (sanitized timestamps, model, provider and session only)",
+        "owner-observed Telegram responses (message bodies not committed)"
+      ],
+      "limitations": [
+        "The VPS is a source snapshot, so the source commit does not attest a deployed git checkout.",
+        "Hermes logs do not contain the OpenHealthAtlas turn ID, and no provider-signed request ID was captured.",
+        "It does not prove browser chat, direct transport, private data, diagnosis, causation or exercise safety."
+      ]
+    },
+    {
+      "id": "genuine_browser",
+      "status": "Unverified",
+      "proof_level": "genuine browser completion",
+      "required_for_primary_journey": false,
+      "owner_disposition": "optional backlog",
+      "path": null,
+      "evidence": [],
+      "limitations": [
+        "No genuine browser-Hermes turn was run.",
+        "Telegram acceptance cannot satisfy this optional transport gate."
+      ]
+    },
+    {
+      "id": "insufficient_data_failure_and_retry",
+      "status": "Partially built",
+      "proof_level": "focused deterministic and browser-contract regressions",
+      "subproofs": {
+        "synthetic_green_day_insufficient_data": "Working",
+        "browser_turn_idempotency_and_uncertain_timeout": "Working",
+        "live_telegram_fault_injection": "Unverified",
+        "recovery_specific_insufficient_data": "Unverified"
+      },
+      "evidence": [
+        "tests/e2e/test_hermes_green_days_acceptance.py",
+        "tests/test_phase7_conversations.py::test_turn_retry_is_idempotent_and_never_redelivers",
+        "tests/test_phase7_conversations.py::test_timeout_is_uncertain_and_retry_never_resends",
+        "tests/test_phase7_conversations.py::test_expired_pending_lease_becomes_uncertain_without_delivery"
+      ],
+      "limitations": [
+        "Browser retry tests do not prove Telegram retry behavior.",
+        "No live fault was injected into the accepted Telegram journey."
+      ]
+    },
+    {
+      "id": "optional_validation_and_storage",
+      "status": "Working",
+      "proof_level": "current default-off storage gate",
+      "writeback_enabled": false,
+      "synthesis_record_exposed_by_accepted_mcp": false,
+      "model_interpretation_stored": false,
+      "synthesis_runs_after_turn": 0,
+      "evidence": [
+        "tests/test_openhealthatlas_tool.py::test_synthesis_record_is_rejected_by_default_owner_gate",
+        "tests/test_hermesctl.py::test_panel_trace_rejects_synthesis_writeback_even_after_valid_prepare",
+        "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json"
+      ],
+      "limitations": [
+        "This proves that storage remained disabled, not that an enabled genuine-Hermes write works.",
+        "An enabled write requires a separate owner decision and acceptance."
+      ]
+    },
+    {
+      "id": "privacy_and_provenance",
+      "status": "Working",
+      "proof_level": "current fictional fixture boundary and deterministic evidence identity",
+      "all_runtime_envelopes_fictional": true,
+      "private_data_accessed": false,
+      "configured_fixture_root": "/var/lib/openhealthatlas-fictional",
+      "database_sha256_unchanged": true,
+      "evidence": [
+        "tests/test_openhealthatlas_tool.py::test_installed_tool_refuses_test_override_and_requires_trusted_default",
+        "tests/test_openhealthatlas_tool.py::test_adapter_refuses_unbounded_or_outside_fixture_range",
+        "tests/test_openhealthatlas_tool.py::test_bridge_sandbox_allows_only_owner_state_and_fictional_fixture",
+        "tools/project_map/evidence/fictional-recovery-telegram-acceptance-2026-08-17.json"
+      ],
+      "limitations": [
+        "This proof intentionally says nothing about private health-data operation.",
+        "The provider/model attestation limitation is recorded separately above."
+      ]
+    }
+  ],
+  "overall_claim": {
+    "proof_taxonomy": "Working",
+    "primary_telegram_user_visible_happy_path": "Working",
+    "all_transports_end_to_end": false,
+    "product_release_certified": false,
+    "statement": "The proof levels are explicit and non-transferable. The current fictional two-turn Telegram Recovery journey has correlated deterministic and user-visible runtime evidence; direct transport, genuine browser completion, live Telegram fault injection, Recovery-specific insufficient-data behavior, enabled storage and cryptographic per-turn model attestation remain separately unverified."
+  }
+}

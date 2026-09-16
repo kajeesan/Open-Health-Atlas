@@ -1,0 +1,528 @@
+#!/usr/bin/env python3
+"""Google Health API v4 to validated health.py wearable sync.
+
+This collector pulls the last few days
+of sleep (with stages), daily physiology summaries, steps/energy and weight
+from `https://health.googleapis.com/v4` and pipes a validated payload into
+health.py's collector-only `import-google-health` subcommand. Determinism law:
+this script NEVER opens the DB — every write goes through the subcommand.
+
+Privilege design (mirrors deploy/hevy-collector): OAuth credentials live in
+/etc/hermes/ghealth.json (root-only, 0600, written once by deploy/ghealth-auth).
+This collector — root — is the only thing that reads them; the transformed
+payload is handed to the hermes user via a root:hermes 0640 file in a private
+staging dir, and the import runs AS hermes. The client secret and tokens never
+reach the hermes user, the panel, or the coach. The short-lived access token
+is kept in memory only, never written to disk.
+
+Read mode: `:reconcile` — the de-duplicated merged stream shown by the provider;
+raw `list` would return per-source duplicates).
+
+Failures are per-data-type: one broken type (API drift, missing scope) skips
+that type with a stderr warning and the rest still lands; only total failure
+(every type errored, or the import itself fails) exits non-zero so cron
+mails/logs it. Pure stdlib; the transform functions below are pure and
+unit-tested in toolkit/tests/test_ghealth_sync.py (no network in tests).
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+CONFIG = os.environ.get(
+    "HERMES_GHEALTH_CONFIG",
+    os.path.join(os.environ["CREDENTIALS_DIRECTORY"], "ghealth.json")
+    if os.environ.get("CREDENTIALS_DIRECTORY") else "/etc/hermes/ghealth.json",
+)
+BASE = "https://health.googleapis.com/v4"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+HEALTH = os.environ.get("HERMES_HEALTH_CLI", "/opt/hermes/toolkit/health.py")
+CANON_TZ = ZoneInfo(os.environ.get("HERMES_TIMEZONE", "UTC"))
+LOOKBACK_DAYS = 2   # window starts at local midnight 2 days back: yesterday is
+                    # always COMPLETE (a partial-window sum would overwrite a
+                    # previously-correct daily total); today tops up next run.
+PAGE_SIZE = 100
+MAX_PAGES = 50      # hard cap — never loop unbounded on a network value
+
+# data type -> (payload container key, value-field candidates, metrics column).
+# Field names verified against the users.dataTypes.dataPoints reference
+# (re-fetched 2026-07-18/19); where the doc was ambiguous the candidates list
+# carries the documented name first plus the one plausible variant, and an
+# unmatched shape surfaces as a loud per-type warning (never a silent zero).
+DAILY_TYPES = {
+    "daily-resting-heart-rate": ("dailyRestingHeartRate",
+                                 ["beatsPerMinute"], "resting_hr"),
+    "daily-heart-rate-variability": ("dailyHeartRateVariability",
+                                     ["averageHeartRateVariabilityMilliseconds"],
+                                     "hrv_ms"),
+    "daily-oxygen-saturation": ("dailyOxygenSaturation",
+                                ["averagePercentage"], "spo2_pct"),
+    "daily-respiratory-rate": ("dailyRespiratoryRate",
+                               ["averageBreathsPerMinute", "breathsPerMinute"],
+                               "respiratory_rate"),
+}
+INTERVAL_TYPES = {   # summed per local date (client-side daily total)
+    "steps": ("steps", ["count"], "steps"),
+    "active-energy-burned": ("activeEnergyBurned",
+                             ["caloriesKcal", "kcal"], "active_energy_kcal"),
+}
+ALL_TYPES = ["sleep", *DAILY_TYPES, *INTERVAL_TYPES, "weight"]
+# Only *.readonly, and only the three buckets these types need.
+SCOPES = ("https://www.googleapis.com/auth/googlehealth.sleep.readonly "
+          "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly "
+          "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly")
+
+
+def _timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _run_state():
+    return {
+        "started_at": _timestamp(), "stage": "startup", "rows_seen": 0,
+        "rows_written": 0, "import_completed": False, "partial": False,
+        "coverage_from": None, "coverage_to": None, "warning_codes": set(),
+    }
+
+
+def _error_code(stage):
+    if stage == "privilege_check":
+        return "privilege_error"
+    if stage == "configuration":
+        return "configuration_error"
+    if stage == "authentication":
+        return "authentication_failed"
+    if stage == "fetch_all":
+        return "all_data_types_failed"
+    if stage.startswith("fetch_"):
+        return "api_fetch_failed"
+    if stage == "import":
+        return "import_failed"
+    return "collector_failed"
+
+
+def _record_run(state, status, error_code=None):
+    """Append secret-free operational provenance without changing exit state."""
+    if os.geteuid() != 0:
+        return  # the recorder is intentionally reachable only by the root wrapper
+    payload = {
+        "source": "google-health",
+        "started_at": state["started_at"],
+        "completed_at": _timestamp(),
+        "status": status,
+        # Attempted coverage remains useful on partial/failure; adapters only
+        # accept successful intervals as completeness evidence.
+        "coverage_from": state["coverage_from"],
+        "coverage_to": state["coverage_to"],
+        "rows_seen": state["rows_seen"],
+        "rows_written": state["rows_written"],
+        "error_code": error_code,
+        "warning_codes": sorted(state["warning_codes"]),
+    }
+    try:
+        result = subprocess.run(
+            ["sudo", "-u", "hermes", "python3", HEALTH,
+             "collector-run-record", "--stdin"],
+            input=json.dumps(payload, separators=(",", ":")),
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:  # noqa: BLE001 — provenance is intentionally best-effort
+        print("WARN collector provenance was not recorded", file=sys.stderr)
+        return
+    if result.returncode != 0:
+        # Never echo recorder output: persisted/secondary diagnostics may not
+        # become a new channel for URLs, exceptions, credentials or tokens.
+        print("WARN collector provenance was not recorded", file=sys.stderr)
+
+
+def _result_json(result):
+    try:
+        value = json.loads(result.stdout)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+# ── pure transforms (unit-tested, no I/O) ───────────────────────────────────
+
+def _num(x):
+    """int64s arrive as JSON strings per Google proto convention."""
+    try:
+        return float(x) if x not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _ts_local(ts, offset=None):
+    """RFC3339 instant (+ optional proto Duration offset like '7200s') →
+    local datetime. A UTC instant with an offset becomes wall-clock time;
+    a timestamp that already carries a non-UTC offset is used as-is."""
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if offset and dt.utcoffset() == timedelta(0):
+        try:
+            dt = dt + timedelta(seconds=int(str(offset).rstrip("s")))
+        except ValueError:
+            pass
+    return dt
+
+
+def _gdate(v):
+    """Google Date — either 'YYYY-MM-DD' or {year, month, day} — → ISO str."""
+    if isinstance(v, str) and len(v) == 10:
+        return v
+    if isinstance(v, dict) and {"year", "month", "day"} <= set(v):
+        return f"{v['year']:04d}-{v['month']:02d}-{v['day']:02d}"
+    return None
+
+
+def _first(d, keys):
+    for k in keys:
+        if k in d:
+            return d[k]
+    return None
+
+
+STAGE_COLS = {"DEEP": "deep_min", "REM": "rem_min",
+              "LIGHT": "light_min", "AWAKE": "awake_min"}
+
+
+def _sleep_day(dp):
+    """One sleep dataPoint → (wake-date, sleep-section dict) or None.
+    Sessions land on the date the owner WOKE UP (matches the Apple-import
+    convention and daily-respiratory-rate's 'main sleep' day)."""
+    s = dp.get("sleep") or {}
+    iv = s.get("interval") or {}
+    start = _ts_local(iv.get("startTime"), iv.get("startUtcOffset"))
+    end = _ts_local(iv.get("endTime"), iv.get("endUtcOffset"))
+    if end is None:
+        return None
+    # both doc fetches of the reference page were AI summaries and disagreed
+    # on this container name — accept both (report §doc-verification).
+    summary = s.get("summary") or s.get("sleepSummary") or {}
+    out = {}
+    asleep = _num(summary.get("minutesAsleep"))
+    if asleep is not None:
+        out["time_asleep_hours"] = round(asleep / 60.0, 2)
+    in_period = _num(summary.get("minutesInSleepPeriod"))
+    if in_period is not None:
+        out["time_in_bed_hours"] = round(in_period / 60.0, 2)
+    for st in (summary.get("stagesSummary") or []):
+        col = STAGE_COLS.get(st.get("type"))
+        mins = _num(st.get("minutes"))
+        if col and mins is not None:
+            out[col] = int(mins)
+        if st.get("type") == "AWAKE" and st.get("count") is not None:
+            out["awakenings"] = int(st["count"])
+    if start is not None:
+        out["bedtime"] = start.strftime("%H:%M")
+    out["wake_time"] = end.strftime("%H:%M")
+    if len(out) <= 1 and asleep is None:   # nothing but a clock time = junk
+        return None
+    return end.date().isoformat(), out
+
+
+def transform(by_type):
+    """{data-type: [dataPoint, ...]} → ({date: day-dict}, [warnings]).
+    Day-dicts are exactly the import-google-health sections; every
+    unrecognized shape becomes a warning string, never an exception and
+    never a fabricated zero."""
+    days, warns = {}, []
+
+    def day(d):
+        return days.setdefault(d, {})
+
+    def metrics(d):
+        return day(d).setdefault("metrics", {})
+
+    for dt, points in by_type.items():
+        for dp in points or []:
+            if dt == "sleep":
+                got = _sleep_day(dp)
+                if got is None:
+                    warns.append(f"sleep: unrecognized dataPoint shape "
+                                 f"({list((dp.get('sleep') or {}).keys())})")
+                    continue
+                d, section = got
+                prev = day(d).get("sleep")
+                # main sleep per night = the longest session (naps lose)
+                if (prev is None or section.get("time_asleep_hours", 0)
+                        > prev.get("time_asleep_hours", 0)):
+                    day(d)["sleep"] = section
+                    if "time_asleep_hours" in section:
+                        metrics(d)["sleep_hours"] = section["time_asleep_hours"]
+            elif dt in DAILY_TYPES:
+                container, cands, col = DAILY_TYPES[dt]
+                body = dp.get(container) or {}
+                d = _gdate(dp.get("date")) or _gdate(body.get("date"))
+                v = _num(_first(body, cands))
+                if d is None or v is None:
+                    warns.append(f"{dt}: unrecognized dataPoint shape "
+                                 f"({sorted(dp.keys())})")
+                    continue
+                metrics(d)[col] = v
+            elif dt in INTERVAL_TYPES:
+                container, cands, col = INTERVAL_TYPES[dt]
+                body = dp.get(container) or {}
+                iv = dp.get("interval") or body.get("interval") or {}
+                t = _ts_local(iv.get("startTime"), iv.get("startUtcOffset"))
+                v = _num(_first(body, cands))
+                if t is None or v is None:
+                    warns.append(f"{dt}: unrecognized dataPoint shape "
+                                 f"({sorted(dp.keys())})")
+                    continue
+                d = t.date().isoformat()
+                metrics(d)[col] = round(metrics(d).get(col, 0) + v, 2)
+            elif dt == "weight":
+                body = dp.get("weight") or {}
+                iv = dp.get("interval") or body.get("interval") or {}
+                t = _ts_local(iv.get("startTime"), iv.get("startUtcOffset"))
+                g = _num(body.get("weightGrams"))
+                if t is None or g is None:
+                    warns.append(f"weight: unrecognized dataPoint shape "
+                                 f"({sorted(dp.keys())})")
+                    continue
+                d = t.date().isoformat()
+                prev = day(d).get("_weight_at")
+                if prev is None or t >= prev:      # latest reading of the day
+                    day(d)["_weight_at"] = t
+                    day(d)["weight_kg"] = round(g / 1000.0, 2)
+            else:
+                warns.append(f"unknown data type {dt!r} — not mapped")
+    for d in days.values():
+        d.pop("_weight_at", None)
+    return days, warns
+
+
+def build_payload(days):
+    """{date: sections} → the exact import-google-health stdin payload."""
+    return {"days": [{"date": d, **sections}
+                     for d, sections in sorted(days.items())]}
+
+
+# ── I/O: OAuth refresh + fetch + import (no unit tests — thin and loud) ─────
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse ALL redirects (hevy-collector idiom): urllib re-sends every
+    original header — including the Bearer token — to the redirect target,
+    even cross-host. The token must never leave googleapis.com."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code,
+                                     f"refusing redirect to {newurl}", headers, fp)
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def load_config():
+    try:
+        with open(CONFIG) as f:
+            cfg = json.load(f)
+    except FileNotFoundError:
+        sys.exit(f"{CONFIG} missing — run deploy/ghealth-auth first "
+                 "(see deploy/server-setup.md)")
+    for k in ("client_id", "client_secret", "refresh_token"):
+        if not cfg.get(k):
+            sys.exit(f"{CONFIG}: {k} missing/empty — re-run deploy/ghealth-auth")
+    return cfg
+
+
+def access_token(cfg):
+    """refresh_token → short-lived access token (memory only, never on disk).
+    A failed refresh is the alert-worthy condition: most likely the OAuth app
+    was left in Testing status (refresh tokens die after 7 days there) — the
+    error says so, because cron mail is where the owner will read it."""
+    body = urllib.parse.urlencode({
+        "client_id": cfg["client_id"], "client_secret": cfg["client_secret"],
+        "refresh_token": cfg["refresh_token"], "grant_type": "refresh_token",
+    }).encode()
+    req = urllib.request.Request(TOKEN_URL, data=body, headers={
+        "content-type": "application/x-www-form-urlencoded"})
+    try:
+        with _OPENER.open(req, timeout=30) as r:
+            tok = json.load(r).get("access_token")
+    except urllib.error.HTTPError as e:
+        sys.exit(f"token refresh failed ({e.code}: {e.read().decode(errors='replace')[:300]}) — "
+                 "if this is 'invalid_grant', the refresh token is dead: check the "
+                 "OAuth app is in PRODUCTION status (Testing tokens expire after "
+                 "7 days), then re-run deploy/ghealth-auth")
+    except Exception as exc:  # noqa: BLE001 — cron surface, fail loudly
+        sys.exit(f"token refresh failed: {exc}")
+    if not tok:
+        sys.exit("token refresh returned no access_token")
+    return tok
+
+
+def get_json(token, url):
+    req = urllib.request.Request(url, headers={
+        "authorization": f"Bearer {token}", "accept": "application/json"})
+    for attempt in (1, 2, 3):
+        try:
+            with _OPENER.open(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 3:      # documented backoff-retry
+                time.sleep(10 * attempt)
+                continue
+            raise RuntimeError(
+                f"HTTP {e.code}: {e.read().decode(errors='replace')[:300]}") from e
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 3:
+                raise
+            time.sleep(5 * attempt)
+
+
+def fetch_type(token, dt, start_local):
+    """All dataPoints for one type since the window start.
+
+    Filter grammar VERIFIED LIVE against the server ghealth CLI's --dry-run
+    requests (2026-07-19) — the doc-inferred `data_type.` prefix and the
+    `:reconcile` endpoint were both wrong (HTTP 400
+    INVALID_DATA_POINT_FILTER_DATA_TYPE_RESTRICTION on every type):
+      - field paths are prefixed with the TYPE's OWN snake_case name
+        (daily_resting_heart_rate.date, sleep.interval.civil_end_time,
+        weight.sample_time.physical_time)
+      - daily summaries filter on `.date` with bare civil dates
+      - sleep (and other interval types) filter on `.interval.civil_end_time`
+        with LOCAL CIVIL timestamps (no zone suffix)
+      - weight filters on `.sample_time.physical_time` in UTC with Z
+      - both bounds are always sent (>= start AND < end), the endpoint is
+        plain /dataPoints, and the request carries ONLY the filter param
+        (ghealth sends no pageSize; nextPageToken is still honored if
+        returned).
+    steps/active-energy-burned reuse the sleep interval pattern (same
+    interval shape per the schema listing) — if the API ever rejects that,
+    the per-type loud-WARN path surfaces it and a
+    `ghealth data steps list --dry-run` shows the correction."""
+    snake = dt.replace("-", "_")
+    end_local = (start_local.tzinfo and datetime.now(start_local.tzinfo)
+                 or datetime.now()) + timedelta(days=1)
+    end_local = end_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    if dt in DAILY_TYPES:
+        flt = (f'{snake}.date >= "{start_local.date().isoformat()}"'
+               f' AND {snake}.date < "{end_local.date().isoformat()}"')
+    elif dt == "weight":
+        su = start_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        eu = end_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        flt = (f'{snake}.sample_time.physical_time >= "{su}"'
+               f' AND {snake}.sample_time.physical_time < "{eu}"')
+    else:
+        # sleep anchors on when the night ENDED (civil_end_time); steps and
+        # active-energy anchor on interval START (civil_start_time) — both
+        # verified via ghealth --dry-run 2026-07-19; local civil timestamps,
+        # no zone suffix.
+        member = "civil_end_time" if dt == "sleep" else "civil_start_time"
+        sc = start_local.strftime("%Y-%m-%dT%H:%M:%S")
+        ec = end_local.strftime("%Y-%m-%dT%H:%M:%S")
+        flt = (f'{snake}.interval.{member} >= "{sc}"'
+               f' AND {snake}.interval.{member} < "{ec}"')
+    points, token_q, pages = [], None, 0
+    while pages < MAX_PAGES:
+        q = {"filter": flt}
+        if token_q:
+            q["pageToken"] = token_q
+        url = (f"{BASE}/users/me/dataTypes/{dt}/dataPoints?"
+               + urllib.parse.urlencode(q))
+        data = get_json(token, url)
+        points.extend(data.get("dataPoints") or [])
+        token_q = data.get("nextPageToken")
+        pages += 1
+        if not token_q:
+            break
+    return points
+
+
+def main(state=None):
+    state = state if state is not None else _run_state()
+    state["stage"] = "privilege_check"
+    if os.geteuid() != 0:
+        sys.exit("run as root (cron) — the credentials file is root-only")
+    state["stage"] = "configuration"
+    cfg = load_config()
+    state["stage"] = "authentication"
+    token = access_token(cfg)
+    start_local = (datetime.now(CANON_TZ)
+                   .replace(hour=0, minute=0, second=0, microsecond=0)
+                   - timedelta(days=LOOKBACK_DAYS))
+    state["coverage_from"] = start_local.date().isoformat()
+    state["coverage_to"] = (start_local.date()
+                            + timedelta(days=LOOKBACK_DAYS - 1)).isoformat()
+    by_type, errors = {}, []
+    for dt in ALL_TYPES:
+        state["stage"] = f"fetch_{dt}"
+        try:
+            by_type[dt] = fetch_type(token, dt, start_local)
+            state["rows_seen"] += len(by_type[dt])
+        except Exception as exc:  # noqa: BLE001 — partial success is OK
+            errors.append(f"{dt}: {exc}")
+            state["warning_codes"].add(f"fetch_failed.{dt}")
+    if len(errors) == len(ALL_TYPES):
+        state["stage"] = "fetch_all"
+        sys.exit("every data type failed:\n  " + "\n  ".join(errors))
+    for e in errors:
+        print(f"WARN fetch failed — {e}", file=sys.stderr)
+
+    days, warns = transform(by_type)
+    state["partial"] = bool(errors or warns)
+    if warns:
+        state["warning_codes"].add("unrecognized_shape")
+    for w in warns:
+        print(f"WARN {w}", file=sys.stderr)
+    if not days:
+        print("no data points in window — nothing to import")
+        return
+    payload = build_payload(days)
+
+    staging = tempfile.mkdtemp(prefix="ghealth-sync-")
+    shutil.chown(staging, group="hermes")
+    os.chmod(staging, 0o750)
+    try:
+        p = os.path.join(staging, "payload.json")
+        with open(p, "w") as f:
+            json.dump(payload, f)
+        shutil.chown(p, group="hermes")
+        os.chmod(p, 0o640)
+        state["stage"] = "import"
+        r = subprocess.run(["sudo", "-u", "hermes", "python3", HEALTH,
+                            "import-google-health", p],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            sys.exit(f"import-google-health failed: {r.stderr or r.stdout}")
+        print(f"import-google-health: {r.stdout.strip()}")
+        result = _result_json(r)
+        state["import_completed"] = True
+        state["rows_written"] += sum(int(result.get(key) or 0) for key in (
+            "daily_metrics_upserts", "sleep_upserted", "sleep_gap_filled", "weights",
+        ))
+        if result.get("skipped_values_out_of_range"):
+            state["warning_codes"].add("out_of_range_values")
+            state["partial"] = True
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def run_collector():
+    state = _run_state()
+    try:
+        main(state)
+    except (Exception, SystemExit):
+        _record_run(state, "failed", _error_code(state["stage"]))
+        raise
+    _record_run(state, "partial" if state["partial"] else "success")
+
+
+if __name__ == "__main__":
+    run_collector()

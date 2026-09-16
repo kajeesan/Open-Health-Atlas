@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Questions for prescriber{% endblock %}
+{% block content %}
+{# task-31 prescriber-questions drill sub-page (design image 27). There is NO
+   data source: the appointment-summary workflow that would collect these
+   questions (from profile + diagnosis-review) doesn't feed the panel yet. So
+   this is honest-pending scaffolding — structure ready, ZERO fabricated
+   questions. No JS, no endpoint. It lights up once that workflow lands. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.mind') }}">◱ Mind</a>
+      <h1 class="page-title">Questions for prescriber</h1>
+      <span class="muted micro">saved questions for your next appointment</span>
+    </div>
+    <span class="chip muted">0 saved</span>
+  </div>
+
+  <div class="banner mb-2">
+    <span class="banner-ic" aria-hidden="true">◔</span>
+    <div>
+      <div class="strong">No questions collected yet.</div>
+      <p class="muted note-txt m0">This page is ready and laid out. Questions for your
+        prescriber will collect here once the appointment-summary workflow — which gathers
+        them from your profile and diagnosis-review notes — feeds the panel. Nothing is
+        shown until there's something real to show.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title mb-1">How this will work</h3>
+    <p class="muted note-txt m0">Each saved question will appear here as a dated row — newest
+      first — so you can bring the list straight into your appointment. This mirrors the
+      Brain-dump page, over prescriber questions instead of daily entries.</p>
+  </div>
+</div>
+{% endblock %}

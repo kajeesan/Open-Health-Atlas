@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""Scheduled Hevy → health.py sync. Runs as ROOT via systemd timer.
+
+Privilege design: the API key lives in /etc/hermes/hevy.env (root-only).
+This collector — root — is the only thing that reads it; the fetched JSON is
+handed to the hermes user via root:hermes 0640 files in a private staging
+dir, and every import runs AS hermes through health.py's validated
+collector-only subcommands (import-hevy-json / -routines / -templates,
+deliberately NOT in the panel bridge allowlists). The key never reaches the
+hermes user, the panel, or the coach.
+
+Order matters: workouts and routines land first so import-hevy-templates can
+scope the muscle map to exercises actually in use. Pure stdlib; any failure
+exits non-zero so systemd flags the unit.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+ENV_FILE = os.environ.get("HERMES_HEVY_ENV", "/etc/hermes/hevy.env")
+BASE = "https://api.hevyapp.com/v1"
+HEALTH = os.environ.get("HERMES_HEALTH_CLI", "/opt/hermes/toolkit/health.py")
+PAGE_SIZE = 10   # the documented maximum for /v1/workouts; used everywhere
+MAX_PAGES = 500  # hard cap: page_count comes from the network — never loop on it unbounded
+CANON_TZ = ZoneInfo(os.environ.get("HERMES_TIMEZONE", "UTC"))
+
+
+def _timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _run_state():
+    return {
+        "started_at": _timestamp(), "stage": "startup", "rows_seen": 0,
+        "rows_written": 0, "imports_completed": 0, "partial": False,
+        "warning_codes": set(),
+        "coverage_from": None, "coverage_to": None,
+    }
+
+
+def _error_code(stage):
+    if stage == "privilege_check":
+        return "privilege_error"
+    if stage in {"configuration", "authentication"}:
+        return "configuration_error"
+    if stage.startswith("fetch_"):
+        return "api_fetch_failed"
+    if stage.startswith("import_"):
+        return "import_failed"
+    return "collector_failed"
+
+
+def _record_run(state, status, error_code=None):
+    """Best-effort provenance through health.py; never changes run outcome.
+
+    Only bounded codes and aggregate counts cross this internal boundary. The
+    collector's original diagnostic remains on stderr for operations, but no
+    exception text, URL, credential or token is persisted in source_sync_runs.
+    """
+    if os.geteuid() != 0:
+        return  # the recorder is intentionally reachable only by the root wrapper
+    completed_at = _timestamp()
+    payload = {
+        "source": "hevy",
+        "started_at": state["started_at"],
+        "completed_at": completed_at,
+        "status": status,
+        # Attempted coverage remains useful on partial/failure; adapters only
+        # accept successful intervals as completeness evidence.
+        "coverage_from": state["coverage_from"],
+        "coverage_to": state["coverage_to"],
+        "rows_seen": state["rows_seen"],
+        "rows_written": state["rows_written"],
+        "error_code": error_code,
+        "warning_codes": sorted(state["warning_codes"]),
+    }
+    try:
+        result = subprocess.run(
+            ["sudo", "-u", "hermes", "python3", HEALTH,
+             "collector-run-record", "--stdin"],
+            input=json.dumps(payload, separators=(",", ":")),
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:  # noqa: BLE001 — provenance must stay best-effort
+        print("WARN collector provenance was not recorded", file=sys.stderr)
+        return
+    if result.returncode != 0:
+        # Do not echo health.py output: even an unexpected downstream failure
+        # must not turn the provenance side-channel into a secret/error sink.
+        print("WARN collector provenance was not recorded", file=sys.stderr)
+
+
+def _result_json(result):
+    try:
+        value = json.loads(result.stdout)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _workout_coverage(workouts, current_date=None):
+    """Honest complete-date bounds for a full-account workout response.
+
+    Coverage starts at the earliest returned valid workout, never before the
+    provider has evidence. Today stays excluded because the 03:30 run cannot
+    prove that no later same-day workout will occur. One unlocatable workout
+    suppresses the interval instead of inventing its date.
+    """
+    if not workouts:
+        return None, None
+    current_date = current_date or datetime.now(CANON_TZ).date()
+    dates = []
+    for workout in workouts:
+        value = workout.get("start_time") if isinstance(workout, dict) else None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None, None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        workout_date = parsed.astimezone(CANON_TZ).date()
+        if workout_date > current_date:
+            return None, None
+        dates.append(workout_date)
+    coverage_to = current_date - timedelta(days=1)
+    coverage_from = min(dates)
+    if coverage_from > coverage_to:
+        return None, None
+    return coverage_from.isoformat(), coverage_to.isoformat()
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse ALL redirects: urllib re-sends every original header — including
+    api-key — to the redirect target, even cross-host. The key must never
+    leave api.hevyapp.com, so a redirect is treated as an error."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code,
+                                     f"refusing redirect to {newurl}", headers, fp)
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def api_key():
+    with open(ENV_FILE) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("HEVY_API_KEY=") and line.split("=", 1)[1]:
+                return line.split("=", 1)[1]
+    sys.exit(f"HEVY_API_KEY missing/empty in {ENV_FILE}")
+
+
+def get_page(key, path, page):
+    url = f"{BASE}/{path}?page={page}&pageSize={PAGE_SIZE}"
+    req = urllib.request.Request(url, headers={"api-key": key,
+                                               "accept": "application/json"})
+    for attempt in (1, 2, 3):
+        try:
+            with _OPENER.open(req, timeout=30) as r:
+                return json.load(r)
+        except Exception as exc:                      # noqa: BLE001 — retry then fail loudly
+            if attempt == 3:
+                sys.exit(f"hevy api {path} page {page} failed: {exc}")
+            time.sleep(5 * attempt)
+
+
+def fetch_all(key, path, list_key):
+    items, page = [], 1
+    while True:
+        data = get_page(key, path, page)
+        items.extend(data.get(list_key) or [])
+        if page >= min(int(data.get("page_count") or 1), MAX_PAGES):
+            return items
+        page += 1
+
+
+def run_import(subcmd, list_key, items, staging):
+    p = os.path.join(staging, f"{list_key}.json")
+    with open(p, "w") as f:
+        json.dump({list_key: items}, f)
+    shutil.chown(p, group="hermes")
+    os.chmod(p, 0o640)
+    r = subprocess.run(["sudo", "-u", "hermes", "python3", HEALTH, subcmd, p],
+                       capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        sys.exit(f"{subcmd} failed: {r.stderr or r.stdout}")
+    print(f"{subcmd}: {r.stdout.strip()}")
+    return _result_json(r)
+
+
+def main(state=None):
+    state = state if state is not None else _run_state()
+    state["stage"] = "privilege_check"
+    if os.geteuid() != 0:
+        sys.exit("run as root (systemd timer) — the key file is root-only")
+    state["stage"] = "configuration"
+    key = api_key()
+    staging = tempfile.mkdtemp(prefix="hevy-sync-")
+    shutil.chown(staging, group="hermes")
+    os.chmod(staging, 0o750)
+    try:
+        state["stage"] = "fetch_workouts"
+        workouts = fetch_all(key, "workouts", "workouts")
+        state["rows_seen"] += len(workouts)
+        state["coverage_from"], state["coverage_to"] = _workout_coverage(workouts)
+        if any(not isinstance(workout, dict) or
+               not any((exercise.get("sets") or [])
+                       for exercise in (workout.get("exercises") or [])
+                       if isinstance(exercise, dict))
+               for workout in workouts):
+            state["partial"] = True
+            state["warning_codes"].add("empty_workout")
+        state["stage"] = "fetch_routines"
+        routines = fetch_all(key, "routines", "routines")
+        state["rows_seen"] += len(routines)
+        state["stage"] = "fetch_templates"
+        templates = fetch_all(key, "exercise_templates", "exercise_templates")
+        state["rows_seen"] += len(templates)
+        state["stage"] = "import_workouts"
+        result = run_import("import-hevy-json", "workouts", workouts, staging)
+        state["imports_completed"] += 1
+        state["rows_written"] += int(result.get("imported_sets") or 0)
+        state["rows_written"] += int(result.get("quarterly_tests_inserted") or 0)
+        if result.get("skipped_sets"):
+            state["warning_codes"].add("skipped_sets")
+            state["partial"] = True
+        if result.get("null_date_sets"):
+            state["warning_codes"].add("null_date_sets")
+            state["partial"] = True
+        if result.get("quarterly_tests_rejected"):
+            state["warning_codes"].add("quarterly_tests_rejected")
+            state["partial"] = True
+        if any(item.get("code") == "outside_protocol_rep_range"
+               for item in (result.get("quarterly_warnings") or [])
+               if isinstance(item, dict)):
+            state["warning_codes"].add("quarterly_rep_range")
+        state["stage"] = "import_routines"
+        result = run_import("import-hevy-routines", "routines", routines, staging)
+        state["imports_completed"] += 1
+        state["rows_written"] += int(result.get("routines") or 0)
+        if result.get("duplicate_entries"):
+            state["warning_codes"].add("duplicate_routine_entries")
+        if result.get("orphaned_schedule"):
+            state["warning_codes"].add("orphaned_schedule")
+        state["stage"] = "import_templates"
+        result = run_import(
+            "import-hevy-templates", "exercise_templates", templates, staging)
+        state["imports_completed"] += 1
+        state["rows_written"] += int(result.get("mapped_exercises") or 0)
+        # §3f V-taper: fetched LAST, after the core imports have landed — a
+        # body_measurements outage must not take the whole workout sync down
+        # with it (it still exits non-zero so systemd flags the unit).
+        state["stage"] = "fetch_body"
+        body = fetch_all(key, "body_measurements", "body_measurements")
+        state["rows_seen"] += len(body)
+        state["stage"] = "import_body"
+        result = run_import("import-hevy-body", "body_measurements", body, staging)
+        state["imports_completed"] += 1
+        state["rows_written"] += int(result.get("inserted") or 0)
+        state["rows_written"] += int(result.get("updated") or 0)
+        if result.get("skipped_values_out_of_range"):
+            state["warning_codes"].add("out_of_range_values")
+            state["partial"] = True
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def run_collector():
+    state = _run_state()
+    try:
+        main(state)
+    except (Exception, SystemExit):
+        status = "partial" if state["imports_completed"] else "failed"
+        _record_run(state, status, _error_code(state["stage"]))
+        raise
+    _record_run(state, "partial" if state["partial"] else "success")
+
+
+if __name__ == "__main__":
+    run_collector()

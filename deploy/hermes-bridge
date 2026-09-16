@@ -1,0 +1,564 @@
+#!/usr/bin/env python3
+"""hermes-bridge — the privileged broker: the panel's ONLY write path into health.py.
+
+Runs as `hermes` (systemd system service, User=hermes) OUTSIDE the panel's
+sandbox. That separation is the whole point: the panel unit stays fully locked
+down (read-only vault bind mount, forced NoNewPrivileges) — which is *why* it
+cannot sudo — while this unsandboxed process, which legitimately owns the vault,
+performs the actual writes on the panel's behalf.
+
+Flow: panel connects to the Unix socket -> sends one line of JSON
+{"subcmd": "...", "args": [...]} -> broker validates against a subcommand+flag
+allowlist -> appends an INTENT record to the hermes-owned append-only audit log
+(fail-closed: if we can't record intent, we don't run) -> runs health.py as
+hermes -> appends a RESULT record (best-effort) -> returns one line of JSON
+{"ok": bool, "code": int, "stdout": "...", "stderr": "..."}.
+
+Auth (two independent checks):
+  1. Socket file is mode 0660, group `hermesbridge`; only members (panel) reach it.
+  2. Every connection's SO_PEERCRED uid must equal the configured panel uid.
+
+Bulk/destructive commands (import-hevy, import-recipes, fetch-*) are NOT in the
+allowlist and can never be driven from the panel.
+"""
+import hashlib
+import json
+import os
+import pwd
+import re
+from datetime import date
+import signal
+import socket
+import socketserver
+import struct
+import subprocess
+import sys
+import threading
+import time
+
+from bridge_commands import COMMAND_FLAGS, NO_VALUE_FLAGS, OUTCOME_ANALYSIS_TIMEOUT
+
+HEALTH = os.environ.get("BRIDGE_HEALTH", "/opt/hermes/toolkit/health.py")
+HERMESCTL = os.environ.get("BRIDGE_HERMESCTL", "/usr/local/lib/hermes-bridge/hermesctl")
+AUDIT = os.environ.get("BRIDGE_AUDIT", "/var/lib/hermes/audit/bridge.jsonl")
+SOCK = os.environ.get("BRIDGE_SOCK", "/run/hermes-bridge/bridge.sock")
+TIMEOUT = int(os.environ.get("BRIDGE_TIMEOUT", "60"))
+MAX_ARGS = 40
+# The request is one newline-terminated JSON line. A 500k-char note (health.py's
+# cap) can inflate heavily once JSON-escaped (astral chars -> \uXXXX surrogate
+# pairs ≈ 12 bytes/char), so size the line limit for that worst case + overhead.
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+# Each process derives its allowlist from the shared code declaration. The
+# broker still validates every request independently of the panel client.
+ALLOWED = {command: set(flags) for command, flags in COMMAND_FLAGS.items()}
+
+# The local fictional dashboard runs a second broker against its immutable,
+# manifest-verified acceptance fixture.  This profile exposes exactly one
+# deterministic read and cannot become another product write path.
+BRIDGE_PROFILE = os.environ.get("BRIDGE_PROFILE", "standard")
+if BRIDGE_PROFILE == "dashboard-green-days-readonly":
+    ALLOWED = {key: ALLOWED[key] for key in (
+        "outcome-associations", "analysis-job-start", "analysis-job-status",
+    )}
+elif BRIDGE_PROFILE != "standard":
+    raise RuntimeError("unknown hermes-bridge profile")
+# panel subcommand -> hermesctl subcommand (everything else goes to health.py)
+HERMESCTL_CMDS = {"hermes-status": "status", "hermes-spend": "spend",
+                  "hermes-model-set": "model-set", "fitbit-status": "fitbit-status",
+                  "hermes-chat": "chat"}
+# model-set restarts the gateway + health-checks + may roll back: needs longer.
+# Phase 4 performs fixed 2,000-iteration resampling in the standard library;
+# the measured broad read has its own budget below the web-worker ceiling, allowing
+# materially more time than the legacy 60s bridge default.
+TIMEOUTS = {
+    "hermes-model-set": 150,
+    "hermes-chat": 120,
+    "outcome-associations": OUTCOME_ANALYSIS_TIMEOUT,
+    # Evidence replays all modes and pairs before selecting one exact finding.
+    "finding-evidence": OUTCOME_ANALYSIS_TIMEOUT,
+    "hypothesis-promote": 110,
+    "analysis-job-start": 25,
+    "analysis-job-status": 25,
+}
+_JOB_WAKE = threading.Event()
+_JOB_STOP = threading.Event()
+
+
+def _allowed_uid():
+    v = os.environ.get("BRIDGE_ALLOWED_UID")
+    if v is not None:
+        return int(v)
+    return pwd.getpwnam("panel").pw_uid
+
+
+HAS_PEERCRED = hasattr(socket, "SO_PEERCRED")
+
+
+def _peer_uid(conn):
+    """Connecting process's uid via SO_PEERCRED (Linux). Returns None on
+    platforms without it (e.g. macOS dev) — there the socket's 0660 group
+    perms are the only gate, which is fine for local testing; on the Linux
+    server SO_PEERCRED is present and enforced."""
+    if not HAS_PEERCRED:
+        return None
+    creds = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
+                            struct.calcsize("3i"))
+    _pid, uid, _gid = struct.unpack("3i", creds)
+    return uid
+
+
+def _audit(record):
+    """Append one JSON line to the append-only audit log. Raises on failure —
+    callers treat an intent-audit failure as fail-closed."""
+    with open(AUDIT, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+# personal free text: audited as sha256+length, never verbatim (same policy as
+# write-note stdin) — the audit proves WHICH text was written without keeping it
+REDACT_FLAGS = {"--why", "--note"}
+_SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
+_FEATURE_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,159}$")
+_PANEL_SESSION = re.compile(
+    r"^(?:hermes-panel|hermes-panel-pain|hermes-panel-mobility|"
+    r"hermes-panel-c-[0-9a-f]{32})$"
+)
+_HYPOTHESIS_STATUSES = {
+    "candidate", "exploratory", "strengthening", "replicated",
+    "weakened", "rejected", "dormant",
+}
+
+
+def _phase5_values(subcmd, args):
+    """Defense-in-depth for the exact Phase 5 panel-safe surface."""
+    if subcmd not in {
+        "hypothesis-promote", "hypotheses", "hypothesis-brief",
+        "synthesis-history", "insight-run-status",
+    }:
+        return None
+    flags = {}
+    positional = []
+    index = 0
+    while index < len(args):
+        value = args[index]
+        if value.startswith("--"):
+            flag = value.split("=", 1)[0]
+            if flag in flags:
+                return f"repeated flag for {subcmd}: {flag}"
+            if "=" in value:
+                if flag in NO_VALUE_FLAGS:
+                    return f"flag takes no value for {subcmd}: {flag}"
+                flags[flag] = value.split("=", 1)[1]
+            elif flag in NO_VALUE_FLAGS:
+                flags[flag] = True
+            else:
+                if index + 1 >= len(args):
+                    return f"missing flag value for {subcmd}: {flag}"
+                index += 1
+                flags[flag] = args[index]
+        else:
+            positional.append(value)
+        index += 1
+
+    expected_positions = 1 if subcmd == "hypothesis-brief" else 0
+    if len(positional) != expected_positions:
+        return f"invalid positional argument count for {subcmd}"
+    if subcmd == "hypothesis-brief":
+        return None if _SHA256_ID.fullmatch(positional[0]) else "invalid hypothesis identifier"
+
+    if "--limit" in flags:
+        raw = flags["--limit"]
+        if (
+            len(raw) > 3
+            or not raw.isascii()
+            or not raw.isdigit()
+            or not 1 <= int(raw) <= 100
+        ):
+            return "invalid ledger pagination limit"
+    if "--before" in flags:
+        if not _SHA256_ID.fullmatch(flags["--before"]):
+            return "invalid ledger pagination cursor"
+    if subcmd == "hypotheses":
+        if "--status" in flags and flags["--status"] not in _HYPOTHESIS_STATUSES:
+            return "invalid hypothesis status"
+        if "--outcome" in flags and not _FEATURE_KEY.fullmatch(flags["--outcome"]):
+            return "invalid hypothesis outcome"
+        return None
+    if subcmd in {"synthesis-history", "insight-run-status"}:
+        return None
+
+    required = {"--outcome", "--finding-id", "--input-fingerprint"}
+    if not required <= set(flags):
+        return "hypothesis promotion is missing a required identifier"
+    if not _FEATURE_KEY.fullmatch(flags["--outcome"]):
+        return "invalid hypothesis promotion outcome"
+    if not _SHA256_ID.fullmatch(flags["--finding-id"]) or not _SHA256_ID.fullmatch(
+        flags["--input-fingerprint"]
+    ):
+        return "invalid hypothesis promotion identifier"
+    range_forms = int("--all" in flags) + int("--days" in flags) + int(
+        "--from" in flags or "--to" in flags
+    )
+    if range_forms != 1 or (("--from" in flags) != ("--to" in flags)):
+        return "invalid hypothesis promotion range"
+    if "--days" in flags:
+        raw = flags["--days"]
+        if (
+            len(raw) > 5
+            or not raw.isascii()
+            or not raw.isdigit()
+            or not 1 <= int(raw) <= 36500
+        ):
+            return "invalid hypothesis promotion days"
+    if "--from" in flags:
+        try:
+            start = date.fromisoformat(flags["--from"])
+            end = date.fromisoformat(flags["--to"])
+        except (TypeError, ValueError):
+            return "invalid hypothesis promotion dates"
+        if (
+            start.isoformat() != flags["--from"]
+            or end.isoformat() != flags["--to"]
+            or start > end
+        ):
+            return "invalid hypothesis promotion dates"
+    return None
+
+
+def _validate(subcmd, args):
+    if subcmd not in ALLOWED:
+        return f"subcommand not allowed via the bridge: {subcmd}"
+    if len(args) > MAX_ARGS:
+        return "too many arguments"
+    if subcmd == "analysis-job-start":
+        return None if not args else "analysis job start accepts only request JSON"
+    if subcmd == "analysis-job-status":
+        return (None if len(args) == 1 and re.fullmatch(r"[0-9a-f]{32}", args[0])
+                else "invalid analysis job identifier")
+    allowed = ALLOWED[subcmd]
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith("-"):
+            flag = a.split("=", 1)[0]
+            if flag not in allowed:
+                return f"flags not allowed for {subcmd}: {flag}"
+            if flag in NO_VALUE_FLAGS and "=" in a:
+                return f"flag takes no value for {subcmd}: {flag}"
+            if "=" not in a and flag not in NO_VALUE_FLAGS:
+                i += 1   # the next token is this flag's VALUE ("-felt tired" is data)
+        i += 1
+    if subcmd == "hermes-chat":
+        if (
+            len(args) != 2
+            or args[0] != "--session"
+            or _PANEL_SESSION.fullmatch(args[1]) is None
+        ):
+            return "invalid panel chat session"
+        return None
+    if subcmd == "readiness":
+        if not args:
+            return None
+        if len(args) != 4 or args[0] != "--from" or args[2] != "--anchor":
+            return "readiness requires no flags or exactly --from and --anchor"
+        try:
+            start = date.fromisoformat(args[1])
+            anchor = date.fromisoformat(args[3])
+        except ValueError:
+            return "invalid readiness dates"
+        if (
+            start.isoformat() != args[1]
+            or anchor.isoformat() != args[3]
+            or start > anchor
+        ):
+            return "invalid readiness dates"
+        return None
+    return _phase5_values(subcmd, args)
+
+
+def _analysis_request(stdin):
+    """Broker defense in depth; health.py owns complete semantic validation."""
+    if not isinstance(stdin, str) or len(stdin.encode("utf-8")) > 8192:
+        return "invalid analysis request"
+    try:
+        request = json.loads(stdin)
+    except ValueError:
+        return "invalid analysis request"
+    if (not isinstance(request, dict) or set(request) != {"command", "args"}
+            or request["command"] not in ("outcome-associations", "finding-evidence")
+            or not isinstance(request["args"], list)):
+        return "invalid analysis request"
+    command, args = request["command"], request["args"]
+    if len(args) > 24 or any(not isinstance(a, str) or len(a) > 200 for a in args):
+        return "invalid analysis arguments"
+    flags = {}
+    index = 0
+    while index < len(args):
+        flag = args[index]
+        if flag not in COMMAND_FLAGS[command] or flag in flags:
+            return "invalid analysis flag"
+        if flag == "--all":
+            flags[flag] = True
+        else:
+            index += 1
+            if index >= len(args) or args[index].startswith("--"):
+                return "missing analysis flag value"
+            flags[flag] = args[index]
+        index += 1
+    if BRIDGE_PROFILE == "dashboard-green-days-readonly":
+        required = {"--outcome": "subjective.day_rating", "--mode": "green-vs-non-green",
+                    "--min-n": "30", "--interactions": "none", "--top": "3"}
+        if command != "outcome-associations" or any(flags.get(k) != v for k, v in required.items()):
+            return "analysis request is outside the dashboard profile"
+        range_flags = {k: v for k, v in flags.items() if k not in required}
+        if range_flags != {"--days": "365"}:
+            if set(range_flags) != {"--from", "--to"}:
+                return "invalid dashboard analysis range"
+            try:
+                start, end = (date.fromisoformat(range_flags[k]) for k in ("--from", "--to"))
+            except ValueError:
+                return "invalid dashboard analysis range"
+            if start.isoformat() != range_flags["--from"] or end.isoformat() != range_flags["--to"] or start > end:
+                return "invalid dashboard analysis range"
+    return None
+
+
+def _audit_argv(subcmd, args):
+    """argv for audit records, with free-text flag values redacted."""
+    red = [subcmd]
+    i = 0
+    while i < len(args):
+        a = args[i]
+        red.append(a)
+        if a in REDACT_FLAGS and i + 1 < len(args):
+            raw = args[i + 1].encode("utf-8")
+            red.append(f"sha256:{hashlib.sha256(raw).hexdigest()[:16]} ({len(raw)}B)")
+            i += 1
+        i += 1
+    return red
+
+
+def _chat_audit(stdin):
+    """Hash the two private panel-turn parts separately, never their text."""
+    raw = (stdin or "").encode("utf-8")
+    fallback = {
+        "stdin_bytes": len(raw),
+        "stdin_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    try:
+        turn = json.loads(stdin)
+        message = turn["message"]
+        context = turn["context"]
+        if not isinstance(message, str) or not isinstance(context, dict):
+            return fallback
+        message_raw = message.encode("utf-8")
+        context_raw = json.dumps(
+            context, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    except (TypeError, ValueError, KeyError):
+        return fallback
+    return {
+        "message_bytes": len(message_raw),
+        "message_sha256": hashlib.sha256(message_raw).hexdigest(),
+        "context_bytes": len(context_raw),
+        "context_sha256": hashlib.sha256(context_raw).hexdigest(),
+    }
+
+
+def handle(subcmd, args, peer_uid, stdin=None):
+    argv = [subcmd, *args]
+    audit_argv = _audit_argv(subcmd, args)   # --why/--note values never verbatim
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    err = _validate(subcmd, args)
+    if err is None and subcmd == "analysis-job-start":
+        err = _analysis_request(stdin)
+    if err is None and subcmd == "analysis-job-status" and stdin is not None:
+        err = "analysis job status accepts no stdin"
+    if err is not None:
+        # Refusals are audited too (ARCHITECTURE.md: "every call, including refused").
+        try:
+            _audit({"ts": ts, "uid": peer_uid, "argv": audit_argv, "phase": "refused", "error": err})
+        except OSError:
+            pass
+        return {"ok": False, "code": 2, "stdout": "", "stderr": err}
+
+    # Fail-closed: record intent BEFORE running. If we can't audit, we don't run,
+    # so a committed write can never lack an audit record. stdin (note content)
+    # is logged only by byte-length + a sha256, never verbatim — enough to later
+    # verify WHICH content was written without leaking it.
+    intent = {"ts": ts, "uid": peer_uid, "argv": audit_argv, "phase": "intent"}
+    if stdin is not None and subcmd == "hermes-chat":
+        intent.update(_chat_audit(stdin))
+    elif stdin is not None:
+        raw = stdin.encode("utf-8")
+        intent["stdin_bytes"] = len(raw)
+        intent["stdin_sha256"] = hashlib.sha256(raw).hexdigest()
+    try:
+        _audit(intent)
+    except OSError as exc:
+        return {"ok": False, "code": 3, "stdout": "",
+                "stderr": f"audit unavailable, refusing to run: {exc}"}
+
+    if subcmd in HERMESCTL_CMDS:
+        exec_argv = [sys.executable, HERMESCTL, HERMESCTL_CMDS[subcmd], *args]
+    else:
+        exec_argv = [sys.executable, HEALTH, *argv]
+    tmo = TIMEOUTS.get(subcmd, TIMEOUT)
+    try:
+        p = subprocess.run(exec_argv, input=stdin,
+                           capture_output=True, text=True, timeout=tmo)
+        code, stdout, stderr = p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        # We own this child (same uid) so the kill in subprocess.run succeeds.
+        code, stdout, stderr = 124, "", f"command timed out after {tmo}s"
+    if subcmd == "analysis-job-start" and code == 0:
+        _JOB_WAKE.set()
+    if subcmd == "analysis-job-status" and code == 0 and BRIDGE_PROFILE == "dashboard-green-days-readonly":
+        # Even another valid ID in the shared installation must not turn the
+        # fixed dashboard broker into an Explorer/evidence result reader.
+        try:
+            descriptor = json.loads(stdout)["request"]
+            scope_error = _analysis_request(json.dumps(descriptor))
+        except (ValueError, KeyError, TypeError):
+            scope_error = "invalid analysis response"
+        if scope_error:
+            code, stdout, stderr = 2, "", scope_error
+
+    # Result record is best-effort: a logging hiccup here must not turn a
+    # committed write into a reported failure.
+    try:
+        _audit({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "uid": peer_uid,
+                "argv": audit_argv, "phase": "result", "code": code})
+    except OSError:
+        pass
+    return {"ok": code == 0, "code": code, "stdout": stdout, "stderr": stderr}
+
+
+class Handler(socketserver.StreamRequestHandler):
+    timeout = max([TIMEOUT, *TIMEOUTS.values()]) + 15
+
+    def handle(self):
+        try:
+            peer_uid = _peer_uid(self.connection)
+        except OSError:
+            return
+        # Enforce only when the platform gives us the peer uid (Linux server).
+        if peer_uid is not None and peer_uid != self.server.allowed_uid:
+            try:
+                _audit({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "uid": peer_uid,
+                        "phase": "rejected", "error": "peer uid not authorized"})
+            except OSError:
+                pass
+            self._send({"ok": False, "code": 1, "stdout": "",
+                        "stderr": "not authorized"})
+            return
+        raw = self.rfile.readline(MAX_REQUEST_BYTES)
+        try:
+            req = json.loads(raw.decode("utf-8"))
+            subcmd = str(req["subcmd"])
+            args = [str(a) for a in req.get("args", [])]
+            stdin = req.get("stdin")
+            if stdin is not None:
+                stdin = str(stdin)
+        except (ValueError, KeyError, TypeError):
+            self._send({"ok": False, "code": 1, "stdout": "",
+                        "stderr": "malformed request"})
+            return
+        self._send(handle(subcmd, args, peer_uid, stdin))
+
+    def _send(self, obj):
+        self.wfile.write((json.dumps(obj) + "\n").encode("utf-8"))
+        self.wfile.flush()
+
+
+class Server(socketserver.ThreadingUnixStreamServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self):
+        if os.path.exists(SOCK):
+            os.unlink(SOCK)
+        super().__init__(SOCK, Handler)
+        self.allowed_uid = _allowed_uid()
+        # The socket inherits the process's group (hermesbridge, set by the
+        # unit's Group=), so panel — a member — can connect once we open the
+        # group bit. Owner+group rw, nothing for others.
+        os.chmod(SOCK, 0o660)
+
+
+def _analysis_worker():
+    """Existing broker's bounded worker; durable queue and locks live in toolkit."""
+    audited = False
+    while not _JOB_STOP.is_set():
+        # Clear BEFORE checking the durable queue. A submission after this
+        # point leaves the event set, including while the worker is returning
+        # an empty result; its wake cannot be erased immediately before sleep.
+        _JOB_WAKE.clear()
+        processed = False
+        if os.path.isfile(HEALTH):
+            try:
+                # Fail closed before starting any queued work. No private
+                # request/result content is copied into broker worker logs.
+                if not audited:
+                    _audit({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "phase": "analysis-worker-intent"})
+                    audited = True
+                child = subprocess.Popen(
+                    [sys.executable, HEALTH, "analysis-job-work"],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                )
+                deadline = time.monotonic() + OUTCOME_ANALYSIS_TIMEOUT + 20
+                while child.poll() is None:
+                    if _JOB_STOP.wait(0.25) or time.monotonic() > deadline:
+                        child.terminate()
+                        try:
+                            child.wait(timeout=3)
+                        except subprocess.TimeoutExpired:
+                            child.kill()
+                            child.wait()
+                        break
+                with child.stdout:
+                    raw = child.stdout.read(257)
+                if child.returncode == 0 and len(raw) <= 256:
+                    try:
+                        result = json.loads(raw)
+                        processed = (isinstance(result, dict)
+                                     and set(result) == {"ok", "processed"}
+                                     and result["ok"] is True
+                                     and result["processed"] is True)
+                    except (ValueError, TypeError):
+                        pass
+            except OSError:
+                pass
+        if not processed:
+            # Submissions wake immediately. Periodic recovery covers direct
+            # toolkit submissions and surviving children after broker restart.
+            _JOB_WAKE.wait(60)
+
+
+def main():
+    server = Server()
+    worker = threading.Thread(target=_analysis_worker, daemon=True)
+    worker.start()
+
+    def request_shutdown(*_args):
+        # BaseServer.shutdown() must run from a thread other than
+        # serve_forever(); calling it directly in a signal handler deadlocks.
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, request_shutdown)
+    try:
+        server.serve_forever()
+    finally:
+        _JOB_STOP.set()
+        _JOB_WAKE.set()
+        worker.join(timeout=4)
+        if os.path.exists(SOCK):
+            os.unlink(SOCK)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,7 @@
+# Runtime dependencies are pinned; additions require license/security review.
+Flask==3.1.3
+gunicorn==23.0.0
+webauthn==3.0.0
+Flask-WTF==1.3.0
+Flask-Limiter==4.1.1
+openpyxl==3.1.5

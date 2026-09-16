@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes nightly insight refresh at 06:10 UTC (disabled by default)
+
+[Timer]
+OnCalendar=*-*-* 06:10 UTC
+RandomizedDelaySec=5m
+Persistent=true
+Unit=hermes-insight-refresh.service
+
+[Install]
+WantedBy=timers.target

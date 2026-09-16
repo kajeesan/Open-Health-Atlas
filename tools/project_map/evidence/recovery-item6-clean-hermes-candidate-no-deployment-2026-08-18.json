@@ -1,0 +1,190 @@
+{
+  "contract": "openhealthatlas-recovery-item6-clean-hermes-candidate-v4",
+  "recorded_on": "2026-08-18",
+  "status": "pushed_clean_combined_candidate_live_gates_unresolved",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-governed-network-read-only-preflight-2026-08-18.json",
+    "record_commit": "72026a8ede99befa19c5c3023dd9f4cb7885ccea",
+    "sha256": "sha256:ca4be8c2da89b9d1d7ccaf0ae75973912c4b3d2aa0b4c011f187f54acc0272d7",
+    "byte_preserved": true
+  },
+  "scope": {
+    "data_class": "fictional",
+    "live_health_actions_source_read_only": true,
+    "private_health_data_accessed": false,
+    "health_rows_queried": false,
+    "vps_mutation_performed": false,
+    "staging_performed": false,
+    "configuration_changed": false,
+    "sidecar_generated_or_replaced": false,
+    "service_restarted": false,
+    "telegram_message_sent": false,
+    "fault_injection_performed": false,
+    "schema_migrated": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/recovery-item6-evidence-v2",
+      "previous_record_tip": "72026a8ede99befa19c5c3023dd9f4cb7885ccea",
+      "contract_candidate": "0efc8d42020e93b24ce928a3ae2af8fa28666ce9",
+      "git_tree_id": "7dcb4af1daf108992356344b6e4b672eea96ea57",
+      "remote_branch_contains_candidate": true
+    },
+    "external_hermes": {
+      "canonical_upstream_repository": "https://github.com/NousResearch/hermes-agent.git",
+      "approved_candidate_repository": "https://github.com/kajeesan/hermes-agent.git",
+      "candidate_repository_url_must_equal_live_origin": false,
+      "branch": "codex/oha-recovery-delivery-contract",
+      "upstream_base_commit": "a6b9597d5fb92969d605a858d5f14536e805553a",
+      "previous_governed_candidate": "720edca78a92e990cce1ce1445ea7eaa131c03d8",
+      "combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "git_tree_id": "fecece29b29189aee3de4ec8731a11412977442a",
+      "upstream_base_is_ancestor": true,
+      "clean_worktree_verified": true,
+      "remote_branch_contains_candidate": true
+    }
+  },
+  "live_source_reconstruction": {
+    "source_repository": "https://github.com/NousResearch/hermes-agent.git",
+    "source_head": "a6b9597d5fb92969d605a858d5f14536e805553a",
+    "source_tree": "c1bc066da5dd38fadc794a7ae6e7dfe1f640120c",
+    "tracked_adapter_patch_sha256": "sha256:08c5665c9fa6b586ef006e58e005b8bc5a962aeb6c37394d4e0177e0d564e2a2",
+    "live_adapter_sha256": "sha256:6b4e56e6a604c4e65c876b03f8b0df463c42c6c6e9b03e85ff98c17b793696a6",
+    "live_health_actions_sha256": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a",
+    "reconstructed_files": [
+      "plugins/platforms/telegram/adapter.py",
+      "plugins/platforms/telegram/health_actions.py"
+    ],
+    "health_actions_file_is_now_tracked": true,
+    "health_actions_file_bytes_match_live_source": true,
+    "adapter_hooks_replayed_into_governed_candidate": true,
+    "original_live_checkout_mutated": false,
+    "unrelated_untracked_live_entries_copied": false
+  },
+  "artifact_sha256": {
+    "openhealthatlas_contract_candidate": {
+      "RELEASE_MANIFEST.tsv": "sha256:44920476a8e159425e4c4660696a2c0ed8f9a78a8969af1d3d6570b2357289f5",
+      "deploy/recovery-item6-deployment-runbook.md": "sha256:76d528a3e514b32457f231eeff8fdb8ec925c92780837c933704da36048010a4",
+      "deploy/recovery-item6-staging-manifest.json": "sha256:934e28753f60b0f445be39ddf3258b08b304b42827f1175bd30f75550dd95245",
+      "tests/test_openhealthatlas_tool.py": "sha256:d32603801eaa9bbc1cc042151ceec50b7a1fd8f828e5ea04f307f816b916d643"
+    },
+    "external_hermes_runtime": {
+      "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+      "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+      "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+      "gateway/run.py": "sha256:8cb9edc5dda013a26e2d55e88a89e3a6b57700cf51fb839d9167c8988c7791c0",
+      "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+      "model_tools.py": "sha256:1b20a925f60e8d884b87412662606944e282d135c521420e48ec5a9a66a5353c",
+      "plugins/platforms/telegram/adapter.py": "sha256:d8eb3186de8efb0b28bdcc9ab40e24f94dc82b2e05b4b13212504e142819d0d4",
+      "plugins/platforms/telegram/health_actions.py": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a"
+    },
+    "external_hermes_regressions": {
+      "tests/gateway/test_telegram_required_delivery.py": "sha256:c8969812c11ea10f64cc8516ba4f5bf0bcdec9997f0d63b56e202fc5fc149b68",
+      "tests/gateway/test_telegram_health_actions_bridge.py": "sha256:79ac6097e162f7fa3d7b520040a145d9adcbcb3c2a37f5d70da370017d43bb9d"
+    }
+  },
+  "verification_gates": [
+    {
+      "gate_id": "external_hermes_full_telegram_with_health_actions",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "command": "rg --files tests/gateway | rg '/test_telegram[^/]*\\.py$' | xargs scripts/run_tests.sh -q",
+      "passed": 987,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_model_tools_and_turn_finalizer",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "passed": 42,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_health_actions_bridge",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "command": "scripts/run_tests.sh tests/gateway/test_telegram_health_actions_bridge.py -q",
+      "passed": 8,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_health_actions_backend",
+      "candidate_commit": "0efc8d42020e93b24ce928a3ae2af8fa28666ce9",
+      "command": "<openhealthatlas-python> -m pytest -q tests/test_telegram_actions.py",
+      "passed": 9,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "tracked_cross_repository_recovery_delivery",
+      "candidate_commit": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+      "passed": 1,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_staging_and_record_contract",
+      "candidate_commit": "0efc8d42020e93b24ce928a3ae2af8fa28666ce9",
+      "command": "<openhealthatlas-python> -m pytest -q tests/test_openhealthatlas_tool.py tests/test_project_map_item6.py",
+      "passed": 38,
+      "failed": 0,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_release_manifest",
+      "candidate_commit": "0efc8d42020e93b24ce928a3ae2af8fa28666ce9",
+      "verified_entry_count": 392,
+      "result": "pass"
+    }
+  ],
+  "contract_corrections": {
+    "staging_manifest_contract": "openhealthatlas-recovery-item6-staging-manifest-v2",
+    "canonical_upstream_and_candidate_fork_are_distinct_roles": true,
+    "repository_url_equality_is_not_release_proof": true,
+    "clean_candidate_checkout_template": "/opt/hermes-agent-releases/<40-lowercase-hex-commit>",
+    "original_dirty_checkout_is_rollback_source_only": true,
+    "external_hermes_runtime_file_count": 8,
+    "deployed_manifest_is_explicit_generated_artifact": true,
+    "rollback_inventory_contract": "openhealthatlas-recovery-item6-rollback-inventory-v1",
+    "rollback_requires_exact_write_target_set_and_restore_rehearsal": true
+  },
+  "candidate_level_resolutions": [
+    "The live health-actions adapter hooks and module are reconstructed in the clean governed-delivery candidate.",
+    "The candidate fork is bound to the canonical upstream base by ancestry, commit, tree and artifact hashes.",
+    "The clean release directory is separated from the untouched dirty rollback checkout.",
+    "The staging contract now includes all eight Hermes runtime files and generated DEPLOYED.manifest provenance.",
+    "The rollback contract enumerates code, config, service, database, sidecar, receipt and dirty-checkout preservation requirements."
+  ],
+  "prior_read_only_observation": {
+    "source_record": "tools/project_map/evidence/recovery-item6-governed-network-read-only-preflight-2026-08-18.json",
+    "source_record_commit": "72026a8ede99befa19c5c3023dd9f4cb7885ccea",
+    "not_refreshed": true,
+    "may_be_stale": true
+  },
+  "live_gates_unresolved": [
+    "A complete prechange rollback inventory and isolated restore rehearsal have not been performed.",
+    "The clean candidate release directory has not been staged and the service still points at the old checkout.",
+    "The openhealthatlas_fictional MCP alias and delivery plugin have not been installed or enabled in the active Hermes home.",
+    "The accepted-v5 ancestry sidecar has not been generated.",
+    "The gateway has not been restarted and running registry names are unverified.",
+    "No live Telegram acceptance or fault injection has been performed."
+  ],
+  "privacy_verification": {
+    "live_source_fetch_was_code_only": true,
+    "health_records_messages_secrets_or_environment_dumps_read": false,
+    "external_hermes_candidate_changed_paths": 3,
+    "external_hermes_candidate_findings": 0,
+    "openhealthatlas_contract_changed_paths": 4,
+    "openhealthatlas_contract_findings": 0
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "clean_candidate_ready_for_review": true,
+    "ready_to_stage": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

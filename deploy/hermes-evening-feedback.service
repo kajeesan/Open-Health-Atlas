@@ -1,0 +1,20 @@
+[Unit]
+Description=Hermes missing-only evening health feedback prompt
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+WorkingDirectory=/var/lib/hermes
+Environment=HERMES_DATA_DIR=/var/lib/hermes
+Environment=VAULT_DIR=/var/lib/hermes/vault
+Environment=HERMES_FEEDBACK_RUNTIME=/var/lib/hermes/.runtime/evening-feedback
+ExecStart=/usr/local/lib/hermes-autonomous/hermes-evening-feedback
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/hermes/.runtime/evening-feedback
+ProtectHome=yes
+TimeoutStartSec=90

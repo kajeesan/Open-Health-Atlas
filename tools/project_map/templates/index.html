@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>OpenHealthAtlas project map</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  </head>
+  <body>
+    <a class="skip-link" href="#map-content">Skip to project map</a>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>OpenHealthAtlas project map</h1>
+          <p>Product reality, not file presence.</p>
+        </div>
+        <div class="topbar-facts" aria-label="Audit summary">
+          <span id="audit-state" class="source-state">Loading evidence…</span>
+          <strong>2 bounded fictional Telegram journeys verified end to end</strong>
+        </div>
+      </header>
+
+      <nav class="view-nav" aria-label="Project map views">
+        <div id="view-tabs" role="tablist" aria-label="Choose a view"></div>
+      </nav>
+
+      <main id="map-content" class="workspace">
+        <section id="view-panel" class="map-region" role="tabpanel" aria-label="Project map view">
+          <div class="view-heading">
+            <div>
+              <h2 id="view-title">Loading map…</h2>
+              <p id="view-summary"></p>
+            </div>
+            <div id="view-priority" class="priority-note" hidden></div>
+          </div>
+
+          <div id="map-canvas" class="map-canvas" aria-live="polite">
+            <div class="loading-state" aria-label="Loading visualization">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+
+          <div class="status-key" aria-label="Status key">
+            <span>Status describes demonstrated product behaviour:</span>
+            <div id="status-key-items"></div>
+          </div>
+        </section>
+
+        <aside id="detail-panel" class="detail-panel" aria-label="Evidence details">
+          <div id="detail-empty" class="detail-empty">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <circle cx="24" cy="24" r="17"></circle>
+              <path d="M16 24h16M24 16v16"></path>
+            </svg>
+            <h2>Select an item</h2>
+            <p>Open any node to see what it means, why it matters, and what proves the status.</p>
+          </div>
+          <div id="detail-content" role="region" tabindex="-1" hidden></div>
+        </aside>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <noscript>This project map requires JavaScript for view switching and evidence details.</noscript>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </body>
+</html>

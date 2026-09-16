@@ -1,0 +1,18 @@
+# §4d energy/focus check-in ping (instance = slot: am|pm).
+# Oneshot as hermes: sends ONE outbound Telegram nudge via `hermes send`;
+# the reply is captured by the coach agent through health.py checkin.
+[Unit]
+Description=Hermes energy/focus check-in ping (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+ExecStart=/usr/local/lib/hermes-bridge/checkin-ping %i
+# Same hardening posture as the other hermes oneshots: no privilege growth,
+# private tmp; outbound HTTPS is required (Telegram API).
+NoNewPrivileges=yes
+PrivateTmp=yes
+TimeoutStartSec=60

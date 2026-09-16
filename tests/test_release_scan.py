@@ -1,0 +1,76 @@
+"""Release scanner fails closed without echoing matched sensitive values."""
+
+from scripts import release_scan
+
+
+def test_blob_scan_reports_only_sanitized_categories_and_paths():
+    private_path = "/" + "Users/example/private/input.db"
+    secret_value = "highentropy" + "fixturevalue"
+    secret_line = "client_" + f"secret = \"{secret_value}\""
+    findings = release_scan._scan_blob(
+        f"{private_path}\n{secret_line}\n".encode(),
+        "synthetic/example.txt",
+    )
+    rendered = [item.as_dict() for item in findings]
+    assert {item["category"] for item in rendered} == {
+        "private_absolute_home_path",
+        "literal_secret_assignment",
+    }
+    assert all(item["path"] == "synthetic/example.txt" for item in rendered)
+    assert secret_value not in repr(rendered)
+    assert private_path not in repr(rendered)
+
+
+def test_safe_generic_examples_and_public_provenance_are_accepted():
+    text = "\n".join((
+        "PANEL_SECRET_KEY=<replace-with-random-value>",
+        'PANEL_SECRET_KEY="$(openssl rand -hex 32)"',
+        "support@example.invalid",
+        "git@github.com:OWNER/Hermes-Health-Open-Source.git",
+        "http://localhost:5111",
+        "https://github.com/apache/echarts",
+        "https://api.open-meteo.com/v1/forecast",
+        "198.51.100.77",
+        "/var/lib/hermes/health.db",
+    ))
+    assert release_scan._scan_blob(text.encode(), ".env.example") == []
+
+
+def test_private_network_address_is_rejected_but_value_is_not_rendered():
+    private_address = "10.23." + "45.67"
+    findings = release_scan._scan_blob(
+        f"endpoint={private_address}\n".encode(),
+        "synthetic/network.example",
+    )
+    assert [item.as_dict() for item in findings] == [{
+        "category": "private_ipv4_address",
+        "path": "synthetic/network.example",
+    }]
+    assert private_address not in repr(findings)
+
+
+def test_removed_personal_fixture_term_is_rejected_without_echoing_it():
+    removed_term = "butter" + " chicken"
+    findings = release_scan._scan_blob(
+        f"fixture={removed_term}\n".encode(),
+        "synthetic/meal.txt",
+    )
+    assert [item.as_dict() for item in findings] == [{
+        "category": "removed_personal_fixture_term",
+        "path": "synthetic/meal.txt",
+    }]
+    assert removed_term not in repr(findings)
+
+
+def test_path_classifier_rejects_data_secrets_caches_and_submodule_metadata():
+    cases = {
+        "data/health.db": "data_secret_or_generated_suffix",
+        "cache/__pycache__/module.pyc": "generated_or_dependency_path",
+        "training_seed.py": "forbidden_or_ambiguous_file",
+        ".gitmodules": "forbidden_or_ambiguous_file",
+        ".env": "live_environment_file",
+    }
+    for path, category in cases.items():
+        assert category in {
+            item.category for item in release_scan._path_findings(path)
+        }

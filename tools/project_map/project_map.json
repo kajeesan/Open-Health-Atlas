@@ -1,0 +1,686 @@
+{
+  "title": "OpenHealthAtlas project map",
+  "auditSnapshot": "2026-08-18 + renderer identity fix deployed; fresh snapshot canary pending",
+  "defaultView": "current",
+  "statuses": [
+    "Working",
+    "Broken",
+    "Missing",
+    "Partially built",
+    "Test-only",
+    "Synthetic-only",
+    "Duplicated",
+    "Unverified"
+  ],
+  "graphSources": {
+    "flask_panel": ["app/__init__.py", "app/routes/chat.py"],
+    "telegram": ["deploy/hermes-openhealthatlas-mcp"],
+    "telegram_answer": ["deploy/hermes-openhealthatlas-mcp"],
+    "project_map_display": ["tools/project_map/app.py", "tools/project_map/project_map.json"],
+    "oha_boundary": ["toolkit/health.py", "toolkit/hermes_insights/registry.py"],
+    "canonical_db": ["toolkit/SCHEMA.sql", "toolkit/health.py"],
+    "governed_engine": ["toolkit/hermes_insights/frame.py", "toolkit/hermes_insights/readiness.py", "toolkit/hermes_insights/associations.py"],
+    "evidence_ledger": ["toolkit/hermes_insights/provenance.py", "toolkit/hermes_insights/ledger.py"],
+    "legacy_analytics": ["toolkit/health.py", "app/routes/insights.py"],
+    "insight_explorer": ["app/routes/insights.py", "app/static/js/insights.js"],
+    "hermesctl": ["deploy/hermesctl"],
+    "fixed_green_tool": ["deploy/hermes-openhealthatlas-tool"],
+    "external_hermes": ["deploy/hermes-ssh-transport"],
+    "chat_store": ["app/routes/chat.py", "app/panel_db.py"],
+    "synthetic_runtime": ["docs/PRODUCT_AUTHORITY.md"],
+    "durable_synthesis": ["toolkit/hermes_insights/synthesis.py"],
+    "imports": ["toolkit/health.py", "toolkit/hermes_insights/events.py"],
+    "problem_timeout": ["app/routes/chat.py", "deploy/hermes-bridge", "deploy/hermesctl"],
+    "problem_evidence_loss": ["deploy/hermesctl", "app/routes/chat.py"],
+    "problem_fixture_lock": ["deploy/hermes-openhealthatlas-tool"],
+    "problem_reasoning_collision": ["app/routes/chat.py", "docs/PRODUCT_AUTHORITY.md"],
+    "problem_analytics_collision": ["toolkit/health.py", "toolkit/hermes_insights/associations.py"],
+    "problem_storage_collision": ["app/routes/insights.py", "toolkit/hermes_insights/synthesis.py"],
+    "problem_continuity": ["app/routes/chat.py", "deploy/hermes-ssh-transport"],
+    "problem_validation": ["app/routes/log.py", "toolkit/health.py", "toolkit/hermes_insights/provenance.py"],
+    "test_only_proof": ["toolkit/tests/test_migrations.py", "tests/test_phase7_conversations.py"]
+  },
+  "nodes": {
+    "user_question": {
+      "label": "User question",
+      "status": "Working",
+      "explanation": "The product starts with a person asking a health question in a conversation, not with an autonomous OpenHealthAtlas interpretation job.",
+      "why": "This keeps the recovery target anchored to a demonstrable user outcome instead of another isolated subsystem.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:13-44", "note": "The intended flow begins with the user question and assigns intent, tool choice, and conversation to Hermes."},
+        {"kind": "Owner decision", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The accepted runtime record names genuine Hermes as reasoning authority and OpenHealthAtlas as deterministic authority."}
+      ]
+    },
+    "telegram": {
+      "label": "Existing Telegram bot",
+      "status": "Working",
+      "explanation": "The existing Telegram bot now carries the accepted fictional journey to the continuously running genuine Hermes gateway on the Oracle VPS.",
+      "why": "Telegram is the owner's primary conversational transport; browser chat is optional and no longer blocks the first accepted journey.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "A genuine Telegram turn completed all eight deterministic calls and returned the evidence-backed answer."},
+        {"kind": "Owner decision", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "Hermes owns conversation and tool choice; OpenHealthAtlas owns deterministic evidence."}
+      ]
+    },
+    "browser": {
+      "label": "Browser question",
+      "status": "Partially built",
+      "explanation": "An authenticated Flask panel and conversation interface exist and can submit a turn, but the full answer path is not reliable.",
+      "why": "A working entry screen is not the same thing as a completed user journey; the result must return with its evidence.",
+      "evidence": [
+        {"kind": "Audit", "ref": "COVERAGE_LEDGER.tsv: U01, U07", "note": "The application shell is reachable, while chat is only partially connected."},
+        {"kind": "Source", "ref": "app/routes/chat.py:622-825", "note": "The scoped conversation send route enters the Hermes bridge path."}
+      ]
+    },
+    "hermes_intent": {
+      "label": "Hermes understands and chooses tools",
+      "status": "Working",
+      "explanation": "Genuine Hermes selected and sequenced the six bounded OpenHealthAtlas capabilities for the fictional Green-day question, including three evidence replays.",
+      "why": "This proves the operator boundary for one accepted question without claiming that other health domains are connected.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The receipt records feature frame, readiness, analysis, registry, three evidence calls, and synthesis preparation in one turn."},
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:158-170", "note": "The remaining limitation is scope: other domains still lack owner-approved typed boundaries."}
+      ]
+    },
+    "oha_boundary": {
+      "label": "OpenHealthAtlas deterministic tools",
+      "status": "Partially built",
+      "explanation": "The deterministic system is broad and real, but the Hermes-facing boundary exposes only a small fictional Green-day subset rather than the available domains.",
+      "why": "The main product gap is connection: strong deterministic capabilities stop before the intended Hermes operator layer.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:19-27", "note": "Canonical records and analysis exist, but only the fixture-bound adapter crosses the governed boundary."},
+        {"kind": "Audit", "ref": "COLLISION_REGISTER.md: COL-09", "note": "The repository has 118 CLI commands and 666 features; the adapter exposes seven Green-day commands."}
+      ]
+    },
+    "hermes_reasoning": {
+      "label": "Hermes explains and qualifies",
+      "status": "Working",
+      "explanation": "Genuine Hermes produced the Telegram explanation from replayed deterministic evidence, kept facts separate from interpretation, avoided caffeine-timing claims, and stated that associations were not causal.",
+      "why": "The selected fictional journey now proves genuine reasoning and user-visible delivery together; other domains and follow-up turns remain outside this proof.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The genuine Telegram answer matched the deterministic finding IDs, fingerprints, bindings, limitations, and non-storage receipt."},
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:370-376", "note": "The older audit remains the baseline for untested routes; this proof supersedes it only for the bounded Telegram journey."}
+      ]
+    },
+    "telegram_answer": {
+      "label": "Telegram answer with evidence",
+      "status": "Working",
+      "explanation": "The existing bot returned exact Green dates, readiness nuance, three selected associations, evidence fingerprints, limitations, and a separately labelled Hermes interpretation.",
+      "why": "This is the first user-visible path that completed the intended loop with genuine Hermes and deterministic evidence.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The response and receipt agree on the batch, three findings, evidence bindings, phase 6, and model_invoked=false."}
+      ]
+    },
+    "project_map_display": {
+      "label": "Local project-map display",
+      "status": "Working",
+      "explanation": "The localhost map presents this sanitized runtime snapshot from repository data; it does not connect directly to the VPS or any health database.",
+      "why": "A static sanitized record makes the proof reviewable and version-controlled without creating a private-data or remote-service connection.",
+      "evidence": [
+        {"kind": "Source", "ref": "tools/project_map/app.py:119-129", "note": "The Flask app builds its payload from project_map.json, audit availability, and Graphify navigation context."},
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "Only fictional, receipt-level summary fields are committed."}
+      ]
+    },
+    "browser_answer": {
+      "label": "Browser answer with separate evidence",
+      "status": "Broken",
+      "explanation": "The intended answer should visibly separate deterministic findings and citations from Hermes interpretation. The genuine panel path currently returns HTTP 502 before that answer arrives.",
+      "why": "This is the decisive user-visible completion boundary; everything upstream can work while the product still fails here.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "/private/tmp/oha-owner-acceptance-receipt.IAFVSl/failed-preflight-receipt.json", "note": "Current-HEAD evidence records eight calls, 39 evidence references, and HTTP 502 before the final answer."},
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:67-69", "note": "Panel and broker timeout budgets expire before the permitted external transport budget."}
+      ]
+    },
+    "flask_panel": {
+      "label": "Browser / Flask panel",
+      "status": "Partially built",
+      "explanation": "The authenticated panel, domain pages, APIs, and conversation shell are substantial. Scoped selected-evidence turns now preserve a bounded verified OpenHealthAtlas receipt separately from Hermes prose; a genuine browser-Hermes turn is still unverified.",
+      "why": "The panel now owns honest server-side range state and visible evidence separation, while browser transport acceptance remains a separate proof gate.",
+      "evidence": [
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Selected findings require exact same-turn replay and normalized receipts render separately from prose."},
+        {"kind": "Audit", "ref": "COMPLEXITY_REGISTER.md: CX-19", "note": "The user shell is valuable but multiple analysis and interpretation concepts coexist without one flow."}
+      ]
+    },
+    "canonical_db": {
+      "label": "Canonical records and migrations",
+      "status": "Working",
+      "explanation": "Canonical SQLite records, schema initialization, migrations, and bounded writes are real and broadly consumed, with specific domain and validation gaps.",
+      "why": "This is the deterministic foundation to keep and connect; rebuilding it would discard the strongest part of the system.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:46-55", "note": "Fictional writes, migrations, records, and broad domain calculations have credible executable evidence."},
+        {"kind": "Audit", "ref": "COMPLEXITY_REGISTER.md: CX-01, CX-02", "note": "The schema and health.py boundary are actively consumed and recommended to keep."}
+      ]
+    },
+    "governed_engine": {
+      "label": "Registry → frame → readiness → findings",
+      "status": "Working",
+      "explanation": "The newer deterministic path registers features, aligns time frames, exposes missingness, performs bounded statistics, and produces replayable findings.",
+      "why": "This is the closest implementation of the intended OpenHealthAtlas responsibility and the recommended analytical authority.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "EXECUTIVE_ASSESSMENT.md:50-54", "note": "The fictional audit database reported 666 features, 654 implemented, eleven adapters, and explicit readiness states."},
+        {"kind": "Source", "ref": "toolkit/hermes_insights/readiness.py:780-1050", "note": "The current readiness engine represents sufficient, sparse, stale, missing, and unimplemented states."}
+      ]
+    },
+    "evidence_ledger": {
+      "label": "Evidence identity and ledgers",
+      "status": "Partially built",
+      "explanation": "Findings carry stable identities, fingerprints, ancestry and exact replay, and selected browser turns can retain a normalized verified receipt. Source ancestry is still uneven at ingestion.",
+      "why": "The final selected-evidence browser boundary is repaired, but downstream precision still cannot compensate for weak source identity at ingress.",
+      "evidence": [
+        {"kind": "Source", "ref": "toolkit/hermes_insights/provenance.py:272-939", "note": "The governed analysis path implements manifests, fingerprints, and evidence replay."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "The selected-finding contract binds server range, exact replay, citations and separately rendered receipts."}
+      ]
+    },
+    "legacy_analytics": {
+      "label": "Legacy correlations and day signature",
+      "status": "Test-only",
+      "explanation": "Legacy correlations and day signature return 410 in normal processes, have no product JavaScript consumer, and day-signature is absent from both panel broker allowlists.",
+      "why": "The retained implementations are explicit compatibility fixtures and no longer compete with the governed dashboard result.",
+      "evidence": [
+        {"kind": "Audit", "ref": "COLLISION_REGISTER.md: COL-05", "note": "Legacy and governed analytical paths both calculate and expose day patterns."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Normal legacy endpoints are quarantined and the broker cannot invoke day-signature."},
+        {"kind": "Source", "ref": "toolkit/health.py:2878-3298", "note": "The compatibility handlers remain in the canonical CLI module; no deletion is claimed."}
+      ]
+    },
+    "insight_explorer": {
+      "label": "Insight Explorer",
+      "status": "Partially built",
+      "explanation": "The browser can select up to three deterministic findings for an optional scoped conversation. The server owns the range and accepts them only as replay requests; verified receipts render separately after exact OpenHealthAtlas replay.",
+      "why": "The analysis and chat actions now share typed evidence identity, but one genuine browser-Hermes selected-evidence turn remains unverified.",
+      "evidence": [
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Local API, transport-contract and desktop/mobile rendering checks cover the evidence-bound flow without claiming genuine browser completion."},
+        {"kind": "Audit", "ref": "RECOVERY_SEQUENCE.md:110-134", "note": "Phase 4 requires the selected finding and range to be bound to chat after a working journey exists."}
+      ]
+    },
+    "hermesctl": {
+      "label": "hermesctl boundary and trace validator",
+      "status": "Partially built",
+      "explanation": "The boundary validates same-turn tool scope, database continuity, evidence membership and the structured result. Selected browser findings additionally require exact replay, fingerprint, range and citation equality.",
+      "why": "The evidence seam is repaired for bounded selected turns; genuine browser delivery and the wider timeout contract remain separate unverified work.",
+      "evidence": [
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "The v2 selected-finding envelope is additive and ordinary v1 turns remain compatible."},
+        {"kind": "Audit", "ref": "COMPLEXITY_REGISTER.md: CX-18", "note": "The external controller/tool stack is the only genuine model seam and is recommended to repair and connect."}
+      ]
+    },
+    "fixed_green_tool": {
+      "label": "Bounded fictional Hermes tools",
+      "status": "Synthetic-only",
+      "explanation": "The adapter executes real deterministic commands against one fixed fictional range. It exposes the accepted Green-day sequence plus one fixed-date recovery read; the MCP presents only Green-day and a two-step recovery question.",
+      "why": "This is an intentionally small acceptance boundary, not a general product tool surface for all training, pain, nutrition, mind, labs, or care commands.",
+      "evidence": [
+        {"kind": "Source", "ref": "deploy/hermes-openhealthatlas-tool", "note": "The allowlist and validators enforce fixed fictional ranges and one recovery anchor."},
+        {"kind": "Source", "ref": "deploy/hermes-openhealthatlas-mcp", "note": "The MCP keeps the six-stage Green-day journey and adds only recovery snapshot plus owner-selected detail."},
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:71-73", "note": "The audit classifies the boundary as an acceptance fixture rather than a product capability surface."}
+      ]
+    },
+    "external_hermes": {
+      "label": "Genuine external Hermes",
+      "status": "Working",
+      "explanation": "The continuously running Oracle VPS Hermes gateway completed the bounded fictional Green-day and Recovery Telegram journeys and discovered all eight accepted tools.",
+      "why": "This is end-to-end proof for two selected fictional journeys, not evidence that private-data operation, browser delivery, or other domains work.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The gateway was active after restart and rediscovered exactly six fictional OpenHealthAtlas tools."},
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "The corrected two-step Recovery journey preserved insufficient data, exposed its evidence-sharing boundary, and used the eight-tool fictional surface through genuine Hermes."},
+        {"kind": "Audit", "ref": "COVERAGE_LEDGER.tsv: M03, M08, J21", "note": "The older audit remains applicable outside the newly accepted bounded Telegram path."}
+      ]
+    },
+    "chat_store": {
+      "label": "Conversation persistence",
+      "status": "Partially built",
+      "explanation": "Panel messages, a Hermes session identifier and bounded normalized evidence receipts can persist. Evidence is separate from prose; remote model-context continuity is still unverified.",
+      "why": "Evidence loss is repaired for verified selected turns, while a transcript and session identifier alone still do not prove genuine multi-turn model continuity.",
+      "evidence": [
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Chat schema v2 stores a bounded receipt separately and returns it on first and idempotent responses."},
+        {"kind": "Audit", "ref": "COLLISION_REGISTER.md: COL-06, COL-07", "note": "Evidence egress and remote continuity are separate material collisions."}
+      ]
+    },
+    "synthetic_runtime": {
+      "label": "Retired synthetic interpretation runtime",
+      "status": "Synthetic-only",
+      "explanation": "The former injected synthetic runtime and its test-only endpoints were removed in the local refactor. This node records historical scope, not a current executable path.",
+      "why": "Consumer tracing found only exclusive tests and the fictional demo. Deterministic evidence services and genuine Hermes integration remain.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:75-77", "note": "The package is about 49,733 lines with 37,412 interpretation-specific test lines and no normal product consumer."},
+        {"kind": "Source", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The synthetic runtime has been retired after tracing retained consumers."}
+      ]
+    },
+    "durable_synthesis": {
+      "label": "Optional interpretation envelope",
+      "status": "Partially built",
+      "explanation": "Synthesis-v1 is the sole optional envelope and schema v6 accepts bounded external provider/model provenance while preserving legacy rows and evidence ancestry. Product write surfaces remain disabled.",
+      "why": "The competing-store authority and hard-coded provider collision are resolved structurally; no genuine Hermes write is claimed or required while optional write-back is off.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:79-85", "note": "At least five narrative or interpretation paths compete for authority."},
+        {"kind": "Inventory", "ref": "tools/project_map/evidence/product-authority-route-inventory-2026-08-17.json", "note": "Only synthesis-v1 remains the selected optional interpretation envelope in normal product authority."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Provider-neutral schema and migration validation are proven without enabling a write surface or claiming model invocation."}
+      ]
+    },
+    "final_browser_failure": {
+      "label": "Final browser response",
+      "status": "Broken",
+      "explanation": "The current genuine panel turn reaches deterministic tools and a genuine model but returns HTTP 502 before the final reply reaches the browser.",
+      "why": "This is the clearest place where a substantial system fails the actual user outcome.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "/private/tmp/oha-owner-acceptance-receipt.IAFVSl/failed-preflight-receipt.json", "note": "Receipt SHA-256 d715109f… records the current-HEAD HTTP 502 outcome."},
+        {"kind": "Source", "ref": "app/routes/chat.py:755-817", "note": "The panel waits 118 seconds and returns a 502 on the bridge error path."}
+      ]
+    },
+    "journey_logging": {
+      "label": "J01–J02 · Log and classify a day",
+      "status": "Partially built",
+      "explanation": "Canonical daily writes and Green/Yellow/Red presentation work, but there is no first-class browser capture form or general Hermes explanation path.",
+      "why": "The system can store and display the result without completing the intended conversational capture and interpretation journey.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:203-218", "note": "Daily persistence and classification are real; browser capture and analytical authority remain incomplete."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: J01, J02", "note": "Both journeys are classified partially_connected."}
+      ]
+    },
+    "journey_green": {
+      "label": "J03 · Which days were Green, and why?",
+      "status": "Working",
+      "explanation": "The bounded fictional Telegram path completed eight deterministic calls, replayed three selected findings, reached genuine Hermes, and delivered the evidence-backed answer.",
+      "why": "This is now the reference acceptance path. It does not repair the older optional browser-chat route or expand beyond the fixture.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The same-turn receipt reached phase 6 with 16 matching audit records and no stored interpretation."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: J03", "note": "The audit's broken classification remains the historical baseline for the old browser path, not the new Telegram acceptance transport."}
+      ]
+    },
+    "journey_domains": {
+      "label": "J04–J10 · Training, pain, recovery, nutrition, mind, labs",
+      "status": "Partially built",
+      "explanation": "These domains contain real records, calculations, APIs and pages. One bounded multi-signal Recovery question now crosses the governed external-Hermes boundary; the remaining domain journeys do not.",
+      "why": "The accepted Recovery exception proves the boundary can generalize once, not that all training, pain, nutrition, mind or lab capabilities are exposed or working end to end.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "One fictional Recovery snapshot returned an honest insufficient-data state and the owner-selected training follow-up completed through genuine Hermes."},
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:231-285", "note": "The original audit remains the baseline for all other unaccepted domain journeys."}
+      ]
+    },
+    "journey_care": {
+      "label": "J11 · Clinician-recorded care",
+      "status": "Missing",
+      "explanation": "No broad canonical clinician, encounter, appointment, wound, or professional-care record model was found; the reachable care score is skincare adherence.",
+      "why": "Synthetic providers and UI claims cannot substitute for the canonical records OpenHealthAtlas must own.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:287-294", "note": "The journey stops at the canonical data-model boundary."},
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-13", "note": "Care UI and retention claims conflict with the canonical schema."}
+      ]
+    },
+    "journey_cross": {
+      "label": "J12–J13 · Cross-domain and whole-person synthesis",
+      "status": "Synthetic-only",
+      "explanation": "The historical injected cross-domain and whole-person scenarios were retired with the synthetic runtime. They never established a live Hermes journey.",
+      "why": "The historical synthetic classification is retained here; genuine Hermes must supply reasoning over governed evidence.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:296-311", "note": "Both journeys use injected synthetic graphs and an in-memory reference runtime."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: J12, J13", "note": "Both primary classifications are synthetic_only."}
+      ]
+    },
+    "journey_evidence_followup": {
+      "label": "J14–J18 · Evidence, follow-up, storage, continuity",
+      "status": "Partially built",
+      "explanation": "Evidence replay, readiness and one optional storage authority are explicit. Selected browser turns can retain separate verified receipts, but genuine browser delivery and remote follow-up continuity remain unverified.",
+      "why": "The authority and evidence envelope are consolidated; transport-specific proof and continuity still have to work together in a genuine browser turn.",
+      "evidence": [
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Selected identifiers, exact replay and separate receipt storage are locally verified without claiming genuine browser completion."},
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:313-352", "note": "The original traces remain applicable to unaccepted continuity and transport paths."}
+      ]
+    },
+    "journey_demo": {
+      "label": "J19–J20 · Imports and fictional demo",
+      "status": "Unverified",
+      "explanation": "Imports and fictional deterministic demos exercise bounded local records, ledger and UI/API paths. The synthetic interpretation step has been removed; live integrations are a separate verification boundary.",
+      "why": "These are useful component and demonstration proofs, not proof that a genuine browser conversation works.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:354-368", "note": "Imported records and fictional UI/API reads are real; general Hermes delivery is absent."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: J19, J20", "note": "Both journeys stop short of end-to-end verification."}
+      ]
+    },
+    "journey_external": {
+      "label": "J21–J22 · Genuine Hermes and browser completion",
+      "status": "Partially built",
+      "explanation": "Genuine Hermes now completes the owner-selected Telegram journey. The older optional browser-chat journey still fails before delivery and remains a separate backlog item.",
+      "why": "Transport-specific proof remains separate: Telegram completion does not silently repair browser delivery.",
+      "evidence": [
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "Telegram completed the genuine external-Hermes loop and survived restart."},
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:370-384", "note": "J21 is direct-only and J22 is broken at HTTP 502."},
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-14", "note": "Fake wiring, direct genuine, and browser genuine proof must remain independent gates."}
+      ]
+    },
+    "problem_timeout": {
+      "label": "Incompatible timeout budgets",
+      "status": "Broken",
+      "explanation": "Panel and worker boundaries expire at 118–120 seconds while the external transport is allowed to run for up to 900 seconds.",
+      "why": "The genuine model can finish useful work after the caller has already told the user it failed.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-08", "note": "The panel, Gunicorn/broker, and transport contracts cannot all be honored."},
+        {"kind": "Source", "ref": "app/routes/chat.py:755-780", "note": "The current browser turn invokes the bridge with timeout=118.0."}
+      ]
+    },
+    "problem_evidence_loss": {
+      "label": "Structured evidence lost at browser boundary",
+      "status": "Partially built",
+      "explanation": "For selected scoped turns, the panel now validates and stores a bounded OpenHealthAtlas receipt separately from Hermes prose and renders it in both conversation surfaces.",
+      "why": "The contract and local rendering are repaired, but one genuine browser-Hermes turn must still prove the receipt arrives through the real transport.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-06", "note": "The validated evidence envelope and final chat persistence disagree."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Exact selected IDs, fingerprints, server range, replay and citations are bound before a verified receipt can persist."}
+      ]
+    },
+    "problem_fixture_lock": {
+      "label": "Hermes boundary locked to one fixture",
+      "status": "Missing",
+      "explanation": "There is no general owner-approved typed capability surface; the current adapter is fixed to one fictional fixture and only the Green-day sequence plus one bounded Recovery question.",
+      "why": "Most built domains remain unreachable to the intended operator even though two bounded fictional journeys now work.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-09", "note": "Broad deterministic implementation and the seven-command adapter have radically different scope."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: M04", "note": "General Hermes-callable deterministic tool surface is intended_missing."}
+      ]
+    },
+    "problem_reasoning_collision": {
+      "label": "Synthetic reasoning stack retired",
+      "status": "Working",
+      "explanation": "External genuine Hermes is the sole product reasoning layer. The obsolete internal synthetic interpretation runtime has been removed.",
+      "why": "The retired runtime had no wired product UI consumer. Deterministic ledger, evidence preparation and existing conversation controls remain.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-01, COL-10", "note": "External genuine reasoning competes with deterministic model-shaped templates."},
+        {"kind": "Source", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The owner-approved boundary makes the internal runtime non-product and excludes it from completion gates."},
+        {"kind": "Verification", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The test-only interpretation endpoints and their exclusive tests are retired."}
+      ]
+    },
+    "problem_analytics_collision": {
+      "label": "Legacy and governed analytics both live",
+      "status": "Test-only",
+      "explanation": "The dashboard now displays the governed Green-vs-non-Green result. Legacy correlations and signature are test-only, return 410 normally, and day-signature is absent from broker allowlists.",
+      "why": "The old implementation remains for compatibility tests but no longer competes for product analytics authority.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-05", "note": "Both paths calculate and expose day patterns."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "The accepted fixture produces one canonical fingerprint and evidence identities across the migrated surfaces."},
+        {"kind": "Complexity", "ref": "COMPLEXITY_REGISTER.md: CX-06", "note": "Consolidation is recommended only after the governed path reaches user-visible parity."}
+      ]
+    },
+    "problem_storage_collision": {
+      "label": "Narrative and storage authority",
+      "status": "Working",
+      "explanation": "Legacy chat and vault Markdown are test-only, the synthetic runtime is retired, scoped chat stores transcripts and separate receipts, and provider-neutral synthesis-v1 is the sole optional interpretation envelope with writes disabled.",
+      "why": "Each store now has one non-overlapping role. A future owner-authorized write still requires its own genuine acceptance, but disabled optional storage is not a competing authority.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:79-81", "note": "The five active or reachable paths have incompatible evidence and provider semantics."},
+        {"kind": "Consolidation", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "Each narrative, chat, interpretation and storage path has an explicit role; no interpretation write surface was enabled."},
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-02, COL-03, COL-04, COL-19", "note": "API, provider, lifecycle, and vault authority collisions reinforce one another."}
+      ]
+    },
+    "problem_continuity": {
+      "label": "Panel history without Hermes context",
+      "status": "Partially built",
+      "explanation": "The panel persists messages and a session ID, while the SSH transport recreates a disposable home and sends no prior transcript.",
+      "why": "Follow-up questions may look continuous to the user even when the model cannot revise a hypothesis using the prior turn.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-07", "note": "Panel conversation state and transport lifecycle make incompatible continuity promises."},
+        {"kind": "Source", "ref": "deploy/hermes-ssh-transport:624-703", "note": "The transport creates fresh remote state and does not send transcript history."}
+      ]
+    },
+    "problem_validation": {
+      "label": "Validation and provenance split across boundaries",
+      "status": "Duplicated",
+      "explanation": "Body and vital bounds live in Flask rather than the canonical writer, while precise downstream evidence is fed by uneven source-artifact ancestry.",
+      "why": "Direct CLI or agent writes can bypass browser validation, and a precise fingerprint can still point back to an inadequately identified input.",
+      "evidence": [
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-17, COL-20, COL-23", "note": "Ingress ancestry, canonical validation, and the visible BP rule each lack one governed authority."},
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:91-97", "note": "Domain breadth is real, but validation and provenance are uneven at high-value boundaries."}
+      ]
+    },
+    "test_only_proof": {
+      "label": "Isolated tests without a user journey",
+      "status": "Test-only",
+      "explanation": "Focused suites verify migrations, calculations, imports, API contracts, orchestration, and browser persistence in isolation, often with stubs or fixtures.",
+      "why": "These tests are useful engineering evidence, but they cannot establish that a genuine user question reaches Hermes and returns an evidence-backed browser answer.",
+      "evidence": [
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:103-112", "note": "The audit separates tested-in-isolation capabilities from broken, missing, synthetic, and duplicated product behaviour."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: T02 and 19 tested_in_isolation rows", "note": "The coverage ledger records component proof separately and contains zero verified_end_to_end rows."}
+      ]
+    },
+    "imports": {
+      "label": "Imports and manual writes",
+      "status": "Partially built",
+      "explanation": "Manual records, Hevy, Google Health, Cronometer, labs, weather, and other import paths populate canonical data in bounded contexts.",
+      "why": "They supply deterministic evidence, but live integrations and uniform raw-source ancestry were not verified by the audit.",
+      "evidence": [
+        {"kind": "Audit", "ref": "ARCHITECTURE_AND_JOURNEYS.md:354-360", "note": "Normalized records are real; live accounts and complete provenance were not exercised."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: D09-D15, J19", "note": "Most import paths are isolated or partial rather than end-to-end verified."}
+      ]
+    },
+    "recovery_1": {
+      "label": "1 · Restore one product authority",
+      "status": "Working",
+      "explanation": "The owner-approved responsibility table names one authority for every step of the first Telegram journey: genuine external Hermes reasons, the governed OpenHealthAtlas path calculates and validates evidence, and optional storage is synthesis-v1 with write-back off by default.",
+      "why": "The accepted journey is mapped to retained entry points. The unused internal synthetic interpretation runtime has been retired without changing historical acceptance receipts.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:11-40", "note": "Phase 1 freezes synthetic expansion and maps the first journey to one responsibility table."},
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The accepted path used genuine Hermes, deterministic tools, fictional data, exact evidence, and zero interpretation storage."},
+        {"kind": "Authority", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The owner-approved table maps the journey, retains synthesis-v1 as the sole optional envelope, and records synthetic retirement."},
+        {"kind": "Verification", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The former reference runtime and endpoints are removed from the current tree."}
+      ]
+    },
+    "recovery_2": {
+      "label": "2 · Prove the genuine Green-day journey",
+      "status": "Working",
+      "explanation": "The owner-selected Telegram journey now preserves deterministic evidence, separates facts from Hermes interpretation, and completes through genuine Hermes.",
+      "why": "This is the first demonstrable user-visible reference path. Browser chat remains optional and separately broken.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:42-75", "note": "Phase 2 defines exact genuine-model, evidence, insufficient-data, timeout, and retry acceptance criteria."},
+        {"kind": "Runtime", "ref": "tools/project_map/evidence/fictional-telegram-acceptance-2026-08-17.json", "note": "The accepted turn completed all stages with genuine Hermes, evidence bindings, limitations, and no stored interpretation."}
+      ]
+    },
+    "recovery_3": {
+      "label": "3 · Connect one next bounded domain",
+      "status": "Working",
+      "explanation": "The owner-selected Recovery question works through the genuine two-turn Telegram path. OpenHealthAtlas now refuses an overall score because only sleep qualifies, Hermes asks which bounded focus to inspect, and the selected training detail returns without converting it into systemic readiness.",
+      "why": "This proves that a second domain can reuse the authority boundary and preserve an insufficient-data decision without exposing all 118 CLI commands. It remains a bounded fictional journey, not proof of private-data operation, browser chat, exercise safety, causation, or a general tool surface.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:77-108", "note": "Phase 3 requires one question, bounded data and commands, follow-up, and visible missingness."},
+        {"kind": "Current runtime", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "Genuine Hermes completed the source-consistent insufficient-data snapshot and user-selected training follow-up with visible exclusions, stable evidence hashes and zero interpretation storage."},
+        {"kind": "Source", "ref": "deploy/hermes-openhealthatlas-mcp", "note": "Only recovery snapshot and one owner-selected follow-up focus were added to the existing fictional Hermes boundary."},
+        {"kind": "Ledger", "ref": "COVERAGE_LEDGER.tsv: M04", "note": "The general Hermes-callable tool surface remains missing and is intentionally not claimed by this bounded addition."}
+      ]
+    },
+    "recovery_4": {
+      "label": "4 · Consolidate competing paths",
+      "status": "Working",
+      "explanation": "The Green-day display and authority quarantine remain consolidated, Recovery still uses one governed deterministic engine, and the pushed candidate has fresh localhost browser parity for the corrected insufficient-data result. The historical 58/100 dashboard receipt remains preserved and superseded.",
+      "why": "The current fictional dashboard now displays no overall readiness score, sleep at 92, both 10/14 same-source exclusions, policy identity and privacy-safe snapshot scope. This is local development-v6 parity, not accepted-v5 deployment proof.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:110-142", "note": "Phase 4 gates consolidation on completed Phase 2 and Phase 3 journeys."},
+        {"kind": "Historical dashboard runtime", "ref": "tools/project_map/evidence/fictional-recovery-dashboard-parity-2026-08-17.json", "note": "This parity receipt is retained but superseded as current proof because it is bound to the former 58/100 result."},
+        {"kind": "Current Telegram runtime", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "The accepted Telegram result remains insufficient_data; its prior statement that dashboard parity was open is superseded only for the new localhost candidate proof."},
+        {"kind": "Initial candidate browser runtime", "ref": "tools/project_map/evidence/recovery-item6-candidate-release-2026-08-18.json", "note": "This initial pushed-candidate record is preserved and superseded by the corrected candidate record."},
+        {"kind": "Corrected candidate browser runtime", "ref": "tools/project_map/evidence/recovery-item6-corrected-candidate-release-2026-08-18.json", "note": "The corrected pushed OpenHealthAtlas candidate rendered the fictional development-v6 insufficient-data result at 1280×720 and 390×844 without page overflow, console warnings/errors, 58/100, raw qualitative text, or private identities."},
+        {"kind": "Consolidation runtime", "ref": "tools/project_map/evidence/competing-paths-consolidation-2026-08-17.json", "note": "The accepted Green fixture shares one input fingerprint and three evidence identities across CLI, API, dashboard and accepted Hermes evidence; desktop and mobile display checks passed."},
+        {"kind": "Historical authority inventory", "ref": "tools/project_map/evidence/product-authority-route-inventory-2026-08-17.json", "note": "The route inventory remains useful, but its embedded Recovery result hash is superseded by the current Item 6 acceptance."},
+        {"kind": "Complexity", "ref": "COMPLEXITY_REGISTER.md:37-44", "note": "The de-bloat rules require authority and parity before quarantine or deletion."}
+      ]
+    },
+    "recovery_5": {
+      "label": "5 · Separate acceptance proof levels",
+      "status": "Working",
+      "explanation": "The proof taxonomy remains explicit and the Item 6 acceptance adds a supersession overlay: the corrected insufficient-data Telegram proof is current, while the historical 58-specific subproofs remain preserved but cannot supply present PASS.",
+      "why": "The current two-turn fictional Telegram journey is recorded at its actual proof level without borrowing PASS from tests or granting PASS to browser, direct transport, live fault injection, enabled storage, cryptographic model binding, or the superseded dashboard result.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:144-177", "note": "Phase 5 defines seven explicit proof levels and their stop rules."},
+        {"kind": "Proof ledger", "ref": "tools/project_map/evidence/fictional-primary-telegram-proof-levels-2026-08-17.json", "note": "Each gate names its source snapshot, fixture, transport, evidence, status and limitations; the ledger also records the deployed fictional adapter hashes and disabled write-back probe."},
+        {"kind": "Supersession overlay", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "Recovery-specific insufficient-data is now Working; live fault injection, genuine browser, enabled storage and cryptographic per-turn binding remain separate."},
+        {"kind": "Authority", "ref": "docs/PRODUCT_AUTHORITY.md", "note": "The owner-selected Telegram journey treats browser chat as optional backlog without calling it passed."},
+        {"kind": "Collision", "ref": "COLLISION_REGISTER.md: COL-14", "note": "Synthetic wiring and transport-specific evidence can no longer be summarized as one inherited PASS."}
+      ]
+    },
+    "recovery_6": {
+      "label": "6 · Close privacy and evidence-integrity gaps",
+      "status": "Partially built",
+      "explanation": "The renderer turn-identity fix is now deployed on the active clean Hermes gateway. The current startup loaded `0bb411db…`, registered exactly eight fictional tools, matched both fixed runtime hashes, preserved the schema-v5 database and sidecar, and produced no tool or Telegram action during deployment. A fresh owner snapshot is still required to prove compact disclosure-first rendering on the real path.",
+      "why": "Item 6 remains partial because registry proof does not prove renderer execution. The next snapshot must visibly show the compact trusted disclosure before plugin-prefixed Hermes interpretation; only then may the Training follow-up run. Fault injection and broader owner policy remain separate gates.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:179-213", "note": "Phase 6 covers raw identity, disclosure, server-owned warnings, qualitative consent, and threshold policy."},
+        {"kind": "Accepted slice", "ref": "tools/project_map/evidence/fictional-recovery-item6-acceptance-2026-08-17.json", "note": "The genuine two-turn Telegram path returned insufficient_data, showed both disclosures, kept the database unchanged and stored no interpretation; the ledger also enumerates the remaining criteria."},
+        {"kind": "Initial pushed candidate record", "ref": "tools/project_map/evidence/recovery-item6-candidate-release-2026-08-18.json", "note": "This immutable initial record is preserved byte-for-byte and superseded by the corrected candidate record."},
+        {"kind": "Corrected pushed candidate record", "ref": "tools/project_map/evidence/recovery-item6-corrected-candidate-release-2026-08-18.json", "note": "The append-only record binds both corrected pushed candidates, the complete OpenHealthAtlas manifest, all seven external-Hermes runtime artifacts, full local gates and the no-deployment boundary. Item 6 remains partial."},
+        {"kind": "Governed network and read-only VPS preflight", "ref": "tools/project_map/evidence/recovery-item6-governed-network-read-only-preflight-2026-08-18.json", "note": "The append-only record binds the narrow governed NetworkError correction and staging-mode contract, records sanitized live database continuity and explicit live-release blockers, and performs no VPS mutation."},
+        {"kind": "Clean combined Hermes candidate", "ref": "tools/project_map/evidence/recovery-item6-clean-hermes-candidate-no-deployment-2026-08-18.json", "note": "The append-only v4 record binds the reconstructed health-actions bridge, governed-delivery candidate, upstream/fork lineage, eight runtime artifacts, staging-v2 and rollback-v1 contracts, while keeping every live mutation and acceptance gate unresolved."},
+        {"kind": "Mechanically closed pre-stage contract", "ref": "tools/project_map/evidence/recovery-item6-prestage-contract-closed-no-deployment-2026-08-18.json", "note": "The append-only v5 record corrects the v4 gate attribution and binds the exact mutation/protected-control split, config merge, clean release materialization, service drop-in, provenance manifest and quarantine-aware rollback contract. No live action is claimed."},
+        {"kind": "Complete pre-stage artifact set", "ref": "tools/project_map/evidence/recovery-item6-prestage-artifact-set-complete-no-deployment-2026-08-18.json", "note": "The append-only v6 overlay binds all eight Hermes runtime hashes required by the staging manifest and preserves every unresolved live gate from v5."},
+        {"kind": "Self-contained pre-stage release tuple", "ref": "tools/project_map/evidence/recovery-item6-prestage-complete-release-tuple-no-deployment-2026-08-18.json", "note": "The append-only v7 overlay includes the complete OpenHealthAtlas contract map and all eight Hermes runtime hashes, so candidate verification no longer requires consulting a superseded record."},
+        {"kind": "Accepted pre-stage backup and restore rehearsal", "ref": "tools/project_map/evidence/recovery-item6-prestage-backup-rehearsal-accepted-2026-08-18.json", "note": "The append-only v8 record binds the root-only backup inventory, dirty-checkout preservation, 56-target restore rehearsal, database and gateway continuity, eleven absence markers and zero deployment-target changes."},
+        {"kind": "Accepted inactive fictional staging", "ref": "tools/project_map/evidence/recovery-item6-inactive-staging-accepted-2026-08-18.json", "note": "The append-only v9 record binds the two verified code archives, exact clean release and OpenHealthAtlas manifests, accepted-v5 sidecar, inactive MCP/plugin/drop-in configuration, deterministic insufficient-data replay, unchanged database and no reload, restart, Telegram or fault injection."},
+        {"kind": "Candidate restart and verified rollback", "ref": "tools/project_map/evidence/recovery-item6-restart-attempt-rolled-back-2026-08-18.json", "note": "The append-only v10 record preserves the exact eight-tool candidate registration and plugin-discovery increment, identifies the non-contractual child-count stop, and verifies restoration of the prior gateway with unchanged database, audit and receipts."},
+        {"kind": "Accepted corrected restart and registry", "ref": "tools/project_map/evidence/recovery-item6-corrected-restart-registry-accepted-2026-08-18.json", "note": "The append-only v11 record binds the current clean gateway, exact eight-tool registry, plugin-discovery increment, health-actions registration, accepted-v5 database continuity, unchanged audit/receipts and the explicit no-Telegram boundary."},
+        {"kind": "Renderer bypass rollback and fixed candidate", "ref": "tools/project_map/evidence/recovery-item6-renderer-bypass-fixed-candidate-2026-08-18.json", "note": "The append-only v12 record rejects the prose-first/YAML live output, proves safe rollback, identifies the dropped Hermes turn identity, and binds the new pushed four-file fix candidate plus focused, Telegram and cross-repository tests."},
+        {"kind": "Deployed renderer identity fix", "ref": "tools/project_map/evidence/recovery-item6-renderer-fix-deployed-registry-accepted-2026-08-18.json", "note": "The append-only v13 record binds the supplemental absence rehearsal, exact archive, active 0bb411db release, fixed runtime hashes, eight-tool registry and unchanged fictional database while leaving renderer execution for the owner snapshot canary."},
+        {"kind": "Policy and ancestry source", "ref": "toolkit/health.py", "note": "Readiness evidence v2 keeps calculation policy, evidence identity, same-source sufficiency and privacy-safe current-snapshot ancestry inside deterministic OpenHealthAtlas output."},
+        {"kind": "Disclosure source", "ref": "deploy/hermes-openhealthatlas-mcp", "note": "The model-facing projection excludes raw qualitative text and private identities, while the required-delivery marker binds the exact same-turn completion to a standalone renderer."},
+        {"kind": "Deployment gate", "ref": "deploy/recovery-item6-deployment-runbook.md", "note": "The runbook requires exact accepted-v5 read-only attestation, resolved external-Hermes paths, live Telegram proof, fault injection and rollback checks before deployment acceptance."},
+        {"kind": "Audit", "ref": "EXECUTIVE_ASSESSMENT.md:95-97", "note": "The current evidence chain is strongest in the middle and weaker at ingress and egress."}
+      ]
+    },
+    "recovery_7": {
+      "label": "7 · Simplify retained product code",
+      "status": "Partially built",
+      "explanation": "The local refactor removes incidental test locks and the unused synthetic interpretation subsystem after consumer tracing. Deterministic services and wired controls remain; other simplification and functional verification work is still open.",
+      "why": "Deletion should make the authoritative map smaller without removing protections or concealing missing capabilities.",
+      "evidence": [
+        {"kind": "Recovery", "ref": "RECOVERY_SEQUENCE.md:215-247", "note": "Phase 7 requires reachable-consumer checks, before/after journey proof, rollback, and owner approval."},
+        {"kind": "Complexity", "ref": "COMPLEXITY_REGISTER.md: CX-10-CX-17", "note": "This historical register identified the synthetic subsystem and exclusive tests now removed by the local refactor."}
+      ]
+    }
+  },
+  "views": [
+    {
+      "id": "intended",
+      "label": "Intended architecture",
+      "title": "The intended product boundary",
+      "summary": "The primary product journey is Telegram → genuine Hermes → deterministic OpenHealthAtlas → Hermes → Telegram. Browser chat is optional; the dashboard remains for statistics and evidence inspection.",
+      "priority": "Boundary rule: OpenHealthAtlas returns facts and evidence; Hermes alone reasons and converses.",
+      "nodeIds": ["user_question", "telegram", "hermes_intent", "oha_boundary", "hermes_reasoning", "telegram_answer"],
+      "positions": {
+        "user_question": [9, 50], "telegram": [25.4, 50], "hermes_intent": [41.8, 50],
+        "oha_boundary": [58.2, 50], "hermes_reasoning": [74.6, 50], "telegram_answer": [91, 50]
+      },
+      "edges": [
+        {"from": "user_question", "to": "telegram", "status": "Working"},
+        {"from": "telegram", "to": "hermes_intent", "status": "Working"},
+        {"from": "hermes_intent", "to": "oha_boundary", "status": "Working", "label": "bounded fictional tools"},
+        {"from": "oha_boundary", "to": "hermes_reasoning", "status": "Working", "label": "structured evidence"},
+        {"from": "hermes_reasoning", "to": "telegram_answer", "status": "Working", "label": "facts + interpretation"}
+      ]
+    },
+    {
+      "id": "current",
+      "label": "Current architecture",
+      "title": "The current product-level path",
+      "summary": "The existing Telegram bot and genuine Hermes complete restart-persistent fictional Green-day and bounded Recovery journeys through eight deterministic OpenHealthAtlas tools. The localhost project map displays sanitized snapshots rather than a live VPS feed.",
+      "priority": "Keep the two accepted paths and consolidated authority boundary stable; use the proof ledger to prevent claims from crossing fixtures or transports.",
+      "nodeIds": ["user_question", "telegram", "external_hermes", "oha_boundary", "hermes_reasoning", "telegram_answer", "fixed_green_tool", "governed_engine", "evidence_ledger", "project_map_display"],
+      "positions": {
+        "user_question": [9, 25], "telegram": [25.4, 25], "external_hermes": [41.8, 25],
+        "oha_boundary": [58.2, 25], "hermes_reasoning": [74.6, 25], "telegram_answer": [91, 25],
+        "fixed_green_tool": [15, 75], "governed_engine": [38, 75], "evidence_ledger": [61, 75],
+        "project_map_display": [85, 75]
+      },
+      "edges": [
+        {"from": "user_question", "to": "telegram", "status": "Working"},
+        {"from": "telegram", "to": "external_hermes", "status": "Working"},
+        {"from": "external_hermes", "to": "oha_boundary", "status": "Working", "label": "eight MCP tools"},
+        {"from": "oha_boundary", "to": "hermes_reasoning", "status": "Working", "label": "eight-call receipt"},
+        {"from": "hermes_reasoning", "to": "telegram_answer", "status": "Working"},
+        {"from": "fixed_green_tool", "to": "governed_engine", "status": "Synthetic-only", "label": "fictional data only"},
+        {"from": "governed_engine", "to": "evidence_ledger", "status": "Working"},
+        {"from": "evidence_ledger", "to": "oha_boundary", "status": "Working"},
+        {"from": "evidence_ledger", "to": "project_map_display", "status": "Working", "label": "sanitized snapshot"}
+      ]
+    },
+    {
+      "id": "journeys",
+      "label": "User journeys",
+      "title": "Where the important journeys stop",
+      "summary": "The fictional Green-day and bounded Recovery Telegram journeys are verified end to end. Other audited journeys retain their historical status until separately proven.",
+      "priority": "Keep both accepted journeys stable; browser chat, other domain capabilities and canonical care remain separate proof or backlog work.",
+      "nodeIds": ["journey_logging", "journey_green", "journey_domains", "journey_care", "journey_cross", "journey_evidence_followup", "journey_demo", "journey_external"],
+      "positions": {
+        "journey_logging": [13, 27], "journey_green": [38, 27], "journey_domains": [63, 27], "journey_care": [88, 27],
+        "journey_cross": [13, 73], "journey_evidence_followup": [38, 73], "journey_demo": [63, 73], "journey_external": [88, 73]
+      },
+      "edges": [
+        {"from": "journey_logging", "to": "journey_green", "status": "Working", "label": "fictional reference path"},
+        {"from": "journey_green", "to": "journey_domains", "status": "Partially built", "label": "one bounded Recovery journey works", "stop": true},
+        {"from": "journey_domains", "to": "journey_care", "status": "Missing", "label": "canonical care absent"},
+        {"from": "journey_cross", "to": "journey_evidence_followup", "status": "Synthetic-only"},
+        {"from": "journey_evidence_followup", "to": "journey_demo", "status": "Unverified"},
+        {"from": "journey_demo", "to": "journey_external", "status": "Broken", "label": "direct ≠ browser completion", "stop": true}
+      ]
+    },
+    {
+      "id": "problems",
+      "label": "Problems and collisions",
+      "title": "The seams and authority collisions",
+      "summary": "The authority collisions are quarantined for the migrated journeys. Remaining gaps are transport timeout, genuine browser proof, fixture breadth, continuity and source validation.",
+      "priority": "Keep quarantined paths closed; leave optional browser proof explicit and address the next privacy and evidence-integrity gaps without expanding tool or data scope.",
+      "nodeIds": ["problem_timeout", "problem_evidence_loss", "problem_fixture_lock", "problem_reasoning_collision", "problem_analytics_collision", "problem_storage_collision", "problem_continuity", "problem_validation", "test_only_proof"],
+      "positions": {
+        "problem_timeout": [16, 20], "problem_evidence_loss": [50, 20], "problem_fixture_lock": [84, 20],
+        "problem_reasoning_collision": [16, 50], "problem_analytics_collision": [50, 50], "problem_storage_collision": [84, 50],
+        "problem_continuity": [16, 80], "problem_validation": [50, 80], "test_only_proof": [84, 80]
+      },
+      "edges": [
+        {"from": "problem_timeout", "to": "problem_evidence_loss", "status": "Broken", "label": "final answer boundary"},
+        {"from": "problem_fixture_lock", "to": "problem_reasoning_collision", "status": "Duplicated", "label": "fixture work expands inward"},
+        {"from": "problem_analytics_collision", "to": "problem_storage_collision", "status": "Working", "label": "authorities separated"},
+        {"from": "problem_storage_collision", "to": "problem_continuity", "status": "Partially built"},
+        {"from": "problem_continuity", "to": "problem_validation", "status": "Duplicated"},
+        {"from": "problem_validation", "to": "test_only_proof", "status": "Test-only", "label": "proof boundary"}
+      ]
+    },
+    {
+      "id": "dependencies",
+      "label": "Dependencies",
+      "title": "How the major components depend on one another",
+      "summary": "The governed deterministic core now feeds the migrated displays and evidence-bound optional chat contract. Genuine browser delivery and broad-fixture performance remain separate proof gaps.",
+      "priority": "Keep the deterministic chain and the thin external-Hermes boundary stable; validate remaining transports without reviving quarantined authorities.",
+      "nodeIds": ["imports", "canonical_db", "governed_engine", "evidence_ledger", "oha_boundary", "hermesctl", "external_hermes", "chat_store", "final_browser_failure", "legacy_analytics", "synthetic_runtime", "durable_synthesis"],
+      "positions": {
+        "imports": [10, 18], "canonical_db": [28, 18], "governed_engine": [46, 18], "evidence_ledger": [64, 18], "oha_boundary": [84, 18],
+        "legacy_analytics": [19, 53], "synthetic_runtime": [42, 53], "durable_synthesis": [65, 53],
+        "hermesctl": [84, 53], "external_hermes": [65, 84], "chat_store": [42, 84], "final_browser_failure": [19, 84]
+      },
+      "edges": [
+        {"from": "imports", "to": "canonical_db", "status": "Partially built"},
+        {"from": "canonical_db", "to": "governed_engine", "status": "Working"},
+        {"from": "governed_engine", "to": "evidence_ledger", "status": "Working"},
+        {"from": "evidence_ledger", "to": "oha_boundary", "status": "Partially built"},
+        {"from": "oha_boundary", "to": "hermesctl", "status": "Missing", "label": "general typed surface"},
+        {"from": "hermesctl", "to": "external_hermes", "status": "Unverified"},
+        {"from": "external_hermes", "to": "chat_store", "status": "Partially built", "label": "reply + verified receipt contract"},
+        {"from": "chat_store", "to": "final_browser_failure", "status": "Broken", "label": "HTTP 502", "stop": true},
+        {"from": "canonical_db", "to": "legacy_analytics", "status": "Test-only"},
+        {"from": "governed_engine", "to": "synthetic_runtime", "status": "Synthetic-only", "label": "historical fixture; retired"},
+        {"from": "synthetic_runtime", "to": "durable_synthesis", "status": "Synthetic-only", "label": "historical fixture; retired"},
+        {"from": "durable_synthesis", "to": "chat_store", "status": "Working", "label": "separate optional envelope; writes off"}
+      ]
+    },
+    {
+      "id": "recovery",
+      "label": "Recovery order",
+      "title": "The evidence-gated recovery sequence",
+      "summary": "The exact turn-binding fix is deployed and the clean gateway is active with all eight fictional tools. No tool or Telegram call occurred during deployment, so renderer execution remains a fresh-canary gate.",
+      "priority": "Send the full fictional snapshot question now. Pass only if a compact `Data & evidence disclosure` appears first and the optional response begins with plugin-prefixed `Hermes interpretation`; do not send `Training.` if legacy YAML follows prose again.",
+      "nodeIds": ["recovery_1", "recovery_2", "recovery_3", "recovery_4", "recovery_5", "recovery_6", "recovery_7"],
+      "positions": {
+        "recovery_1": [13, 28], "recovery_2": [38, 28], "recovery_3": [63, 28], "recovery_4": [88, 28],
+        "recovery_5": [20, 74], "recovery_6": [50, 74], "recovery_7": [80, 74]
+      },
+      "edges": [
+        {"from": "recovery_1", "to": "recovery_2", "status": "Working", "label": "first user-visible proof"},
+        {"from": "recovery_2", "to": "recovery_3", "status": "Working", "label": "genuine Telegram follow-up"},
+        {"from": "recovery_3", "to": "recovery_4", "status": "Working", "label": "corrected localhost dashboard parity"},
+        {"from": "recovery_4", "to": "recovery_5", "status": "Working", "label": "current parity and proof taxonomy"},
+        {"from": "recovery_5", "to": "recovery_6", "status": "Partially built"},
+        {"from": "recovery_6", "to": "recovery_7", "status": "Duplicated", "label": "quarantine before delete"}
+      ]
+    }
+  ]
+}

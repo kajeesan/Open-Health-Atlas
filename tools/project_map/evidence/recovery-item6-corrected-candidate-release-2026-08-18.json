@@ -1,0 +1,340 @@
+{
+  "contract": "openhealthatlas-recovery-item6-corrected-candidate-release-record-v2",
+  "recorded_on": "2026-08-18",
+  "status": "pushed_corrected_candidates_not_deployed",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-candidate-release-2026-08-18.json",
+    "record_commit": "49db9a76d31d29b72b46beb5b2b609653642f09b",
+    "sha256": "sha256:dc5103c745db6cbc843908c9971f64360baa75501a9096ccd6c231d8154838e6",
+    "byte_preserved": true
+  },
+  "scope": {
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "range_from": "2026-03-02",
+    "range_to": "2026-06-30",
+    "anchor_date": "2026-06-30",
+    "private_data_accessed": false,
+    "accepted_v5_database_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false,
+    "browser_chat_required": false
+  },
+  "candidate_commits": {
+    "openhealthatlas": {
+      "repository": "https://github.com/kajeesan/OpenHealthAtlas.git",
+      "branch": "codex/recovery-item6-evidence-v2",
+      "previous_candidate": "9ee8a6f816e8430554766d5bd6f9402e316c2057",
+      "previous_release_record_commit": "49db9a76d31d29b72b46beb5b2b609653642f09b",
+      "corrected_candidate": "7c19cb383e77ff8c65bee412bcb22499b876fbed",
+      "git_tree_id": "a61f9e724c75151404a41379d7dbb6184ae82d2d",
+      "remote_branch_contains_candidate": true
+    },
+    "external_hermes": {
+      "repository": "https://github.com/kajeesan/hermes-agent.git",
+      "branch": "codex/oha-recovery-delivery-contract",
+      "previous_candidate": "19a8429bdad0803a4168c27326c5ae82a82fd7be",
+      "corrected_candidate": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "git_tree_id": "d75b6f8d2da5d932cf13eeb2fca057c8e9959fab",
+      "remote_branch_contains_candidate": true
+    }
+  },
+  "openhealthatlas_integrity": {
+    "manifest_path": "RELEASE_MANIFEST.tsv",
+    "manifest_sha256": "sha256:f2b5c34ef7793f569aa22339ebbabf547e01a7ef7ae8ceb5475eace55480de5a",
+    "candidate_commit": "7c19cb383e77ff8c65bee412bcb22499b876fbed",
+    "verified_entry_count": 390,
+    "clean_checkout_verification": true,
+    "all_staged_sources_present": true,
+    "manifest_covers_every_tracked_candidate_file_except_itself": true
+  },
+  "artifact_sha256": {
+    "openhealthatlas_changed_files": {
+      "RELEASE_MANIFEST.tsv": "sha256:f2b5c34ef7793f569aa22339ebbabf547e01a7ef7ae8ceb5475eace55480de5a",
+      "app/static/js/readiness_detail.js": "sha256:d365da77f424871c7eb42b8d2fb29496e8c4b4240db11732c1a629898639916b",
+      "deploy/hermes-openhealthatlas-delivery-plugin/README.md": "sha256:e1ace4ecb9f639e71120ee4a8c238ae37e76c4b0c7f786790960e39481348db2",
+      "deploy/hermes-openhealthatlas-delivery-plugin/__init__.py": "sha256:c76f3aaee1638aa0772fad45bbfc3245991a1d1fb7869734c8ca2bbaf0c29ff8",
+      "deploy/hermes-openhealthatlas-skill.md": "sha256:c90ed99f6e993acff96f3de0f6b6ae0a21b5434ec88670c5f0ef7872dc3bade6",
+      "deploy/hermesctl": "sha256:273ac7b599159a2c3431c1fbd27dc527bf136770eee380fcb96883f2bff3fe0b",
+      "deploy/install-openhealthatlas-delivery-plugin.sh": "sha256:5dde15515ca51bd390a82d65911c393f106999584098107fe355dfcbdaff8f80",
+      "deploy/install-openhealthatlas-tool.sh": "sha256:610edbc60cdcd82cd66e8e3f706a1c2d46b08c16defca03b5c0d36cfe1aa9dc6",
+      "deploy/recovery-item6-deployment-runbook.md": "sha256:9b9cd55b730756bd93216fe947e2491388ea9fb2613d076305058e1a1005079f",
+      "deploy/recovery-item6-staging-manifest.json": "sha256:eba2fc3e447bb00dd16c9f9567fa826c2bfd6fdc536986616d46cc73ee3dabd1",
+      "tests/test_hermesctl.py": "sha256:d7098049da7367ca11d23caf986f4d70551601097eef16cfa2db98ecb1048d59",
+      "tests/test_openhealthatlas_delivery_plugin.py": "sha256:94cf1af5337ed2a222b5d78a0c2680b458adbadce527534b585d5f4c6a4d1840",
+      "tests/test_openhealthatlas_tool.py": "sha256:056da8fb22c74c7e575ddb9bb0c55fceb93bb12f5db5470510d90a91f98ec926",
+      "tests/test_project_map_item6.py": "sha256:9ec419f3e257fb254c82234d4f706fa936670e571059a9de53c796491b1d9c4e",
+      "tests/test_recovery_api.py": "sha256:9b271041b6db60f347312acfc052a3e0b92e18f27e1d24eced5a32dbf887e5be",
+      "toolkit/health.py": "sha256:ae5c7bb08af429c05f3e98378c065e7972e16c9cef00a5c73af1ca8d7cb7a10b",
+      "toolkit/hermes_insights/readiness_ancestry.py": "sha256:60e421cfee0612f44d80a15602321ef9c8e725dcf32a8006d020503996753804",
+      "toolkit/tests/test_readiness.py": "sha256:affb8071b4a624783275809635ef0bc13e362e3d0b6ed1cbe08aef4af0d9b194"
+    },
+    "external_hermes_runtime": {
+      "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+      "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+      "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+      "gateway/run.py": "sha256:8cb9edc5dda013a26e2d55e88a89e3a6b57700cf51fb839d9167c8988c7791c0",
+      "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+      "model_tools.py": "sha256:1b20a925f60e8d884b87412662606944e282d135c521420e48ec5a9a66a5353c",
+      "plugins/platforms/telegram/adapter.py": "sha256:b96059a2dd20d0528b3f45146803752888ccbd386bb438b67a3cc3d851ec6711"
+    },
+    "verification_artifacts": {
+      "scripts/run_tests.sh": "sha256:285c9fea471cf95a9fc86756066f5e758aa5c64705727a9027d567537aa2640b",
+      "tests/gateway/test_base_topic_sessions.py": "sha256:c76475178a4f6f71583f3ec738daed26b44245a6dc65ab6b9d2668853a32052f",
+      "tests/gateway/test_required_delivery.py": "sha256:8475c70a025f18d4aa5c74c370ba9656812821d4bc58c6cacf47fdefcbdaef83",
+      "tests/gateway/test_telegram_required_delivery.py": "sha256:cd63bae1cadc73f4fc8e69a42db4ef8b75ae8dc0522d052da9d35c74bb773b68",
+      "tests/integration/test_openhealthatlas_required_delivery.py": "sha256:e25a691c15d3c3c43ad7ea824e7e6afaf32245d198e972377903a3d675c0472f"
+    }
+  },
+  "accepted_topology": {
+    "source_root": "/opt/openhealthatlas-fictional",
+    "installed_profile_root": "/usr/local/lib/hermes-openhealthatlas-fictional",
+    "fixture_root": "/var/lib/openhealthatlas-fictional",
+    "mcp_server_alias": "openhealthatlas_fictional",
+    "observed_recovery_tool_names": [
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_snapshot",
+      "mcp_openhealthatlas_fictional_openhealthatlas_recovery_detail"
+    ],
+    "future_live_preflight_mismatch_action": "fail_closed_before_copy_configuration_or_restart",
+    "external_hermes_home_must_be_explicit": true
+  },
+  "deterministic_development_v6": {
+    "status": "insufficient_data",
+    "sleep_score": 92,
+    "sleep_hours": 7.09,
+    "excluded_components": {
+      "hrv": {
+        "observed_same_source_baseline_rows": 10,
+        "required_same_source_baseline_rows": 14,
+        "other_source_rows_excluded": 86
+      },
+      "rhr": {
+        "observed_same_source_baseline_rows": 10,
+        "required_same_source_baseline_rows": 14,
+        "other_source_rows_excluded": 86
+      }
+    },
+    "input_fingerprint": "sha256:05a680875d5e32d4e72e2e6c86014f4bab4b19c736dcd5a352e7ab637f64bded",
+    "policy_id": "openhealthatlas-readiness-policy",
+    "policy_version": "1.0.0",
+    "policy_sha256": "sha256:9668f604a6c2d09cb9f92bb8f40ab30afb008d55b0547a5abd09514233e59613",
+    "public_evidence_identity": "sha256:e21d6b99aa5fd66ca40c7fc9abfbebc520651a61a38620e270315424a9063196",
+    "schema_version": 6,
+    "database_hash_and_stats_unchanged": true,
+    "sqlite_companion_files_observed": false
+  },
+  "cross_repository_delivery_proof": {
+    "status": "Working_in_tracked_local_harness",
+    "deterministic_input_kind": "temporary_schema_v5_fictional_fixture",
+    "accepted_v5_database_accessed": false,
+    "production_openhealthatlas_adapter_invoked": true,
+    "production_openhealthatlas_recovery_projection_invoked": true,
+    "production_collector_entrypoint": "model_tools._emit_post_tool_call_hook",
+    "renderer_id": "openhealthatlas-recovery-delivery",
+    "renderer_version": "1.0.0",
+    "telegram_adapter_entrypoint": "TelegramAdapter.send",
+    "telegram_bot_api_network_mocked": true,
+    "mcp_stdio_started": false,
+    "receipt_persistence_suppressed": true,
+    "exact_completion_binding_verified": true,
+    "disclosure_before_optional_prose": true,
+    "optional_prose_visible_label": "Hermes interpretation",
+    "governed_payload_validation_scope": "complete_pre_format_text",
+    "telegram_formatting_and_chunk_delivery_atomic": false,
+    "wrong_session_rejected": true,
+    "wrong_turn_rejected": true,
+    "wrong_tool_rejected": true,
+    "wrong_chat_rejected": true,
+    "wrong_topic_rejected": true,
+    "direct_send_replay_rejected": true,
+    "ambiguous_first_send_replay_rejected": true,
+    "raw_note_canary_absent": true,
+    "note_derived_secret_absent": true,
+    "private_database_and_ancestry_identities_absent": true,
+    "interpretation_writeback_disabled": true,
+    "assessment_state": "insufficient_data"
+  },
+  "verification_gates": [
+    {
+      "gate_id": "openhealthatlas_readiness_complete",
+      "repository": "openhealthatlas",
+      "candidate_commit": "7c19cb383e77ff8c65bee412bcb22499b876fbed",
+      "command": "<openhealthatlas-python> -m pytest -q toolkit/tests/test_readiness.py",
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 7.49,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_recovery_focused",
+      "repository": "openhealthatlas",
+      "candidate_commit": "7c19cb383e77ff8c65bee412bcb22499b876fbed",
+      "command": "<openhealthatlas-python> -m pytest -q toolkit/tests/test_readiness.py toolkit/tests/test_feature_frame_readiness.py toolkit/tests/test_interpretation_recovery.py tests/test_readiness_ancestry.py tests/test_openhealthatlas_tool.py tests/test_openhealthatlas_delivery_plugin.py tests/test_recovery_api.py tests/test_recovery_sleep_stage_colors.py tests/test_project_map_item6.py tests/test_shell.py tests/test_initialization.py tests/test_hermesctl.py",
+      "passed": 271,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 15.35,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "openhealthatlas_socket_and_e2e",
+      "repository": "openhealthatlas",
+      "candidate_commit": "7c19cb383e77ff8c65bee412bcb22499b876fbed",
+      "command": "<openhealthatlas-python> -m pytest -q tests/test_bridge.py tests/e2e/test_hermes_green_days_acceptance.py",
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 237.12,
+      "fictional_data_only": true,
+      "sandbox_note": "rerun outside the restricted AF_UNIX sandbox",
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_full_telegram",
+      "repository": "external_hermes",
+      "candidate_commit": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "command": "rg --files tests/gateway | rg '/test_telegram[^/]*\\.py$' | xargs scripts/run_tests.sh -q",
+      "passed": 979,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 21.8,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_model_tools_and_turn_finalizer",
+      "repository": "external_hermes",
+      "candidate_commit": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "command": "scripts/run_tests.sh tests/test_model_tools.py tests/agent/test_turn_finalizer_cleanup_guard.py tests/agent/test_turn_finalizer_final_response_persistence.py tests/agent/test_turn_finalizer_interrupt_alternation.py -q",
+      "passed": 42,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 26.7,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_plugin_and_required_delivery",
+      "repository": "external_hermes",
+      "candidate_commit": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "command": "OPENHEALTHATLAS_CHECKOUT=<openhealthatlas-candidate-checkout> scripts/run_tests.sh tests/hermes_cli/test_plugins.py tests/gateway/test_required_delivery.py tests/gateway/test_telegram_required_delivery.py tests/gateway/test_base_topic_sessions.py tests/integration/test_openhealthatlas_required_delivery.py -q",
+      "passed": 134,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 26.6,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "external_hermes_adjacent_gateway",
+      "repository": "external_hermes",
+      "candidate_commit": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "command": "scripts/run_tests.sh tests/gateway/test_platform_base.py tests/gateway/test_delivery.py tests/gateway/test_telegram_send_path_health.py tests/gateway/test_telegram_overflow_partial.py tests/gateway/test_base_topic_sessions.py -q",
+      "passed": 222,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 0.6,
+      "fictional_data_only": true,
+      "result": "pass"
+    },
+    {
+      "gate_id": "tracked_cross_repository_delivery",
+      "repository": "external_hermes",
+      "candidate_commit": "39dcf108db3071546c15df49fe4fbfa057011db9",
+      "command": "OPENHEALTHATLAS_CHECKOUT=<openhealthatlas-candidate-checkout> scripts/run_tests.sh tests/integration/test_openhealthatlas_required_delivery.py -q",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 1.4,
+      "fictional_data_only": true,
+      "result": "pass"
+    }
+  ],
+  "browser_acceptance": {
+    "status": "Working",
+    "proof_level": "localhost_fictional_development_v6",
+    "url": "http://127.0.0.1:5123/recovery/readiness",
+    "viewports": [
+      {
+        "width": 1280,
+        "height": 720,
+        "horizontal_overflow": false,
+        "console_warning_or_error_count": 0
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "horizontal_overflow": false,
+        "console_warning_or_error_count": 0
+      }
+    ],
+    "visible_status": "insufficient_data",
+    "visible_sleep_score": 92,
+    "visible_hrv_gate": "10/14 with 86 other-source rows excluded",
+    "visible_rhr_gate": "10/14 with 86 other-source rows excluded",
+    "policy_and_public_evidence_identity_visible": true,
+    "text_wrapping_verified": true,
+    "superseded_58_score_visible": false,
+    "raw_qualitative_text_visible": false,
+    "private_identity_visible": false,
+    "accepted_v5_runtime_claimed": false
+  },
+  "privacy_verification": {
+    "openhealthatlas_candidate_delta_changed_paths": 18,
+    "openhealthatlas_candidate_delta_findings": 0,
+    "external_hermes_candidate_delta_changed_paths": 9,
+    "external_hermes_candidate_delta_findings": 0,
+    "clean_openhealthatlas_candidate_tracked_files": 391,
+    "clean_openhealthatlas_candidate_findings": 1,
+    "clean_candidate_finding_scope": "preserved_historical_evidence_only",
+    "preserved_historical_evidence_path": "tools/project_map/evidence/fictional-primary-telegram-proof-levels-2026-08-17.json"
+  },
+  "test_environment": {
+    "openhealthatlas_isolated_worktree_had_local_virtualenv": false,
+    "openhealthatlas_existing_project_virtualenv_reused": true,
+    "external_hermes_dependency_downloads_performed": true,
+    "external_hermes_explicit_dependencies_added_to_disposable_virtualenv": [
+      "requests==2.33.0",
+      "python-dotenv==1.2.2"
+    ],
+    "external_hermes_transitive_dependencies_added_to_disposable_virtualenv": [
+      "charset_normalizer==3.5.1",
+      "urllib3==2.7.0"
+    ]
+  },
+  "release_boundaries": {
+    "deployment_authorized": false,
+    "staging_only": true,
+    "external_hermes_home_resolved": false,
+    "external_hermes_home_resolution_source": "future_live_service_configuration",
+    "legacy_installer_allowed": false,
+    "real_data_governance_status": "unresolved_and_activation_denied",
+    "calculation_and_evidence_identity_owner": "OpenHealthAtlas",
+    "conversation_reasoning_and_explanation_owner": "external_Hermes"
+  },
+  "deployment": {
+    "performed": false,
+    "vps_accessed": false,
+    "services_restarted": false,
+    "fault_injection_performed": false,
+    "live_telegram_acceptance_performed": false,
+    "accepted_v5_live_database_or_live_private_ancestry_artifact_accessed": false
+  },
+  "remaining_limitations": [
+    "The accepted-v5 live database and private ancestry artifact have not been accessed or verified by this corrected candidate round.",
+    "The corrected gateway and plugin have not been staged or executed on the VPS.",
+    "No live Telegram message or fault-injection run has been performed.",
+    "The live external-Hermes home and service topology must be resolved and compared with the accepted fictional topology before deployment.",
+    "Consent, retention, provider-transfer and deletion decisions remain unresolved, so real-data activation stays denied.",
+    "Bounded optional-prose checks do not semantically verify every natural-language statement."
+  ],
+  "overall_claim": {
+    "recovery_item_4": "Working_for_localhost_fictional_development_v6_parity",
+    "recovery_item_6": "Partially built",
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

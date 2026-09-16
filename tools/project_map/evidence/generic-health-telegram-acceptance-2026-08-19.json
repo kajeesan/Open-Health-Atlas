@@ -1,0 +1,71 @@
+{
+  "contract": "openhealthatlas-generic-health-telegram-acceptance-v1",
+  "recorded_on": "2026-08-19",
+  "status": "Working",
+  "journey": {
+    "question": "Using only the OpenHealthAtlas fictional fixture, compare the fictional person's sleep and protein intake during June 2026. Tell me what changed, what remains uncertain, and cite the deterministic evidence.",
+    "transport": "Telegram through genuine external Hermes gateway",
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "range": {
+      "from": "2026-06-01",
+      "to": "2026-06-30"
+    },
+    "owner_visible_response_supplied_in_acceptance_task": true
+  },
+  "deterministic_result": {
+    "operation": "health_evidence",
+    "status": "ok",
+    "verified_references": 1,
+    "requested_references": 1,
+    "result_identity": "sha256:37ddcd61a4dc90150f34c70148e9d892c0d10b5eb2e97ec6bca5031238ad013f",
+    "query_result_identity": "sha256:5793b83ef7f12f8b82564582513f0a7d029fd996ec892edf3aa55ca3c34eb1ac",
+    "registry_identity": "sha256:c5c50395d29c65038f1295071579d311e8d66fbb09e7250491394a380766ee7c",
+    "engine_identity": "sha256:3d74b74ce2d26e28053db64db2dba7d90fbea74e738908d27723f342de85cae8",
+    "displayed_rows": 5,
+    "total_rows": 5,
+    "interpretation_writeback": "disabled"
+  },
+  "hermes_interpretation": {
+    "delivered": true,
+    "omitted_fallback_used": false,
+    "label": "Hermes interpretation (model-generated; deterministic values above are authoritative)",
+    "natural_numeric_date_prose_delivered": true,
+    "combined_sleep_and_protein_evidence": true,
+    "identified_sleep_duration_and_quality_improvement": true,
+    "identified_mixed_sleep_efficiency": true,
+    "identified_stable_typical_protein_and_weaker_low_end_consistency": true,
+    "identified_missing_cronometer_data": true,
+    "identified_missing_personal_protein_target": true,
+    "explicitly_refused_causal_inference": true
+  },
+  "authority_boundary": {
+    "deterministic_disclosure_rendered_first": true,
+    "deterministic_block_authoritative": true,
+    "hermes_prose_explicitly_model_generated": true,
+    "model_prose_machine_verified": false,
+    "numeric_date_exact_line_restriction_active": false,
+    "replacement_numeric_verifier_active": false
+  },
+  "runtime_continuity": {
+    "gateway_pid": 701217,
+    "gateway_state": "active_running",
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.2",
+    "database_sha256_before_and_after": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "database_metadata_unchanged": true,
+    "ancestry_sidecar_sha256_before_and_after": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "ancestry_sidecar_metadata_unchanged": true,
+    "schema_version": 5,
+    "synthesis_runs": 0,
+    "private_health_data_accessed_by_acceptance_verification": false
+  },
+  "claim": {
+    "fictional_generic_telegram_happy_path": "Working",
+    "openhealthatlas_general_surface": "Working for the accepted fictional comparison",
+    "item_6_global": "Partially built",
+    "product_release_certified": false
+  },
+  "non_blocking_observation": {
+    "note": "Hermes repeated a deterministic heading and evidence identities inside its labelled prose. This is presentation redundancy, not an acceptance failure and not authorization to add a new prose restriction."
+  }
+}

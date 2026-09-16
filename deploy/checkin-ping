@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# §4d tap-first energy/focus/water check-in. The action worker sends one
+# inline-keyboard card; button callbacks return through the existing Hermes
+# gateway and quantitative writes stay on the validated health.py path.
+#
+# Slots map to the insight engine's within-day buckets (checkins am/pm/eve):
+#   am — mid-morning reading (dose onset window)
+#   pm — mid-afternoon reading (wear-off / crash detection, the high-value one)
+# Tone rule: an unanswered ping is fine — never guilt, never repeat.
+set -euo pipefail
+
+SLOT="${1:-pm}"
+case "$SLOT" in
+  am|pm) ;;
+  *) echo "usage: checkin-ping am|pm" >&2; exit 2 ;;
+esac
+
+ACTION_BIN=/usr/local/lib/hermes-bridge/hermes-telegram-actions
+[ -x "$ACTION_BIN" ] || {
+  echo "tap action worker unavailable" >&2
+  exit 1
+}
+exec "$ACTION_BIN" send-checkin --slot "$SLOT"

@@ -1,0 +1,73 @@
+{
+  "contract": "openhealthatlas-generic-renderer-v101-vps-deployment-v1",
+  "recorded_on": "2026-08-19",
+  "status": "generic_renderer_v101_active_exact_twelve_tools_continuity_passed",
+  "supersedes_attempt": {
+    "path": "tools/project_map/evidence/generic-renderer-v101-third-reload-rolled-back-2026-08-19.json",
+    "record_commit": "b2789ae969b88d390d40fbd3318d31c417f43afb",
+    "byte_preserved": true
+  },
+  "authorization_scope": {
+    "one_corrected_gateway_stop_start": true,
+    "telegram_message_sent": false,
+    "private_health_data_accessed": false,
+    "writeback_enabled": false,
+    "real_data_enabled": false
+  },
+  "deployment": {
+    "openhealthatlas_commit": "d7ab4575d486827d30c8043d62c2aed09b05efe1",
+    "deployment_script_sha256": "sha256:24a7e90a41d2c73f00cd28311806b6384846d48ed2daf6cc6fd56df3ee2efdb3",
+    "candidate_archive_sha256": "sha256:bffc6edd76bf9cf7e5f22636fdb78707a195b583329d6db6d76bb83663ea141f",
+    "backup_root": "[REDACTED backup-location 05]",
+    "backup_archive_sha256": "sha256:d146e63314f558021c03251ddcb3d7c93fffd7b6ec828840812531bf8689a4bc",
+    "backup_inventory_sha256": "sha256:1a018ea9ab38d6158019c9ca83b925ce0c343f442467351597a37b5417647faa",
+    "restore_rehearsal": "passed",
+    "stopped_state_normalized": "failed_plus_MainPID_0_to_inactive",
+    "rollback_triggered": false
+  },
+  "deployed_artifacts": {
+    "/opt/openhealthatlas-fictional/toolkit/hermes_insights/hermes_surface.py": "sha256:a76c9e35dc72d0c760b29a6889b4ec9ee9895d4b5fa522e0a245c508aded1853",
+    "/opt/openhealthatlas-fictional/toolkit/DEPLOYED.manifest": "sha256:222682ecc8c4a7f09ef96f38dd9960654dd012fca16b90a113758c827040843c",
+    "/usr/local/lib/hermes-openhealthatlas-fictional/hermes-openhealthatlas-mcp": "sha256:a6564c74f0b3a039a75fe67fbc0e333a05cb9eea2b6e1cb0eaffbc5c42d8302c",
+    "<redacted-local-artifact-1>": "sha256:8913d08f84f5b25da97caeebddb77e5f39611b0e1d0ea99ed36a81344fba0cce",
+    "<redacted-local-artifact-2>": "sha256:ff6770846872cc4029fbd9dfecbbd35edb4377ee508a37965a8df9280d266681"
+  },
+  "runtime": {
+    "gateway_unit": "hermes-gateway.service",
+    "main_pid": 699428,
+    "active_state": "active",
+    "sub_state": "running",
+    "service_result": "success",
+    "loopback_health": "ok",
+    "working_directory": "[REDACTED release-location 01]",
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.1",
+    "renderer_marker_at": "2026-08-19T12:24:54.668Z",
+    "registered_fictional_tools": 12,
+    "exact_tool_set_verified": true,
+    "registry_marker_at": "2026-08-19T12:24:57.995Z"
+  },
+  "fictional_smoke": {
+    "before_gateway_start": "passed",
+    "after_gateway_start": "passed",
+    "allowed_claims": 14,
+    "exact_claim_delivery": "passed",
+    "disclosure_only_fallback": "passed",
+    "verified_references": 1,
+    "telegram_transport_used": false
+  },
+  "protected_state": {
+    "database_sha256": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "ancestry_sidecar_sha256": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "schema_version": 5,
+    "synthesis_runs": 0,
+    "interpretation_writeback": "disabled",
+    "real_data_activation": "disabled"
+  },
+  "remaining_acceptance": {
+    "live_generic_telegram_comparison": "Unverified",
+    "fault_injection": "Unverified",
+    "real_data": "disabled_not_in_scope",
+    "item_6_global": "Partially built"
+  },
+  "next_user_action": "Send one fictional generic comparison question only after separate Telegram acceptance authorization."
+}

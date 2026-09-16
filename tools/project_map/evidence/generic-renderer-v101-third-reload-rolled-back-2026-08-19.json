@@ -1,0 +1,68 @@
+{
+  "contract": "openhealthatlas-generic-renderer-v101-reload-attempt-v3",
+  "recorded_on": "2026-08-19",
+  "status": "candidate_not_installed_stopped_failed_state_rejected_prior_runtime_restored",
+  "supersedes_attempt": {
+    "path": "tools/project_map/evidence/generic-renderer-v101-second-reload-rolled-back-2026-08-19.json",
+    "record_commit": "d1cc13e389d707a09cec19bb320b1b35bfae875b",
+    "byte_preserved": true
+  },
+  "candidate": {
+    "openhealthatlas_commit": "d7ab4575d486827d30c8043d62c2aed09b05efe1",
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.1",
+    "candidate_files_installed": false,
+    "candidate_started": false
+  },
+  "authorized_attempt": {
+    "deployment_script_sha256": "sha256:e5bcc6593d017f2f1653b08bb15731fc1cbf29fa9616ab284331b689fdb60b1b",
+    "backup_root": "[REDACTED backup-location 04]",
+    "backup_archive_sha256": "sha256:d146e63314f558021c03251ddcb3d7c93fffd7b6ec828840812531bf8689a4bc",
+    "backup_inventory_sha256": "sha256:1a018ea9ab38d6158019c9ca83b925ce0c343f442467351597a37b5417647faa",
+    "restore_rehearsal": "passed",
+    "old_pid": 695833,
+    "stop_wait_seconds": 105,
+    "failure_gate": "the gateway process was stopped but the unit reached failed rather than inactive",
+    "telegram_message_sent": false
+  },
+  "root_cause": {
+    "systemd_stop_started_at": "2026-08-19T12:05:02Z",
+    "main_process_exited_at": "2026-08-19T12:05:03Z",
+    "main_process_exit_status": "1/FAILURE",
+    "systemd_reported_stopped": true,
+    "observed_terminal_state": "failed",
+    "observed_main_pid": 0,
+    "script_required_state": "inactive with MainPID=0",
+    "why_waiting_longer_did_not_help": "the state predicate excluded failed even after the process was fully stopped"
+  },
+  "rollback_recovery": {
+    "prior_files_restored_or_unchanged": true,
+    "manual_action_within_authorized_rollback": "reset failed state and start the restored prior gateway once",
+    "active_pid": 698596,
+    "active_state": "active",
+    "sub_state": "running",
+    "loopback_health": "ok",
+    "working_directory": "[REDACTED release-location 01]",
+    "registered_fictional_tools": 12,
+    "exact_tool_set_verified": true,
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.0",
+    "gateway_active_agents": 0
+  },
+  "protected_state": {
+    "database_sha256": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "database_metadata_unchanged": true,
+    "ancestry_sidecar_sha256": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "ancestry_sidecar_metadata_unchanged": true,
+    "schema_version": 5,
+    "synthesis_runs": 0,
+    "sqlite_companions_absent": true,
+    "interpretation_writeback": "disabled",
+    "real_data_activation": "disabled",
+    "private_health_data_accessed": false
+  },
+  "next_correction": {
+    "product_code_change_required": false,
+    "deployment_script_change": "after an explicit stop, treat MainPID=0 plus failed as a stopped state, run systemctl reset-failed, then require inactive plus MainPID=0 before staging",
+    "additional_restart_requires_owner_approval": true,
+    "do_not_repeat_same_105_second_check": true
+  }
+}

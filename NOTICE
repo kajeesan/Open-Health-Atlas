@@ -1,0 +1,18 @@
+Open Health Atlas
+Copyright 2026 Kajeesan Jeevendra
+
+OpenHealthAtlas was originally designed and created by Kajeesan Jeevendra.
+The original product architecture, privacy and provenance model, validated data
+workflows, deterministic analysis integration, interpretation boundaries, and
+user experience were created and assembled by Kajeesan Jeevendra through an
+AI-assisted development process.
+
+Public repository: https://github.com/kajeesan/Open-Health-Atlas
+
+Original project code is distributed under the MIT License. See LICENSE for
+the copyright notice, permission notice and terms. This creator statement
+does not add a separate licensing condition.
+
+This product includes third-party software. Its attribution and retained
+notices are documented in THIRD_PARTY_NOTICES.md and under
+app/static/vendor/.

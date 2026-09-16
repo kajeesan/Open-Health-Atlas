@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""One-time Google Health API OAuth bootstrap.
+
+Run as root on the deployment host. It writes /etc/hermes/ghealth.json (0600)
+for deploy/ghealth-sync. Complete these provider-console steps first:
+  1. Google Cloud project with the Google Health API enabled,
+  2. OAuth client (Web application) with redirect URI http://localhost:8385
+     registered EXACTLY,
+  3. the three *.readonly scopes added on the Data Access page,
+  4. ★ the OAuth consent screen PUBLISHED TO PRODUCTION ★ — see below.
+
+Headless-host pattern: this script listens on localhost:8385 for Google's
+redirect. From a local workstation, open an SSH tunnel first:
+
+    ssh -L 8385:localhost:8385 <you>@<vps>
+
+then run this script inside that SSH session and open the printed URL in the
+local browser. Depending on the provider configuration, Google may show an
+unverified-app warning; after consent the browser lands on
+localhost:8385, which the tunnel delivers here.
+
+★★★ PRODUCTION-STATUS GOTCHA (do not skip) ★★★
+While the OAuth consent screen is in "Testing" status, Google EXPIRES REFRESH
+TOKENS AFTER 7 DAYS — the cron sync would silently die a week after this
+bootstrap. Publish the consent screen to "Production" status BEFORE running
+this script (Cloud Console → APIs & Services → OAuth consent screen →
+"Publish app"). Production status does NOT require Google verification/CASA
+for a private single-user installation; unverified apps remain user-capped.
+"""
+import argparse
+import getpass
+import http.server
+import json
+import os
+import secrets
+import stat
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+CONFIG = "/etc/hermes/ghealth.json"
+AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+# Must match deploy/ghealth-sync's SCOPES (readonly-only, three buckets).
+SCOPES = ("https://www.googleapis.com/auth/googlehealth.sleep.readonly "
+          "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly "
+          "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly")
+
+BANNER = """
+==============================================================================
+  BEFORE YOU CONTINUE — the 7-day token trap
+  If the OAuth consent screen is still in "Testing" status, the token this
+  script obtains will EXPIRE IN 7 DAYS and the sync will silently stop.
+  Publish it to "Production" first (Cloud Console -> APIs & Services ->
+  OAuth consent screen -> Publish app). No Google verification is needed
+  for a personal single-user app.
+==============================================================================
+"""
+
+
+class _Callback(http.server.BaseHTTPRequestHandler):
+    code = None
+    state = None
+
+    def do_GET(self):  # noqa: N802 — http.server API
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        if q.get("state", [None])[0] != _Callback.state:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"state mismatch - run ghealth-auth again")
+            return
+        _Callback.code = q.get("code", [None])[0]
+        self.send_response(200)
+        self.send_header("content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Consent received - you can close this tab. "
+                         b"Return to the SSH session.")
+
+    def log_message(self, *a):  # silence request logging
+        pass
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--client-id", required=True)
+    ap.add_argument(
+        "--client-secret-file",
+        help="root/user-owned mode-0600 file containing only the client secret; "
+             "when omitted, prompt without echo",
+    )
+    ap.add_argument("--port", type=int, default=8385,
+                    help="localhost callback port — must match the redirect "
+                         "URI registered in the Cloud Console (default 8385; "
+                         "NOT 53682, that's the pre-existing ghealth binary's)")
+    ap.add_argument("--config", default=CONFIG)
+    a = ap.parse_args()
+    if os.geteuid() != 0:
+        sys.exit("run as root — the config file must land root-owned 0600")
+    client_secret = _load_client_secret(a.client_secret_file)
+
+    print(BANNER)
+    input("Type Enter to confirm the app is in Production status... ")
+
+    redirect = f"http://localhost:{a.port}"
+    _Callback.state = secrets.token_urlsafe(16)
+    url = AUTH_URL + "?" + urllib.parse.urlencode({
+        "client_id": a.client_id, "redirect_uri": redirect,
+        "response_type": "code", "scope": SCOPES,
+        "access_type": "offline",   # ask for a refresh token
+        "prompt": "consent",        # force-issue one even if consented before
+        "state": _Callback.state,
+    })
+    print("\n1. Make sure your SSH session was opened with:  "
+          f"ssh -L {a.port}:localhost:{a.port} <you>@<vps>")
+    print("2. Open this URL in the browser on your OWN computer:\n")
+    print(url)
+    print("\n   (expect Google's 'unverified app' warning — Advanced -> continue)")
+    print(f"\nWaiting for the consent redirect on localhost:{a.port} ...")
+
+    srv = http.server.HTTPServer(("127.0.0.1", a.port), _Callback)
+    while _Callback.code is None:
+        srv.handle_request()
+    srv.server_close()
+
+    body = urllib.parse.urlencode({
+        "client_id": a.client_id, "client_secret": client_secret,
+        "code": _Callback.code, "grant_type": "authorization_code",
+        "redirect_uri": redirect,
+    }).encode()
+    req = urllib.request.Request(TOKEN_URL, data=body, headers={
+        "content-type": "application/x-www-form-urlencoded"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            tok = json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"code exchange failed ({e.code}): "
+                 f"{e.read().decode(errors='replace')[:400]}")
+    if not tok.get("refresh_token"):
+        sys.exit("Google returned no refresh_token — this usually means a "
+                 "previous grant exists; revoke the app at "
+                 "https://myaccount.google.com/permissions and run this again")
+
+    cfg = {"client_id": a.client_id, "client_secret": client_secret,
+           "refresh_token": tok["refresh_token"]}
+    fd = os.open(a.config, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(cfg, f, indent=2)
+    os.chmod(a.config, 0o600)   # O_CREAT mode is masked by umask — re-assert
+    print(f"\nWrote {a.config} (root, 0600).")
+    print(BANNER)   # repeat the 7-day trap AFTER success too — it matters
+    print("Next: install disabled with deploy/install-ghealth-sync.sh, then")
+    print("verify one manual run before explicitly enabling its timer.")
+
+
+def _load_client_secret(secret_file):
+    if secret_file is None:
+        value = getpass.getpass("Google OAuth client secret: ").strip()
+    else:
+        path = Path(secret_file)
+        try:
+            metadata = path.lstat()
+        except OSError as exc:
+            raise SystemExit(
+                f"client-secret file unavailable: {exc.__class__.__name__}"
+            ) from None
+        if path.is_symlink() or not stat.S_ISREG(metadata.st_mode):
+            raise SystemExit("client-secret file must be a regular non-symlink")
+        if metadata.st_mode & 0o077 or metadata.st_uid not in {0, os.geteuid()}:
+            raise SystemExit("client-secret file must be owner-controlled mode 0600")
+        value = path.read_text(encoding="utf-8").strip()
+    if not value or "\n" in value or "\r" in value:
+        raise SystemExit("client secret is empty or malformed")
+    return value
+
+
+if __name__ == "__main__":
+    main()

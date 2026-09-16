@@ -1,0 +1,39 @@
+# Hermes Control Panel — systemd unit.
+# Install the unit, configure /etc/hermes/panel.env, then explicitly enable it.
+# The app binds 127.0.0.1 only; use a separately configured TLS access layer.
+[Unit]
+Description=Hermes Control Panel (Flask/gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=panel
+Group=panel
+WorkingDirectory=/opt/hermes
+# Root-owned env file; panel-only secrets (SECRET_KEY etc.), never model API keys.
+EnvironmentFile=/etc/hermes/panel.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/hermes/.venv/bin/gunicorn --workers 2 --timeout 600 --bind 127.0.0.1:8100 wsgi:app
+Restart=on-failure
+RestartSec=3
+
+# --- Hardening ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=true
+# Adapt these example paths and the external environment file together. The
+# panel needs its directory writable for SQLite journal files, while the
+# canonical health database and vault receive narrower read-only bind mounts.
+ReadWritePaths=/var/lib/hermes/panel
+BindReadOnlyPaths=/var/lib/hermes/health.db /var/lib/hermes/vault
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

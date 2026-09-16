@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the optional Google Health sync four times daily
+
+[Timer]
+OnCalendar=*-*-* 03:45 UTC
+OnCalendar=*-*-* 09:45 UTC
+OnCalendar=*-*-* 15:45 UTC
+OnCalendar=*-*-* 21:45 UTC
+RandomizedDelaySec=5min
+Persistent=true
+Unit=hermes-ghealth-sync.service
+
+[Install]
+WantedBy=timers.target

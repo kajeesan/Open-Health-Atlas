@@ -1,0 +1,68 @@
+{
+  "contract": "openhealthatlas-recovery-item6-complete-release-tuple-v7",
+  "recorded_on": "2026-08-18",
+  "status": "self_contained_candidate_release_tuple_bound_not_deployed",
+  "supersedes": {
+    "path": "tools/project_map/evidence/recovery-item6-prestage-artifact-set-complete-no-deployment-2026-08-18.json",
+    "record_commit": "99320a2f65b3af051dbdd663d4911f042158cb44",
+    "sha256": "sha256:e62955df3f69da1a06c5cb4ea731e27faedb7b776da5f4d01faeab8506730c89",
+    "byte_preserved": true
+  },
+  "candidate_commits": {
+    "openhealthatlas_contract_candidate": "643b4dfe250fa4fdcf392dfb9b1d5c2cf1904006",
+    "openhealthatlas_git_tree_id": "918050f78de81de28625bf4d6d88baaa3d4948b9",
+    "external_hermes_combined_candidate": "add64cb09bac17df1aaf9a39848b01bdfc1198a0",
+    "external_hermes_git_tree_id": "fecece29b29189aee3de4ec8731a11412977442a"
+  },
+  "openhealthatlas_contract_sha256": {
+    "RELEASE_MANIFEST.tsv": "sha256:a1f70b070c88a0a93502298bbed88d311da7f1cf0c78bf96c48de0d8e1e59a3c",
+    "deploy/recovery-item6-deployment-runbook.md": "sha256:3d8ecdc7a04cbf8630bf8fab5d38fbb7fc087dab2f008d166c0b558bb8cb5d4c",
+    "deploy/recovery-item6-staging-manifest.json": "sha256:296e9bb1193b200c9630e30bb3b6fd61bdae5ff0cb84a39cbced7a91a4fc0d30",
+    "tests/test_openhealthatlas_tool.py": "sha256:b4c901f3a1ead3cab9a58001c15682730f3a91583da8103946c4ec27b1b40089"
+  },
+  "external_hermes_runtime_sha256": {
+    "agent/turn_finalizer.py": "sha256:1b9f3493b5f794538fb99557d23b690498a5ab8e068f7dfb5e38000232809aac",
+    "gateway/platforms/base.py": "sha256:0c6aef372c237557865f075730f82418bbb33de750fa31a735956e99433bb372",
+    "gateway/required_delivery.py": "sha256:31fd7012b8316a1cac46b8229f16438414133c4397398b4e8931d874dfb0c85e",
+    "gateway/run.py": "sha256:8cb9edc5dda013a26e2d55e88a89e3a6b57700cf51fb839d9167c8988c7791c0",
+    "hermes_cli/plugins.py": "sha256:354fc440332666d9f86f53d29bee5fc6e539f37770d3ce5262a05933b2c5eb28",
+    "model_tools.py": "sha256:1b20a925f60e8d884b87412662606944e282d135c521420e48ec5a9a66a5353c",
+    "plugins/platforms/telegram/adapter.py": "sha256:d8eb3186de8efb0b28bdcc9ab40e24f94dc82b2e05b4b13212504e142819d0d4",
+    "plugins/platforms/telegram/health_actions.py": "sha256:2e736acabec65c45ad33bd81a154ae42c5f5bd36294f24442dbec8acc175a78a"
+  },
+  "tuple_completeness": {
+    "latest_record_contains_openhealthatlas_manifest_hash": true,
+    "latest_record_contains_complete_openhealthatlas_contract_map": true,
+    "latest_record_contains_all_eight_external_hermes_runtime_hashes": true,
+    "latest_record_is_self_sufficient_for_runbook_candidate_verification": true
+  },
+  "live_gates": {
+    "inherit_from_v5_and_v6_by_supersession_hashes": true,
+    "prestage_backup_and_restore_rehearsal_complete": false,
+    "clean_release_materialized": false,
+    "mcp_alias_plugin_and_sidecar_staged": false,
+    "gateway_restarted_and_registry_verified": false,
+    "live_telegram_and_fault_injection_complete": false
+  },
+  "scope": {
+    "append_only_evidence_correction": true,
+    "vps_mutation_performed": false,
+    "staging_performed": false,
+    "configuration_changed": false,
+    "sidecar_generated": false,
+    "service_restarted": false,
+    "telegram_message_sent": false,
+    "private_health_data_accessed": false,
+    "interpretation_writeback_enabled": false,
+    "real_data_activation_allowed": false
+  },
+  "overall_claim": {
+    "recovery_item_6": "Partially built",
+    "clean_candidate_ready_for_review": true,
+    "prestage_contract_mechanically_closed": true,
+    "candidate_release_tuple_complete": true,
+    "ready_to_stage": false,
+    "ready_to_deploy": false,
+    "product_release_certified": false
+  }
+}

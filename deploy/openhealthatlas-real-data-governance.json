@@ -1,0 +1,60 @@
+{
+  "activation_allowed": false,
+  "contract": "openhealthatlas-real-data-governance-gate-v1",
+  "decisions": {
+    "consent": {
+      "required": [
+        "accountable_owner",
+        "authorization_id",
+        "authorization_version",
+        "data_classes",
+        "field_paths",
+        "date_range",
+        "destinations",
+        "revocation_process"
+      ],
+      "status": "unresolved"
+    },
+    "deletion": {
+      "required": [
+        "execution_owner",
+        "primary_store_process",
+        "derived_store_process",
+        "backup_purge_process",
+        "provider_deletion_process",
+        "confirmation_evidence",
+        "audit_retention_exception"
+      ],
+      "status": "unresolved"
+    },
+    "provider_transfer": {
+      "required": [
+        "purpose",
+        "provider",
+        "processor_role",
+        "destination_region",
+        "transfer_basis",
+        "subprocessors",
+        "provider_retention",
+        "prompt_and_log_handling"
+      ],
+      "status": "unresolved"
+    },
+    "retention": {
+      "required": [
+        "accountable_owner",
+        "raw_record_period",
+        "derived_record_period",
+        "audit_period",
+        "backup_period",
+        "expiry_enforcement",
+        "restoration_reconciliation"
+      ],
+      "status": "unresolved"
+    }
+  },
+  "fictional_tests_only": true,
+  "missing_unknown_or_unapproved_action": "deny",
+  "real_data_status": "blocked_unresolved_decisions",
+  "version": "1.0.0"
+}

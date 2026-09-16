@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}OpenHealthAtlas{% endblock %} · OpenHealthAtlas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/panel.css') }}">
+</head>
+<body data-display-name="{{ display_name }}">
+  <!-- Fixed backdrop layer: photo themes paint here (see #bg in panel.css) -->
+  <div id="bg"></div>
+  <!-- Icon sprite: simple stroke primitives, colored by currentColor -->
+  <svg width="0" height="0" class="icon-sprite" aria-hidden="true">
+    <defs>
+      <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></symbol>
+      <symbol id="i-training" viewBox="0 0 24 24"><rect x="2" y="8.5" width="3" height="7" rx="1"/><rect x="19" y="8.5" width="3" height="7" rx="1"/><rect x="6" y="6.5" width="3" height="11" rx="1"/><rect x="15" y="6.5" width="3" height="11" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/></symbol>
+      <symbol id="i-nutrition" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></symbol>
+      <symbol id="i-consistency" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L11 21l8-10.5h-6z"/></symbol>
+      <symbol id="i-mind" viewBox="0 0 24 24"><path d="M8.5 4.5A4 4 0 0 0 5 10.5a3.5 3.5 0 0 0 .5 5.5A3.5 3.5 0 0 0 12 18.5V5a2.5 2.5 0 0 0-3.5-.5z"/><path d="M12 5a2.5 2.5 0 0 1 3.5-.5A4 4 0 0 1 19 10.5a3.5 3.5 0 0 1-.5 5.5A3.5 3.5 0 0 1 12 18.5"/></symbol>
+      <symbol id="i-recovery" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></symbol>
+      <symbol id="i-care" viewBox="0 0 24 24"><path d="M12 3c3.2 3.9 5 6.4 5 8.8A5 5 0 0 1 7 11.8C7 9.4 8.8 6.9 12 3z"/><path d="M9.5 12.5a2.5 2.5 0 0 0 2.5 2.5"/></symbol>
+      <symbol id="i-plans" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></symbol>
+      <symbol id="i-models" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><line x1="9" y1="6" x2="9" y2="2.5"/><line x1="15" y1="6" x2="15" y2="2.5"/><line x1="9" y1="21.5" x2="9" y2="18"/><line x1="15" y1="21.5" x2="15" y2="18"/><line x1="6" y1="9" x2="2.5" y2="9"/><line x1="6" y1="15" x2="2.5" y2="15"/><line x1="21.5" y1="9" x2="18" y2="9"/><line x1="21.5" y1="15" x2="18" y2="15"/></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5.5h16v11H10l-4.5 4v-4H4z"/></symbol>
+      <symbol id="i-data" viewBox="0 0 24 24"><path d="M4 19V10"/><path d="M9.5 19V5"/><path d="M15 19v-7"/><path d="M20.5 19V8"/></symbol>
+      <symbol id="i-labs" viewBox="0 0 24 24"><path d="M12 3c3.5 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 18a5.5 5.5 0 0 1-5.5-5.5C6.5 10 8.5 7.2 12 3z"/></symbol>
+      <symbol id="i-insights" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 12 12 6.5"/><path d="M12 12 16 14.5"/><circle cx="12" cy="12" r="1.4" class="fill"/></symbol>
+      <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v3h16v-3"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" class="fill"/><circle cx="12" cy="12" r="1.6" class="fill"/><circle cx="19" cy="12" r="1.6" class="fill"/></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">⚕</span>
+        <span class="brand-name">OpenHealthAtlas</span>
+      </div>
+      <nav class="side-nav" aria-label="Main">
+        {% for endpoint, label, icon in NAV %}
+        <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint else '' }}">
+          <svg class="icon"><use href="#i-{{ icon }}"/></svg><span>{{ label }}</span>
+        </a>
+        {% endfor %}
+      </nav>
+      <div class="sidebar-foot">
+        <button id="settings-btn" class="ghost-btn" type="button" title="Theme & settings">
+          <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
+        </button>
+        {% if logged_in %}
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="ghost-btn" type="submit">
+            <svg class="icon"><use href="#i-export"/></svg><span>Sign out</span>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+
+    <nav class="tabbar" aria-label="Main">
+      {% for endpoint, label, icon in NAV if endpoint in MOBILE_TABS %}
+      <a href="{{ url_for(endpoint) }}" class="tab {{ 'active' if request.endpoint == endpoint else '' }}">
+        <svg class="icon"><use href="#i-{{ icon }}"/></svg><span>{{ label }}</span>
+      </a>
+      {% endfor %}
+      <button class="tab" type="button" id="more-btn" aria-expanded="false" aria-controls="more-sheet">
+        <svg class="icon"><use href="#i-more"/></svg><span>More</span>
+      </button>
+    </nav>
+
+    <div class="sheet" id="more-sheet" hidden>
+      <div class="sheet-panel">
+        {% for endpoint, label, icon in NAV if endpoint not in MOBILE_TABS %}
+        <a href="{{ url_for(endpoint) }}" class="sheet-link">
+          <svg class="icon"><use href="#i-{{ icon }}"/></svg><span>{{ label }}</span>
+        </a>
+        {% endfor %}
+        <button id="settings-btn-mobile" class="sheet-link as-button" type="button">
+          <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
+        </button>
+        {% if logged_in %}
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="sheet-link as-button" type="submit">
+            <svg class="icon"><use href="#i-export"/></svg><span>Sign out</span>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings drawer: theme picker + settings pages (design: Settings drawer) -->
+  <div class="overlay" id="settings-overlay" aria-hidden="true">
+    <div class="backdrop" data-close-settings></div>
+    <div class="drawer" role="dialog" aria-label="Settings">
+      <div class="row between mb-2">
+        <h2 class="disp t20 m0">Settings</h2>
+        <button class="back" type="button" data-close-settings>✕ close</button>
+      </div>
+      <p class="muted note-txt m0 mb-3">Appearance, models &amp; spend, export, vault notes.</p>
+
+      <div class="label mb-2">Appearance · theme</div>
+      <div class="vstack gap-2 mb-4" id="theme-swatches">
+        {% for key, name in [
+          ("paper",   "Paper"),
+          ("ember",   "Ember"),
+          ("alpine",  "Frost · Alpine"),
+          ("verdant", "Frost · Verdant"),
+          ("sunbeam", "Frost · Sunbeam"),
+          ("ridge",   "Frost · Ridge"),
+          ("grove",   "Frost · Grove"),
+          ("timber",  "Frost · Timber"),
+          ("glacier", "Frost · Glacier"),
+          ("canyon",  "Frost · Canyon"),
+          ("cyber",   "Cyber"),
+          ("cosmos",  "Cosmos"),
+        ] %}
+        <button class="tsw" type="button" data-theme-btn="{{ key }}">
+          <span class="pv pv-{{ key }}"></span>
+          <span>{{ name }}</span>
+          <span class="on-dot"></span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="label mb-2">General</div>
+      <div class="vstack gap-2">
+        <a class="tsw" href="{{ url_for('core.models') }}"><span>Models &amp; spend</span><span class="on-dot"></span></a>
+        <a class="tsw" href="{{ url_for('core.export') }}"><span>Export</span><span class="on-dot"></span></a>
+        {# task-50 item 6 (owner C3): the Program editor UI is removed — the
+           /api/plans/* backend + health.py routine subcommands stay live for
+           the Hermes agent; only this drawer link + the editor page/JS went. #}
+        <a class="tsw" href="{{ url_for('core.vault_notes') }}"><span>Vault notes</span><span class="on-dot"></span></a>
+        <a class="tsw" href="{{ url_for('core.integrations') }}"><span>Integrations &amp; privacy</span><span class="on-dot"></span></a>
+      </div>
+      <details class="mt-3">
+        <summary class="note-txt">About OpenHealthAtlas</summary>
+        <p class="muted note-txt mt-2 mb-0">OpenHealthAtlas organizes your health records and patterns.
+          Hermes helps interpret the evidence. This supports personal tracking and does not replace
+          medical advice or diagnosis.</p>
+      </details>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

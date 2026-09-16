@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% block title %}Nutrition{% endblock %}
+{% block content %}
+{# Nutrition pillar (design v-nutrition), owner-review r4 (mocks 36/37):
+   Intake is reordered top→bottom to match the owner's mock to the same degree
+   of detail, keeping every existing capability. Order now is:
+     1. Header — crumb left; right side = tabrow THEN the range dd (r4 SWAP:
+        dd sits rightmost like the mock; "Week" stays the default — the mock
+        shows "Day ▾" but our trends default richer, recorded as an owner-flag).
+     2. KPI tile row (4 tiles, r4-new, mock 36 top row) — see the block comment
+        on `.kpis-4` below.
+     3. "% of personal target — today" card — moved up to sit directly under
+        the tiles (mock position); T39's honesty scaffold, wired to real data
+        in T45 — see the card's own comment.
+     4. Food quality score card — below the target card (mock 37).
+     5. Calories / Water two-up (gauge+trend) — bottom (mock 37).
+     6. Logged today — kept last (NOT in the mock; additive rule keeps it —
+        owner-flag: say the word and it moves/goes).
+   The r2 omission of the design cards ("would fabricate") was overruled — the
+   resolution is the design LAYOUT with HONEST values: real where real,
+   labelled-pending where no engine exists, never a fabricated number.
+   - Food quality score (T46): the target-coverage score — % of macro+micro
+     targets hit that day, the SAME scorer/targets source as the dashboard
+     ring's nutrition score (toolkit/health.py's _nutrition_day_score via
+     the nutrition-coverage subcommand). Chip + trend go real once the T44
+     targets engine is ok AND Cronometer data exists in the window; honest-
+     empty otherwise. See nutrition.js's loadFoodQuality().
+   - Calories: real logged kcal always; the gauge/trend/band go real once the
+     T44 targets engine is ok (T45) — see nutrition.js's loadCalories() for
+     the full breakdown, including its one documented gauge-marker deviation.
+   - Water: fully real — value + the targets engine's water_ml target + gauge
+     % + trend, windowed by the header dd (see loadWater()'s comment for why
+     it switched off scores.water.inputs.target_ml, page-local, in T45).
+   Header range dd (owner-review r3, design `.dd`/HermesUI.range pattern, same
+   as consistency/recovery): the r2 note said "nothing varies by range" — now
+   the water & calories trends genuinely re-window on it (whitelisted `days`
+   validated server-side; NO dead options). The KPI-4 row (r4, real targets in
+   T45) reads today's real kcal/protein/water/item-count against real targets
+   once the engine is ok — honest "profile not set" otherwise, never a
+   fabricated denominator.
+   - "% of personal target — today" (task 39 scaffold, wired live in T45):
+     see the card's own comment below for the full honesty breakdown — every
+     row is now real once the T44 targets engine has a profile to compute
+     from; the demo DB ships with no owner_profile row, so this renders its
+     honest "profile not set" default locally.
+   Recipes tab: freezer menu, Eat-1-portion steppers, toasts, meal-type
+   filter + the T47 filter pills (see the tab's own comment below). The old
+   Log-by-grams card was removed by owner order in T47 — the validated
+   /api/nutrition/log-food route + subcommand remain agent-reachable.
+   Supplements tab: three separate cards — the
+   product list, a real Adherence trend, and Interactions & notes — replacing
+   the single "coming soon" placeholder.
+   - List card: real supplement_products/supplements_log via the existing
+     /api/nutrition/supplements route (check square = taken today). The
+     design's right-side chips (supply-days/servings) have no matching real
+     column (no stock/servings field exists on supplement_products) so they
+     are omitted rather than fabricated — the existing "taken/not
+     taken/not logged today" chip is the only real per-row status. No
+     "+ add" button: adding a product needs a new panel route, and no such
+     write is wired up yet (checked both bridge allowlists — the generic
+     `log` subcommand exists but no panel route exposes it for this table,
+     same as the skincare-products list, which ships the same read-only
+     shape) — out of scope for this task per the "do NOT ship a dead button"
+     rule.
+   - Adherence card: taken-vs-planned % from the new
+     /api/nutrition/supplements/adherence endpoint (db_read only, formula
+     documented there), windowed by the page's header range dd. Caption
+     drops the mock's "feeds the Consistency streak model" — that model
+     (health.py `adherence`) is about kept/broken commitments, not
+     supplements; unrelated, so the claim would be false.
+   - Interactions & notes card: renders each active product's own `notes`
+     column (real, from the same /supplements payload) as plain bullets —
+     NOT the mock's fabricated interaction pairs (Creatine↔water etc., which
+     have no backing data or engine). Honest-empty when no product has a
+     note (true today, 0 rows on the demo DB).
+   The list card is current-state (today's taken/not-taken) and deliberately
+   does NOT subscribe to the page dd — only the Adherence card is a windowed
+   series. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Nutrition</h1>
+    </div>
+    <div class="row gap-2 wrap">
+      <div class="tabrow" data-group="nutri">
+        <button class="on" data-tab="intake" data-group="nutri" type="button">Intake</button>
+        <button data-tab="recipes" data-group="nutri" type="button">Recipes</button>
+        <button data-tab="supp" data-group="nutri" type="button">Supplements</button>
+      </div>
+      <div class="dd" data-dd="nutrition">
+        <button class="ddbtn" type="button">Week <span class="cv">▾</span></button>
+        <div class="ddmenu">
+          <button type="button" data-val="Day">Day</button>
+          <button type="button" data-val="Week" class="on">Week</button>
+          <button type="button" data-val="Month">Month</button>
+          <button type="button" data-val="Year">Year</button>
+          <button type="button" data-val="All">All time</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subview on" data-pane="intake" data-group="nutri">
+    {# KPI tile row (task 41, mock 36 top row; wired to real targets in T45):
+       the design's 4-tile summary, reusing the repo's .kpis-4 stat-tile idiom.
+       HONEST values only — the mock's 2,180 / 148 / 86% / "3 of 4 meals" are
+       illustrative fabrications:
+       - Calories/Protein: real logged total today (loadToday, from
+         /api/nutrition/today totals) vs the T44 targets engine's real kcal/
+         protein_g target + phase — band-colored fill + dashed 100%-target
+         marker (nutrition.js fillBar/bandFor). When the engine reports
+         insufficient_data (no owner_profile row — true on the demo DB by
+         default), the bar stays an empty track and the sub-line reads the
+         honest short form "profile not set", never a fake /2,000 or 109%.
+       - Water: fully real — value + the engine's water_ml target (real even
+         when the rest of the engine is insufficient_data — see loadWater's
+         comment) + real % fill (bandFor) + real shortfall sub-line, all from
+         loadWater (same fetch the Water card uses — no duplicate request).
+       - Log coverage: real count of items logged today (today.entries length)
+         against the owner's fixed 3-meals/day schedule (a plain client
+         constant, not a schema field or engine output — see LOG_SCHEDULE in
+         nutrition.js) — fill = min(items/3, 1) · 100%, no band judgment. #}
+    <div class="kpis-4">
+      <div class="card">
+        <span class="label">Calories</span>
+        <div class="kv mt-1"><span class="n" id="nKpiKcal">—</span><span class="kv-u">kcal</span></div>
+        <div class="barbg mt-2" id="nKpiKcalBar"></div>
+        <p class="muted micro m0 mt-1" id="nKpiKcalSub">profile not set</p>
+      </div>
+      <div class="card">
+        <span class="label">Protein</span>
+        <div class="kv mt-1"><span class="n" id="nKpiProtein">—</span><span class="kv-u">g</span></div>
+        <div class="barbg mt-2" id="nKpiProteinBar"></div>
+        <p class="muted micro m0 mt-1" id="nKpiProteinSub">profile not set</p>
+      </div>
+      <div class="card">
+        <span class="label">Water</span>
+        <div class="kv mt-1"><span class="n" id="nKpiWater">—</span><span class="kv-u" id="nKpiWaterU"></span></div>
+        <div class="barbg mt-2" id="nKpiWaterBar"></div>
+        <p class="muted micro m0 mt-1" id="nKpiWaterSub">hydration vs target</p>
+      </div>
+      <div class="card">
+        <span class="label">Log coverage</span>
+        <div class="kv mt-1"><span class="n" id="nKpiItems">—</span><span class="kv-u">/ 3</span></div>
+        <div class="barbg mt-2" id="nKpiItemsBar"></div>
+        <p class="muted micro m0 mt-1">3 meals/day schedule · extras logged via the coach</p>
+      </div>
+    </div>
+
+    {# "% of personal target — today" (owner-review r3 follow-up, task 39): the
+       owner asked for the design's target card back — it was retired when
+       T32 rebuilt Intake into the three cards above ("would fabricate"), but
+       the owner wants the LAYOUT restored now, as a ready scaffold in the
+       Social-tab idiom (mind.html): real where real, honestly pending
+       everywhere else, one plain banner naming what's missing — never a
+       fabricated number. Placed after (not instead of) the three T32 cards,
+       full-width, so nothing above it is disturbed.
+       - Water: a REAL target — the T44 engine's `targets.water_ml.target`,
+         which stays real even when the engine's overall `status` is
+         `insufficient_data` (it's the one target T44 always computes, weight-
+         based or a flat fallback — see loadWater's comment in nutrition.js).
+         Real %, a dashed 100%-target line (.tline via the shared fillBar
+         helper, same 130% scale as the Water gauge), fill colored by the
+         SAME band rule as that gauge (bandFor(pct, 80, 112) — one banding
+         rule per metric on this page, not a second invented one).
+       - Calories/Protein/Carbs/Fat/micros: real once the targets engine is
+         `ok` — real % fill, band color, dashed 100%-target marker, and the
+         value column reads `{pct}% · target {n}{unit}`; the row LABEL always
+         shows the real logged amount from /api/nutrition/today regardless of
+         engine status. When the engine is NOT ok (no owner_profile — the
+         demo DB's default), every one of these rows honestly reads "profile
+         not set" and the bar stays an empty track — never the mock's
+         fabricated /2,000, /180 g, 109%, 125% etc.
+       - Fibre never gets a numeric target (no Cronometer alias for it — see
+         the T44 engine), so once the engine IS ok it reads "not in
+         Cronometer export" instead of a %; the other five micros read "no
+         Cronometer data today" specifically when nothing was imported today
+         (as opposed to "profile not set", which covers the engine itself
+         being unreachable).
+       - Maintenance-band shading: drawn for real on the Calories card's trend
+         below (markArea across band_low..band_high) — the legend chip here
+         just names it, it isn't redrawn a second time on these linear bars.
+       - PHASE (Cut/Maintain/Bulk): a read-only INDICATOR, not a control — the
+         buttons stay natively `disabled` (+ aria-disabled, for assistive tech
+         and the "not a dead control" grep) permanently; nutrition.js only
+         toggles which one shows `aria-pressed="true"` + the `.on` styling
+         (the engine's computed phase — defaults to Maintain when nothing was
+         ever `phase-set`) and updates the caption below.
+       - This card is "today", not a range series, so unlike Water/Calories
+         above it does NOT subscribe to the header dd (see nutrition.js). #}
+    <div class="card" id="nTargetCard">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">% of personal target — today</h3>
+        <div class="row gap-2">
+          <span class="muted micro">PHASE</span>
+          <div class="seg" role="group" aria-label="Diet phase — read-only, set via the coach">
+            <button type="button" id="nPhaseCut" disabled aria-disabled="true" aria-pressed="false"
+              title="Phase is set via the coach">Cut</button>
+            <button type="button" id="nPhaseMaintain" disabled aria-disabled="true" aria-pressed="false"
+              title="Phase is set via the coach">Maintain</button>
+            <button type="button" id="nPhaseBulk" disabled aria-disabled="true" aria-pressed="false"
+              title="Phase is set via the coach">Bulk</button>
+          </div>
+        </div>
+      </div>
+      <p class="muted micro m0 mb-2" id="nPhaseCaption">Phase is set via the coach (profile-set /
+        phase-set).</p>
+
+      <div class="banner mb-2" id="nTgtBanner">
+        <span class="banner-ic" aria-hidden="true">◔</span>
+        <div>
+          <div class="strong">Targets need your profile.</div>
+          <p class="muted note-txt m0">Targets need your profile — height, sex &amp; birth date are set via the coach (profile-set). Water above/below already uses a real target regardless; every other row here is honestly pending until then — nothing is estimated.</p>
+        </div>
+      </div>
+
+      <div class="row gap-2 wrap mb-2 micro muted">
+        <span class="chip muted"><span class="dot bad"></span>too little</span>
+        <span class="chip muted"><span class="dot good"></span>good</span>
+        <span class="chip muted"><span class="dot warn"></span>too much</span>
+        <span class="chip muted"><span class="legend-dash"></span>100% target</span>
+        <span class="chip muted">shaded = maintenance band</span>
+      </div>
+
+      <div class="goals-list">
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtCalLabel">Calories</span>
+          <div class="barbg" id="nTgtCalBar"></div>
+          <span class="goal-val" id="nTgtCal">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtProteinLabel">Protein</span>
+          <div class="barbg" id="nTgtProteinBar"></div>
+          <span class="goal-val" id="nTgtProtein">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtCarbsLabel">Carbs</span>
+          <div class="barbg" id="nTgtCarbsBar"></div>
+          <span class="goal-val" id="nTgtCarbs">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtFatLabel">Fat</span>
+          <div class="barbg" id="nTgtFatBar"></div>
+          <span class="goal-val" id="nTgtFat">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtFibreLabel">Fibre</span>
+          <div class="barbg" id="nTgtFibreBar"></div>
+          <span class="goal-val" id="nTgtFibre">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label">Water</span>
+          <div class="barbg" id="nTgtWaterBar"></div>
+          <span class="goal-val" id="nTgtWater">—</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtVitDLabel">Vit D</span>
+          <div class="barbg" id="nTgtVitDBar"></div>
+          <span class="goal-val" id="nTgtVitD">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtMgLabel">Magnesium</span>
+          <div class="barbg" id="nTgtMgBar"></div>
+          <span class="goal-val" id="nTgtMg">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtFeLabel">Iron</span>
+          <div class="barbg" id="nTgtFeBar"></div>
+          <span class="goal-val" id="nTgtFe">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtZnLabel">Zinc</span>
+          <div class="barbg" id="nTgtZnBar"></div>
+          <span class="goal-val" id="nTgtZn">profile not set</span>
+        </div>
+        <div class="goal-row">
+          <span class="goal-label" id="nTgtOmegaLabel">Omega-3</span>
+          <div class="barbg" id="nTgtOmegaBar"></div>
+          <span class="goal-val" id="nTgtOmega">profile not set</span>
+        </div>
+      </div>
+      <p class="muted micro m0 mt-2">Micronutrients use today's Cronometer total when available;
+        otherwise they are calculated from logged recipe portions. Fibre is logged, but a personal
+        target has not been configured yet.</p>
+    </div>
+
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">Food quality score</h3>
+        <span class="chip muted" id="nFqChip">—</span>
+      </div>
+      <p class="muted note-txt m0">Targets coverage — % of your macro + micro targets hit,
+        from the same engine as the dashboard ring.</p>
+      <div id="nFoodQual" class="h190 mt-2"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="row between wrap mb-1">
+          <h3 class="card-title">Calories</h3>
+          <span class="muted micro" id="nCalMeta">—</span>
+        </div>
+        <div class="row gap-2 mt-2">
+          <div id="nCalMeter" class="gauge-sm"></div>
+          <div id="nCalTrend" class="h150 grow"></div>
+        </div>
+        <p class="muted micro m0 center" id="nCalCap">daily intake · profile not set</p>
+      </div>
+
+      <div class="card">
+        <div class="row between wrap mb-1">
+          <h3 class="card-title">Water</h3>
+          <span class="muted micro" id="nWaterMeta"></span>
+        </div>
+        <div class="row gap-2 mt-2">
+          <div id="nWaterMeter" class="gauge-sm"></div>
+          <div id="nWaterTrend" class="h150 grow"></div>
+        </div>
+        <p class="muted micro m0 center" id="nWaterCap">hydration vs target</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-1">Logged today</h3>
+      <ul class="feed" id="nEntries"><li class="dim">Nothing logged today.</li></ul>
+    </div>
+  </div>
+
+  {# Recipes tab (T47 filter pills): subtitle +
+     meal-type dd + "+ log a batch"; a Today's-gaps banner from REAL signals
+     only; a filter-pills row; the freezer as a 2-col recipe-card grid with a
+     −/+ portion stepper (− eats, + preps one portion, both validated bridge
+     writes) and a details → drill link.
+     - Meal-type dd: a REAL filter on the real `recipes.meal_type` column
+       (T47 — tagged via the coach's `recipe-tag`, nullable). Untagged
+       recipes only show under "All meals"; a category with no tagged recipe
+       renders the honest empty naming the tagging path (NOT a dead control,
+       NOT guessed from names).
+     - Filter pills (T47, owner-ordered swap replacing the Log-by-grams card —
+       the /api/nutrition/log-food route + subcommand STAY, agent-reachable;
+       only the UI control went): All (freezer order) · Closes today's gaps
+       (server-ranked via /api/nutrition/recipe-gaps, a PRESENTATION ranking
+       recomputed per request so deficits shrink as meals are logged) · High
+       protein (client sort by real per-portion protein). When the targets
+       engine has no profile, selecting the gaps pill shows the honest
+       no-ranking line in place of the list — never a dead-looking control,
+       never a fake ranking. Reuses the existing .pills/.pill classes (no new
+       CSS).
+     - Today's gaps banner: real kcal/protein/water gap lines once the targets
+       engine is ok (see nutrition.js loadGaps), one honest sentence otherwise.
+     - The page header range dd does NOT window this tab: freezer inventory is
+       current state, not a range series — so Recipes deliberately does not
+       subscribe onRange (see nutrition.js). #}
+  <div class="subview" data-pane="recipes" data-group="nutri">
+    <div class="row-top between wrap">
+      <p class="muted note-txt m0">Batch-cooked meals · portions in the freezer</p>
+      <div class="row gap-2 wrap">
+        <div class="dd" data-dd="mealtype">
+          <button class="ddbtn" type="button">All meals <span class="cv">▾</span></button>
+          <div class="ddmenu">
+            <button type="button" data-val="All meals" class="on">All meals</button>
+            <button type="button" data-val="Breakfast">Breakfast</button>
+            <button type="button" data-val="Lunch">Lunch</button>
+            <button type="button" data-val="Dinner">Dinner</button>
+            <button type="button" data-val="Snacks">Snacks</button>
+          </div>
+        </div>
+        <button class="ddbtn" id="nBatchBtn" type="button">+ log a batch</button>
+      </div>
+    </div>
+
+    <div class="card gaps-banner" id="nGaps">
+      <span class="gap-dot"></span>
+      <span id="nGapsTxt" class="muted">Checking today's gaps…</span>
+    </div>
+
+    <div class="pills" id="nPills" role="group" aria-label="Recipe list ordering">
+      <button class="pill active" data-pill="all" type="button" aria-pressed="true">All</button>
+      <button class="pill" data-pill="gaps" type="button" aria-pressed="false">Closes today's gaps</button>
+      <button class="pill" data-pill="protein" type="button" aria-pressed="false">High protein</button>
+    </div>
+
+    <div class="card" id="nBatchForm" hidden>
+      <h3 class="card-title mb-2">Log a prep batch</h3>
+      <div class="add-ex">
+        <select id="bp-recipe" class="select"></select>
+        <input id="bp-portions" type="number" placeholder="portions" min="1" max="20" inputmode="numeric">
+        <input id="bp-grams" type="number" placeholder="total g (optional)" min="1" max="20000" inputmode="numeric">
+        <button id="bp-btn" class="save-btn" type="button">Add to freezer</button>
+      </div>
+      <p class="muted micro m0">Adds portions to the freezer via the coach's validated
+        <code>prep</code> — enter total grams to also set/update the batch weight.</p>
+    </div>
+
+    <div id="nMenu" class="grid-2"><p class="dim">Loading…</p></div>
+  </div>
+
+  <div class="subview" data-pane="supp" data-group="nutri">
+    <div class="card">
+      <h3 class="card-title mb-2">Supplements</h3>
+      <div id="nSupps" class="vstack"><p class="dim">Loading…</p></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card-title mb-1">Adherence — <span id="nAdhWindow">last 7 days</span></h3>
+        <div id="nSuppAdh" class="h190 mt-2"></div>
+        <p class="muted micro m0" id="nAdhCap">taken vs planned</p>
+      </div>
+      <div class="card">
+        <h3 class="card-title mb-2">Interactions &amp; notes</h3>
+        <div id="nSuppNotes" class="vstack"><p class="dim">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" aria-live="polite"></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/nutrition.js') }}" defer></script>
+{% endblock %}

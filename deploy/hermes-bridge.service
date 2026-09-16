@@ -1,0 +1,39 @@
+# hermes-bridge — privileged broker for panel writes (runs AS hermes).
+# Installed by install-bridge.sh. Deliberately NOT sandboxed away from the
+# vault: it exists to write the vault on the panel's behalf. It is still
+# hardened where that doesn't conflict with its job.
+[Unit]
+Description=Hermes panel write broker (health.py bridge, runs as hermes)
+After=network.target
+
+[Service]
+Type=simple
+User=hermes
+# Group=hermesbridge so the RuntimeDirectory and the socket are group-owned by
+# the shared group panel belongs to — panel can then traverse the dir and
+# connect to the socket. health.py still writes the data directory as hermes.
+Group=hermesbridge
+# /run/hermes-bridge owned hermes:hermesbridge, group-traversable (0710).
+RuntimeDirectory=hermes-bridge
+RuntimeDirectoryMode=0710
+ExecStart=/usr/bin/python3 /usr/local/lib/hermes-bridge/hermes-bridge
+Restart=on-failure
+RestartSec=2
+
+# Hardening that does NOT conflict with writing the vault:
+NoNewPrivileges=yes
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# hermesctl (a broker child) needs INET for OpenRouter spend + the gateway health check
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Reachable state is only the owner vault, the fictional acceptance fixture,
+# and the runtime socket dir.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/hermes /var/lib/openhealthatlas-fictional
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

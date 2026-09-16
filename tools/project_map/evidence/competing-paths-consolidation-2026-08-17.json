@@ -1,0 +1,125 @@
+{
+  "contract": "openhealthatlas-competing-paths-consolidation-v1",
+  "recorded_on": "2026-08-17",
+  "status": "Working",
+  "scope": {
+    "data_class": "fictional",
+    "fixture_id": "green-days-actionable-v1",
+    "range_from": "2026-05-17",
+    "range_to": "2026-06-30",
+    "seed_sha256": "sha256:01e9f7d900fbcc2b0531f3f4d5cf141a64727916d7b018362d0fabee3f2ca361",
+    "database_sha256": "sha256:87a7db878ee2b1391affbcccba227776b594498ecb994df221e94b9696ce1f87",
+    "private_data_accessed": false,
+    "vps_changed": false
+  },
+  "authority": {
+    "deterministic_calculation_and_evidence": "OpenHealthAtlas governed engine",
+    "reasoning_and_conversation": "external genuine Hermes",
+    "optional_interpretation_storage": "OpenHealthAtlas synthesis-v1 with write-back off by default"
+  },
+  "governed_green_day_parity": {
+    "command": "outcome-associations",
+    "outcome": "subjective.day_rating",
+    "mode": "green-vs-non-green",
+    "min_n": 30,
+    "interactions": "none",
+    "input_fingerprint": "sha256:17be9e3253a016e7a88cbaf11e8222cd8df36849918b842ec6abf3ad0af6609c",
+    "dashboard_result_sha256": "sha256:8b8dbb85d2dff5813680fc1ba1e2c1e2f9ee2bd6f1ef87f979d9f5b1426a9527",
+    "green_days": 25,
+    "non_green_days": 20,
+    "readiness": {
+      "requested_green_contrast_passed": true,
+      "overall_day_rating_state": "too_sparse_for_analysis",
+      "reason": "the separate Red contrast has only 8 Red days"
+    },
+    "selected_findings": [
+      {
+        "label": "same-day resting HR",
+        "finding_id": "sha256:e74cf0146348d01aad07eab0481c7ab838266285b8399e2927b8922174caa69e",
+        "evidence_fingerprint": "sha256:8842354df1c6526ed2152dc40ea1882c034a1d8d485a6c0b8b329301db69dcaa"
+      },
+      {
+        "label": "previous-day caffeine amount",
+        "finding_id": "sha256:532640d344c6c9e04bd628cdd20c0fe98e99294fc2837f2dfd85c004050a6331",
+        "evidence_fingerprint": "sha256:7467691702a700d9342b5f020f86ee109e39dc74201ede6240049c2487fa4246"
+      },
+      {
+        "label": "three-day bedtime-minute mean",
+        "finding_id": "sha256:3b24153984c7ded41795cac36ab516538001024d6c2ee8e4304db3374e504e59",
+        "evidence_fingerprint": "sha256:1d6b10c4c0c2ecc7f770960d127577b9e31906a5af186b841bbf61786cb77fc3"
+      }
+    ],
+    "surface_checks": {
+      "cli_matches_input_and_evidence_identity": true,
+      "api_matches_input_and_evidence_identity": true,
+      "dashboard_matches_input_and_evidence_identity": true,
+      "accepted_telegram_receipt_matches_input_and_evidence_identity": true,
+      "fixture_manifest_verified_before_start": true,
+      "fixture_database_sha256_unchanged_after_analysis": true,
+      "dashboard_broker_profile": "outcome-associations only",
+      "write_command_rejected_by_dashboard_broker": true,
+      "recovery_broker_and_result_unchanged": true,
+      "dashboard_shows_deterministic_statistics_not_hermes_prose": true,
+      "desktop_horizontal_overflow_px": 0,
+      "mobile_horizontal_overflow_px": 0,
+      "browser_console_errors": 0
+    }
+  },
+  "quarantine": {
+    "legacy_chat_routes_normal_http_status": 410,
+    "legacy_vault_brief_normal_http_status": 410,
+    "legacy_correlations_normal_http_status": 410,
+    "legacy_signature_normal_http_status": 410,
+    "day_signature_in_panel_broker_allowlists": false,
+    "normal_process_can_construct_reference_interpretation_runtime": false,
+    "legacy_code_deleted": false
+  },
+  "scoped_chat_evidence": {
+    "max_selected_findings": 3,
+    "browser_submits_identifiers_not_result_prose": true,
+    "server_owned_bounded_range": true,
+    "exact_same_turn_openhealthatlas_replay_required": true,
+    "exact_finding_id_and_fingerprint_binding": true,
+    "verified_receipt_persisted_separately_from_prose": true,
+    "proof_level": "local API and transport-contract tests plus desktop and mobile rendering checks",
+    "genuine_browser_hermes_turn_completed": false,
+    "synthetic_full_panel_harness": {
+      "passed": true,
+      "external_model_executable": "simulated",
+      "tool_receipts": [
+        "feature-frame",
+        "data-readiness",
+        "analysis-refresh",
+        "feature-registry",
+        "finding-evidence",
+        "finding-evidence",
+        "finding-evidence",
+        "synthesis-prepare"
+      ],
+      "synthesis_record_called": false,
+      "does_not_prove_genuine_hermes_reasoning": true
+    }
+  },
+  "optional_storage": {
+    "contract": "synthesis-v1",
+    "schema_version": 6,
+    "provider_neutral_external_provenance_validation": true,
+    "legacy_rows_preserved_by_migration": true,
+    "evidence_ancestry_validation_retained": true,
+    "owner_controlled_writeback_gate": "synthesis_writeback_enabled",
+    "installed_adapter_gate_value": false,
+    "installed_skill_forbids_synthesis_record": true,
+    "panel_trace_rejects_synthesis_record": true,
+    "accepted_mcp_registers_synthesis_record": false,
+    "product_write_surface_enabled": false,
+    "interpretation_stored_during_acceptance": false,
+    "genuine_hermes_invocation_proven": false
+  },
+  "proof_limits": [
+    "The comprehensive-persona-v1 Green-day calculation exceeded the 110-second broker timeout; it is not accepted runtime parity.",
+    "No genuine browser-Hermes turn was run in this consolidation acceptance.",
+    "No private data was read and no VPS service or configuration was changed.",
+    "No interpretation was stored; provider-neutral synthesis-v1 proof is structural validation and migration proof only.",
+    "Code presence, Graphify edges and passing tests are not treated as end-to-end proof."
+  ]
+}

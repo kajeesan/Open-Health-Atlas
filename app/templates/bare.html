@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}OpenHealthAtlas{% endblock %} · OpenHealthAtlas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/panel.css') }}">
+</head>
+<body class="bare">
+  <div id="bg"></div>
+  <main class="auth-wrap">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

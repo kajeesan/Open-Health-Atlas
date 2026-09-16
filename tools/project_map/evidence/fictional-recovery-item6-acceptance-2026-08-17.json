@@ -1,0 +1,258 @@
+{
+  "contract": "openhealthatlas-fictional-recovery-item6-acceptance-v1",
+  "recorded_on": "2026-08-17",
+  "recovery_item": "recovery_6",
+  "status": "Partially built",
+  "accepted_slice": {
+    "status": "Working",
+    "scope": "fictional Telegram Recovery snapshot and user-selected training follow-up only",
+    "data_class": "fictional",
+    "fixture_id": "comprehensive-persona-v1",
+    "range_from": "2026-03-02",
+    "range_to": "2026-06-30",
+    "anchor_date": "2026-06-30",
+    "private_data_accessed": false,
+    "browser_chat_required": false,
+    "interpretation_writeback_enabled": false
+  },
+  "deployment": {
+    "vps_source_snapshot_is_git_checkout": false,
+    "deployed_checkout_commit_attestation": "Unverified",
+    "artifact_source_commits": {
+      "health_engine_and_initial_disclosure": "123f1cff622d544f67dd1ed2a600b547709c68b0",
+      "visible_disclosure_acceptance_contract": "790a2feca74632f673f032660ba38d5606da90b3"
+    },
+    "deployed_artifacts": {
+      "health_py_sha256": "sha256:3789bff634059872f2c361a08398b2660fc2e41231e0b16fa6105d56ad2e50d6",
+      "mcp_sha256": "sha256:bd1c11133d406d671e99ed3c480427ff8671f455296833fc975e65d5d0576cba",
+      "skill_sha256": "sha256:696d2f7b5e5eaa42df20cea956a7c00b124f65e394d7c1c6d447ee207385fc14",
+      "unchanged_adapter_sha256": "sha256:4b6db941e88dccfd0e60ae8b327be5866664515fff99a7768b8df6f7a1a4e0be",
+      "unchanged_config_sha256": "sha256:ef8375c2baae5034e8c2be4b9080aa9dc313aff332c90e7dab195e71572ccf8c"
+    },
+    "schema_version": 5,
+    "schema_migrated": false,
+    "gateway_restart_scope": "hermes-gateway.service only",
+    "browser_panel_or_bridge_deployed": false,
+    "rollback_backups": [
+      "/var/backups/openhealthatlas-fictional/item6-pre-123f1cf-20260817T194455Z",
+      "/var/backups/openhealthatlas-fictional/item6-disclosure-pre-790a2fe"
+    ]
+  },
+  "deterministic_runtime": {
+    "status": "Working",
+    "command": "readiness --from 2026-03-02 --anchor 2026-06-30",
+    "assessment_state": "insufficient_data",
+    "score_returned": false,
+    "band_returned": false,
+    "reason": "Only one of three required components was eligible; at least two are required.",
+    "included_components": [
+      {
+        "key": "sleep",
+        "score": 92,
+        "hours": 7.09,
+        "quality": 5,
+        "target_hours": 8.0
+      }
+    ],
+    "excluded_components": [
+      {
+        "key": "hrv",
+        "source_label": "fitbit",
+        "observed_same_source_baseline_rows": 10,
+        "required_same_source_baseline_rows": 14,
+        "other_source_rows_excluded": 86,
+        "reason_code": "insufficient_same_source_baseline"
+      },
+      {
+        "key": "rhr",
+        "source_label": "fitbit",
+        "observed_same_source_baseline_rows": 10,
+        "required_same_source_baseline_rows": 14,
+        "other_source_rows_excluded": 86,
+        "reason_code": "insufficient_same_source_baseline"
+      }
+    ],
+    "result_sha256": "sha256:e1a28d52ea936cded60cdfd7dd07b5530d14f180204baa4d5042edc029a8efab",
+    "input_fingerprint": "sha256:9fcea14e8defc995d81a87586d74d55480668865e204ee754133408a3cbb5304",
+    "policy": {
+      "policy_id": "openhealthatlas-readiness-policy",
+      "version": "1.0.0",
+      "non_diagnostic": true,
+      "visible_thresholds_and_derivations_versioned": true
+    },
+    "source_ancestry_status": "incomplete",
+    "remaining_ancestry_gaps": [
+      "raw_provider_record_or_sync_run_unlinked",
+      "training_set_and_mapping_rows_not_manifested"
+    ]
+  },
+  "telegram_runtime": {
+    "status": "Working",
+    "path": "User -> Telegram -> genuine Hermes on Oracle VPS -> OpenHealthAtlas deterministic Recovery tools -> Hermes -> Telegram",
+    "question": "Using only the OpenHealthAtlas fictional fixture, how recovered is the fictional person on 2026-06-30?",
+    "follow_up": "Training.",
+    "receipt": {
+      "turn_id": "[REDACTED runtime-turn 02]",
+      "started_at": "2026-08-17T20:14:10.233679+00:00",
+      "updated_at": "2026-08-17T20:20:13.238900+00:00",
+      "phase": 2,
+      "selected_focus": "training",
+      "executions": 2,
+      "commands": [
+        "readiness",
+        "readiness"
+      ],
+      "all_envelopes_fictional": true,
+      "both_results_identical": true,
+      "result_sha256": "sha256:e1a28d52ea936cded60cdfd7dd07b5530d14f180204baa4d5042edc029a8efab",
+      "input_fingerprint": "sha256:9fcea14e8defc995d81a87586d74d55480668865e204ee754133408a3cbb5304",
+      "model_interpretation_stored": false
+    },
+    "audit_continuity": {
+      "intent_and_result_rows": 4,
+      "successful_result_rows": 2,
+      "database_sha256_before": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+      "database_sha256_after": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+      "database_size_and_mtime_unchanged": true,
+      "synthesis_runs_after": 0
+    },
+    "model_attestation": {
+      "status": "Working",
+      "model": "gpt-5.6-sol",
+      "provider": "openai-codex",
+      "session_correlation": "[REDACTED runtime-session 01]",
+      "operational_same_session_correlation": true,
+      "cryptographic_model_to_openhealthatlas_turn_binding": "Unverified",
+      "provider_signed_request_id_captured": false,
+      "correlated_events": [
+        "20:16:25 genuine model call then recovery_snapshot tool completion",
+        "20:16:52 genuine model call completed the visible snapshot reply",
+        "20:20:13 recovery_detail completed for the training focus",
+        "20:20:35 genuine model call completed the visible training reply"
+      ]
+    },
+    "observed_user_visible_checks": {
+      "deterministic_and_hermes_sections_separate": true,
+      "insufficient_data_preserved": true,
+      "obsolete_58_score_not_reused": true,
+      "bounded_follow_up_offered": true,
+      "user_selected_training": true,
+      "training_detail_did_not_create_an_overall_score": true,
+      "small_performance_signal_qualified": true,
+      "diagnosis_causation_or_safety_proof_claimed": false,
+      "message_bodies_committed": false
+    }
+  },
+  "external_sharing_disclosure": {
+    "status": "Working",
+    "contract": "openhealthatlas-recovery-disclosure-v1",
+    "visible_on_snapshot": true,
+    "visible_on_training_follow_up": true,
+    "literal_final_heading": "Data & evidence disclosure",
+    "fixture_range_and_anchor_visible": true,
+    "shared_field_groups_visible": true,
+    "shared_field_paths_visible": true,
+    "result_and_input_fingerprints_visible": true,
+    "missing_and_excluded_components_distinguished": true,
+    "incomplete_ancestry_visible": true,
+    "writeback_disabled_visible": true,
+    "excluded_field_groups_visible": true,
+    "exact_non_diagnostic_text_visible": true,
+    "raw_soreness_note_model_facing": false,
+    "server_side_deterministic_receipt_retains_fictional_raw_soreness": true,
+    "first_post_item6_attempt": {
+      "deterministic_result_correct": true,
+      "visible_disclosure_complete": false,
+      "accepted": false,
+      "correction_commit": "790a2feca74632f673f032660ba38d5606da90b3"
+    }
+  },
+  "phase_6_criteria": [
+    {
+      "id": "raw_source_transform_finding_final_citation",
+      "accepted_slice_status": "Partially built",
+      "established": "Selected source-row locators, transformations and policy are present in the projected deterministic evidence. The Telegram disclosure visibly names the shared evidence container, whole-result identities and ancestry gaps.",
+      "not_established": "Raw provider/sync ancestry, training mapping ancestry and per-fact final citations remain incomplete."
+    },
+    {
+      "id": "missing_ancestry_visible_and_never_fully_verified",
+      "accepted_slice_status": "Working",
+      "established": "The result is insufficient_data, HRV/RHR are explicitly excluded, and source_ancestry_status remains incomplete."
+    },
+    {
+      "id": "approved_external_fields_ranges_and_inspectable_disclosure",
+      "accepted_slice_status": "Working",
+      "established": "Both Telegram replies visibly disclose the exact fictional fixture, range, shared fields, excluded fields and evidence identities."
+    },
+    {
+      "id": "server_owned_safety_survives_malformed_hermes_prose",
+      "accepted_slice_status": "Missing",
+      "established": "Hermes followed the deterministic reply requirement in the accepted turns.",
+      "not_established": "The gateway does not append an immutable non-model disclosure or safety block."
+    },
+    {
+      "id": "qualitative_and_vault_fact_scope",
+      "accepted_slice_status": "Partially built",
+      "established": "The raw fictional soreness note is excluded from the model-facing response; only derived flags, source locator, source label and content fingerprint are shared. Vault content is excluded.",
+      "not_established": "The Telegram disclosure does not expose the exact qualitative-source version and owner-approved consent record, and no real-data qualitative or vault policy is approved."
+    },
+    {
+      "id": "threshold_policy_version_context_and_non_diagnostic_meaning",
+      "accepted_slice_status": "Partially built",
+      "established": "The deterministic policy versions the sleep target, source-consistent baseline gate, component coefficients, score bands, training windows and soreness derivation; the Telegram replies show the relevant thresholds, comparison context and non-diagnostic meaning.",
+      "not_established": "The Telegram disclosure does not visibly name the readiness policy ID and version, and unrelated product thresholds remain ungoverned."
+    }
+  ],
+  "superseded_recovery_evidence": [
+    {
+      "path": "tools/project_map/evidence/fictional-recovery-local-2026-08-17.json",
+      "file_sha256": "sha256:238e9b42ecc69903891724b4f5aed5e809b6bb75d3ac93ca40ea2a74f4bf63bc",
+      "current_runtime_status": "Superseded",
+      "reason": "The former 58/100 result mixed Apple and Fitbit baseline semantics and is no longer an accepted current result."
+    },
+    {
+      "path": "tools/project_map/evidence/fictional-recovery-vps-preflight-2026-08-17.json",
+      "file_sha256": "sha256:38448ba68905cc3d348f2ce2ecf71cb8e24dcd3aa7d143df3150a0f0015fb719",
+      "current_runtime_status": "Superseded",
+      "reason": "Its 58/100 deterministic expectation predates the same-source ancestry gate."
+    },
+    {
+      "path": "tools/project_map/evidence/fictional-recovery-telegram-acceptance-2026-08-17.json",
+      "file_sha256": "sha256:90dcc1650ed1beef152f2dcf029bf9e965d25c15e71af5d51cab07be64701568",
+      "current_runtime_status": "Superseded",
+      "reason": "The historical two-turn transport proof was reproducible under the former deployed policy and remains preserved, but its 58/100 content is not the current governed result."
+    },
+    {
+      "path": "tools/project_map/evidence/fictional-recovery-dashboard-parity-2026-08-17.json",
+      "file_sha256": "sha256:4c6e1faf19e740f2cee6e5225566212eb19edbcc362f2887562b2f06c0ed0841",
+      "current_runtime_status": "Superseded",
+      "reason": "The dashboard parity proof is bound to the former 58/100 result and requires a fresh browser acceptance before it can be current again."
+    },
+    {
+      "path": "tools/project_map/evidence/fictional-primary-telegram-proof-levels-2026-08-17.json",
+      "file_sha256": "sha256:88299e7646e5cd38979ed6ee854321475b579dcce0eb1812b5caa796f141dd3b",
+      "current_runtime_status": "Partially superseded",
+      "reason": "The proof taxonomy remains valid; its 58-specific and Recovery-insufficient-data subproofs are superseded by this acceptance."
+    },
+    {
+      "path": "tools/project_map/evidence/product-authority-route-inventory-2026-08-17.json",
+      "file_sha256": "sha256:43e55b89c4d83411c2c6c7232680cea8ad8dd2834dd753e04906621256bc4476",
+      "current_runtime_status": "Partially superseded",
+      "reason": "Its route inventory remains useful, but its embedded Recovery 58/100 result hash is historical and cannot prove the current source-consistent result."
+    }
+  ],
+  "system_wide_remaining_gaps": [
+    "Raw provider and sync-run ancestry is not complete across ingestion.",
+    "Training set and exercise-mapping rows are not manifested into final citations.",
+    "The Telegram gateway does not append immutable non-model safety or disclosure text.",
+    "The old dashboard 58/100 parity has not been re-accepted against the corrected insufficient-data result.",
+    "Real/private-data consent, retention, provider transfer and deletion policy remain deliberately unapproved.",
+    "Broader qualitative vault, labs, collector, body, vitals and blood-pressure policies remain open."
+  ],
+  "overall_claim": {
+    "accepted_fictional_recovery_slice": "Working",
+    "recovery_item_6": "Partially built",
+    "product_release_certified": false,
+    "statement": "The fictional Telegram Recovery slice now refuses source-mixed scoring, exposes a versioned deterministic policy and visible external-sharing disclosure, and keeps writeback off. Item 6 remains partial because full ancestry, immutable server-owned rendering and broader real-data policies are not complete."
+  }
+}

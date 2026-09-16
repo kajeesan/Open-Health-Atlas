@@ -1,0 +1,16 @@
+# Automatic Hevy sync (§5a). The early-morning run remains the complete
+# reconciliation; daytime/evening runs keep completed workouts fresh enough
+# for same-day coaching without continuously polling Hevy's beta public API.
+[Unit]
+Description=Automatic Hevy workout sync
+
+[Timer]
+OnCalendar=*-*-* 03:30 UTC
+OnCalendar=*-*-* 12:30 UTC
+OnCalendar=*-*-* 18:30 UTC
+OnCalendar=*-*-* 23:15 UTC
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

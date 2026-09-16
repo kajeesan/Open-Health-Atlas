@@ -1,0 +1,59 @@
+{
+  "contract": "openhealthatlas-fictional-recovery-dashboard-parity-v1",
+  "data_class": "fictional",
+  "fixture_id": "comprehensive-persona-v1",
+  "range_from": "2026-03-02",
+  "range_to": "2026-06-30",
+  "surface": "localhost Recovery dashboard",
+  "deterministic_authority": "OpenHealthAtlas",
+  "command": "readiness",
+  "args": [
+    "--from",
+    "2026-03-02",
+    "--anchor",
+    "2026-06-30"
+  ],
+  "dashboard_result": {
+    "result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+    "matches_accepted_telegram_result": true,
+    "score": 58,
+    "band": "warn",
+    "component_scores": {
+      "sleep": 92,
+      "hrv": 27,
+      "rhr": 55
+    },
+    "muscle_groups_returned": 7,
+    "sore_groups": [
+      "Legs",
+      "Glutes"
+    ],
+    "training_performance_delta_pct": -0.8
+  },
+  "display_checks": {
+    "fictional_scope_visible": true,
+    "evidence_fingerprint_visible": true,
+    "all_component_scores_visible": true,
+    "muscle_detail_visible": true,
+    "soreness_visible": true,
+    "browser_can_override_scope": false,
+    "desktop_horizontal_overflow_px": 0,
+    "mobile_horizontal_overflow_px": 0
+  },
+  "storage_checks": {
+    "analysis_runs": 0,
+    "analysis_findings": 0,
+    "hypotheses": 0,
+    "synthesis_runs": 0,
+    "insight_notification_outbox": 0
+  },
+  "proof_level": "genuine local dashboard deterministic parity",
+  "does_not_prove": [
+    "private-data operation works or is authorized",
+    "browser chat works",
+    "Hermes interpretation is produced in the dashboard",
+    "other dashboard analytics use the governed readiness result",
+    "other health domains have been consolidated",
+    "legacy interpretation and storage routes have been quarantined"
+  ]
+}

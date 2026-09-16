@@ -1,0 +1,17 @@
+{
+  "audit": "/var/lib/openhealthatlas-fictional/openhealthatlas-tools.jsonl",
+  "contract": "openhealthatlas-hermes-tool-v1",
+  "data_class": "fictional",
+  "data_dir": "/var/lib/openhealthatlas-fictional",
+  "fixture_id": "comprehensive-persona-v1",
+  "health_cli": "/opt/openhealthatlas-fictional/toolkit/health.py",
+  "health_db": "/var/lib/openhealthatlas-fictional/health.db",
+  "health_vault": "/var/lib/openhealthatlas-fictional/vault",
+  "range_from": "2026-03-02",
+  "range_to": "2026-06-30",
+  "readiness_ancestry_sidecar": "/var/lib/openhealthatlas-fictional/readiness-ancestry-v2.json",
+  "readiness_fixture_lane": "accepted-v5",
+  "synthesis_writeback_enabled": false,
+  "timeout_seconds": 90,
+  "timezone": "UTC"
+}

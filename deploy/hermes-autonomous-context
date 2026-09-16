@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Emit one operator-supplied autonomous context file without following links."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+
+
+DEFAULT_CONTEXT = "/etc/hermes/autonomous-context.md"
+MAX_CONTEXT_BYTES = 1024 * 1024
+
+
+def fail(message: str) -> "NoReturn":
+    print(f"hermes-autonomous-context: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def open_without_symlinks(path: Path) -> int:
+    """Open *path* one component at a time without a symlink race."""
+
+    parts = path.parts[1:]
+    if not parts:
+        fail("context must name a file")
+    common_flags = getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = os.O_RDONLY | common_flags | getattr(os, "O_DIRECTORY", 0)
+    try:
+        parent = os.open(path.anchor, directory_flags)
+    except OSError as exc:
+        fail(f"context root cannot be opened safely: {exc}")
+    try:
+        for part in parts[:-1]:
+            try:
+                child = os.open(part, directory_flags, dir_fd=parent)
+            except OSError as exc:
+                fail(f"context path contains a symlink or unavailable directory: {exc}")
+            os.close(parent)
+            parent = child
+        try:
+            return os.open(parts[-1], os.O_RDONLY | common_flags, dir_fd=parent)
+        except OSError as exc:
+            fail(f"context file is a symlink or cannot be opened safely: {exc}")
+    finally:
+        os.close(parent)
+
+
+def read_context(path: Path) -> bytes:
+    descriptor = open_without_symlinks(path)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            fail("context must be a regular file")
+        allowed_owners = {0, os.geteuid()}
+        try:
+            allowed_owners.add(
+                pwd.getpwnam(os.environ.get("HERMES_SERVICE_USER", "hermes")).pw_uid
+            )
+        except KeyError:
+            # A development host need not have the production service account.
+            pass
+        if opened.st_uid not in allowed_owners:
+            fail("context must be owned by root or the service user")
+        if stat.S_IMODE(opened.st_mode) & 0o022:
+            fail("context must not be group- or world-writable")
+        if opened.st_size <= 0:
+            fail("context must not be empty")
+        if opened.st_size > MAX_CONTEXT_BYTES:
+            fail("context exceeds the one-megabyte safety limit")
+        chunks: list[bytes] = []
+        remaining = MAX_CONTEXT_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        value = b"".join(chunks)
+    finally:
+        os.close(descriptor)
+    if not value:
+        fail("context must not be empty")
+    if len(value) > MAX_CONTEXT_BYTES:
+        fail("context exceeds the one-megabyte safety limit")
+    if b"\x00" in value:
+        fail("context must be plain text without NUL bytes")
+    try:
+        value.decode("utf-8")
+    except UnicodeDecodeError:
+        fail("context must be valid UTF-8 text")
+    return value
+
+
+def main() -> int:
+    configured = os.environ.get("HERMES_AUTONOMOUS_CONTEXT_FILE", DEFAULT_CONTEXT)
+    path = Path(configured)
+    if not path.is_absolute():
+        fail("HERMES_AUTONOMOUS_CONTEXT_FILE must be an absolute path")
+    normalized = Path(os.path.normpath(str(path)))
+    os.write(sys.stdout.fileno(), read_context(normalized))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

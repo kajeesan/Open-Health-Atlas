@@ -1,0 +1,15 @@
+# Afternoon check-in ping at 15:00 UTC. Adjust OnCalendar for the deployment.
+# afternoon-crash window (the highest-value within-day reading; see
+# COVERAGE_CATALOG chk_energy_pm). Persistent=false: a missed ping is skipped,
+# never replayed late at night (no-guilt rule).
+[Unit]
+Description=Afternoon energy/focus ping (15:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 15:00 UTC
+RandomizedDelaySec=5m
+Persistent=false
+Unit=hermes-checkin-ping@pm.service
+
+[Install]
+WantedBy=timers.target

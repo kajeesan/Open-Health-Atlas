@@ -1,0 +1,59 @@
+{
+  "contract": "openhealthatlas-fictional-recovery-vps-preflight-v1",
+  "data_class": "fictional",
+  "fixture_id": "comprehensive-persona-v1",
+  "deployed_commit": "4036d4b",
+  "range_from": "2026-03-02",
+  "range_to": "2026-06-30",
+  "database_sha256": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+  "mcp_sha256": "sha256:4dd043ff651ca305eb7eee373ea7711fb9565c85c64487d95a8bc1d71d040560",
+  "adapter_sha256": "sha256:0e40eef3b4181c3cbf33ec2c7390fdfc9406c942c6e3a2c6ff91e85164a521b4",
+  "readiness_result_sha256": "sha256:eeb8f00da82a328a518d9da319c11ccc4605cac2195bcdc27961b5a20a74fd33",
+  "gateway": {
+    "state": "active",
+    "health": "ok",
+    "platform": "webhook"
+  },
+  "discovered_tools": [
+    "openhealthatlas_analysis_refresh",
+    "openhealthatlas_data_readiness",
+    "openhealthatlas_feature_frame",
+    "openhealthatlas_feature_registry",
+    "openhealthatlas_finding_evidence",
+    "openhealthatlas_recovery_detail",
+    "openhealthatlas_recovery_snapshot",
+    "openhealthatlas_synthesis_prepare"
+  ],
+  "recovery_protocol_preflight": {
+    "snapshot_ok": true,
+    "detail_ok": true,
+    "same_turn": true,
+    "selected_focus": "training",
+    "component_keys": [
+      "sleep",
+      "hrv",
+      "rhr"
+    ],
+    "muscle_groups": 7,
+    "missing": []
+  },
+  "model_interpretation_stored": false,
+  "system_generated_rows": {
+    "analysis_batches": 0,
+    "analysis_findings": 0,
+    "hypotheses": 0,
+    "synthesis_runs": 0,
+    "insight_notification_outbox": 0
+  },
+  "rollback": {
+    "available": true,
+    "contains_previous_programs_database_manifest_and_receipt": true
+  },
+  "proof_level": "installed MCP protocol preflight",
+  "does_not_prove": [
+    "genuine Hermes selected the recovery tools from a Telegram question",
+    "Hermes asked the user a follow-up in a separate Telegram turn",
+    "Hermes returned a qualified user-visible recovery explanation",
+    "any private-data journey works"
+  ]
+}

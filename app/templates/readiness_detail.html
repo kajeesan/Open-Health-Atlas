@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Readiness — recovery breakdown{% endblock %}
+{% block content %}
+{# Recovery acceptance display. Score, components, drag, muscle recovery and
+   soreness all render one /api/recovery/readiness result. The visible scope
+   and fingerprint make fictional evidence distinguishable from live data. #}
+<div class="vstack readiness-page">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.recovery') }}">◱ Recovery</a>
+      <h1 class="page-title">Readiness — recovery breakdown</h1>
+      <span class="muted micro" id="ry-sub">loading…</span>
+    </div>
+    <span class="chip muted" id="ry-chip" hidden></span>
+  </div>
+  <p class="muted micro m0" id="ry-evidence" aria-live="polite" hidden></p>
+
+  <div class="grid-2">
+    <div class="card center">
+      <div id="ry-gauge" class="h200"></div>
+      <p class="muted note-txt mt-1 m0">Transparent heuristic over fictional-fixture
+        baselines.</p>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-1">What's dragging it down</h3>
+      <p class="muted micro mb-1 m0">points each component costs vs an equal-weight mean</p>
+      <div id="ry-drag" class="h200"></div>
+      <div id="ry-drag-basis"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title mb-1">Component breakdown</h3>
+      <p class="muted micro mb-1 m0">the exact component scores used in this readiness result</p>
+      <div id="ry-breakdown"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-1">Deterministic detail</h3>
+      <div id="ry-advice"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title mb-1">Muscle recovery</h3>
+      <p class="muted micro mb-1 m0">per group: days since trained, effective sets this week,
+        last-session e1RM vs the fictional trailing 28d median</p>
+      <div class="table-wrap"><table class="ltab" id="ry-muscle-table">
+        <thead><tr><th>Group</th><th>Last trained</th><th>Sets 7d</th><th>e1RM vs 28d median</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title mb-1">Soreness summary</h3>
+      <div id="ry-soreness"><p class="muted note-txt m0">Loading…</p></div>
+    </div>
+  </div>
+
+  {# Cross-links to related pillars. #}
+  <div class="card">
+    <div class="row wrap">
+      <span class="label">cross-links</span>
+      <span class="muted note-txt">Related pillars:</span>
+      <a class="chip" href="{{ url_for('core.mind') }}">Mind · medication history ↗</a>
+      <a class="chip" href="{{ url_for('core.nutrition') }}">Nutrition ↗</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/readiness_detail.js') }}" defer></script>
+{% endblock %}

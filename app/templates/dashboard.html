@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{# Dashboard (design v-dashboard "1a"): greeting + nudge, hero good-vs-bad
+   insight (engine day-signature), scores strip — a big Consistency gauge
+   arc (open at the bottom) plus five pillar rings: Body · Mind · Nutrition
+   · Recovery · External care (owner-review r3: Consistency pulled out of
+   the uniform ring grid into its own hero per the design brief; r2 history:
+   "Fitness" renamed "Body", Sleep/Water rings moved to Recovery/Nutrition,
+   vitals row removed) — plus radar/trend row, day-ratings calendar + habits.
+   Everything renders engine output verbatim; pillars without an engine score
+   (Mind, External care) show an honest "pending score" ring — never a number. #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div>
+      <div class="label" id="dash-date">{{ today }}</div>
+      <h1 class="disp dash-greet m0" id="dash-greet">Good day, {{ display_name }}</h1>
+      <div class="row gap-2 mt-2" id="dash-chips"></div>
+    </div>
+    <div class="dd" data-dd="dashboard">
+      <button class="ddbtn" type="button">Month <span class="cv">▾</span></button>
+      <div class="ddmenu">
+        <button type="button" data-val="Day">Day</button>
+        <button type="button" data-val="Week">Week</button>
+        <button type="button" data-val="Month" class="on">Month</button>
+        <button type="button" data-val="Year">Year</button>
+        <button type="button" data-val="All">All time</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label mb-1">Dashboard role</div>
+    <p class="muted note-txt m0">
+      This dashboard visualizes your recorded data and deterministic findings;
+      it is not the conversational AI. Use a connected Hermes agent to describe
+      symptoms, answer follow-up questions, and explore evidence-grounded
+      possible explanations.
+    </p>
+  </div>
+
+  <!-- next action (real: /api/dash/today gaps + coverage top item) -->
+  <div class="card nudge-card row gap-2" id="nudge-card" hidden>
+    <div class="nudge-box"></div>
+    <div class="grow note-txt"><span class="strong">What to log next:</span>
+      <span class="muted" id="nudge-txt"></span></div>
+    <span class="chip">coverage nudge</span>
+  </div>
+
+  <!-- HERO INSIGHT — governed outcome-associations evidence -->
+  <div class="card">
+    <div class="row between wrap">
+      <h2 class="disp t20 m0">What is associated with your Green days</h2>
+      <span class="chip" id="hero-meta">loading…</span>
+    </div>
+    <p class="muted note-txt mt-1 mb-3">OpenHealthAtlas compares Green with non-Green rated days using its
+      registered deterministic analysis. These are exploratory associations, not proven causes.</p>
+    <div id="hero-analysis" aria-live="polite">
+      <div id="hero-findings"></div>
+      <p class="muted note-txt mt-2 mb-1" id="hero-readiness"></p>
+      <p class="muted micro m0 evidence-line" id="hero-evidence"></p>
+      <div class="row between wrap gap-2 mt-2">
+        <a class="klink u micro" href="{{ url_for('core.insights') }}">Inspect all findings in Insight Explorer →</a>
+        <a class="klink u micro" href="{{ url_for('core.data') }}">Open recorded trends →</a>
+      </div>
+    </div>
+    <p class="muted note-txt m0" id="hero-empty" hidden></p>
+    <div class="row wrap gap-2 mt-2">
+      <button class="btn quiet" type="button" id="hero-analysis-action">Stop waiting</button>
+      <span class="muted micro" id="hero-job-status" role="status">Checking analysis…</span>
+    </div>
+  </div>
+
+  <!-- SCORES — hero Consistency arc (big, gauge-style, open at the bottom)
+       + five pillar rings: Body · Mind · Nutrition · Recovery · External
+       care (owner-review r3: Consistency is now its own hero per the
+       design brief; the five keep the existing uniform ring family). -->
+  <div class="card">
+    <div class="label mb-3">Scores — click a ring → its pillar</div>
+    <div class="scores-strip">
+      <a class="hero-arc" href="{{ url_for('core.consistency') }}">
+        <div id="hero-arc" class="hero-arc-chart"></div>
+        <div class="muted note-txt hero-arc-cap" id="hero-arc-cap">Loading…</div>
+      </a>
+      <div class="sats" id="sats"></div>
+    </div>
+  </div>
+
+  <!-- RADARS + TREND -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="row between"><h3 class="card-title">Muscle Balance</h3><a class="chip klink" href="{{ url_for('core.training') }}">→ Body</a></div>
+      <div id="dash-radar-muscle" class="h230"></div>
+      <div class="muted micro center" id="dash-muscle-note"></div>
+    </div>
+    <a class="card klink" href="{{ url_for('core.training') }}">
+      <h3 class="card-title">Athletic Profile</h3>
+      <div id="dash-radar-ath" class="h230"></div>
+      <div class="muted micro center">5 axes · test-backed</div>
+    </a>
+    <div class="card">
+      <h3 class="card-title">Mood &amp; focus — 14 days</h3>
+      <div id="dash-trend" class="h230"></div>
+      <div class="muted micro center">1–5 scale · from your evening check-ins</div>
+    </div>
+  </div>
+
+  {# §3f Phase 2 (owner markup image 9): the figure's first dashboard
+     appearance — read-only front/back body maps FIXED on the
+     strength-balance lens (product contract: no activation default here, no
+     lens selector), compact legend, whole card → Body. Regions are painted
+     from health.py `muscle-map --lens strength-balance` verbatim.
+     Task A (2026-07-20): grid-3 (not grid-2) so front aligns under Muscle
+     Balance (col 1) and back under Athletic Profile (col 2) — the col-3 slot
+     under Mood & focus stays empty. `mf-glance` shrinks the shared figure to
+     a dashboard-only glance size (scoped in panel.css, never the /training
+     full-size figure). #}
+  <div class="grid-3">
+    <a class="card klink" href="{{ url_for('core.training') }}">
+      <div class="row between dash-mf-head"><h3 class="card-title">Strength balance — front</h3><span class="chip">→ Body</span></div>
+      <div id="dash-mf-front" class="mf-mount mf-glance mt-2"><p class="muted note-txt m0">Loading…</p></div>
+      <div id="dash-mf-legend" class="mf-legend"></div>
+    </a>
+    <a class="card klink" href="{{ url_for('core.training') }}">
+      <div class="row dash-mf-head"><h3 class="card-title">Strength balance — back</h3></div>
+      <div id="dash-mf-back" class="mf-mount mf-glance mt-2"><p class="muted note-txt m0">Loading…</p></div>
+      <div class="muted micro center mt-1">cited tested ratios · grey = untested · full lens picker on the Body page</div>
+    </a>
+  </div>
+
+  <!-- HEATMAP + HABITS -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="row between wrap mb-1">
+        <h3 class="card-title">Day ratings</h3>
+        <div class="row gap-2">
+          <span class="chip"><span class="dot good"></span>good</span>
+          <span class="chip"><span class="dot okay"></span>ok</span>
+          <span class="chip"><span class="dot bad"></span>hard</span>
+        </div>
+      </div>
+      <div id="ch-heat" class="h200"></div>
+      <a class="muted micro mt-2 klink" href="{{ url_for('core.insights') }}">heatmap → open Insight Explorer →</a>
+    </div>
+    <div class="card">
+      <div class="row between mb-3">
+        <h3 class="card-title">Habits &amp; streaks</h3>
+        <a class="chip klink" href="{{ url_for('core.consistency') }}">→ Consistency</a>
+      </div>
+      <div class="vstack gap-2" id="habit-list">
+        <span class="muted note-txt">Habit streaks appear when the coach loop logs them.</span>
+      </div>
+      <div class="mt-3 pt-3 hair-top" id="kept-word" hidden>
+        <div class="row between mb-2">
+          <span class="label ink">Kept your word</span>
+          <span class="chip" id="kept-chip"></span>
+        </div>
+        <div class="barbg"><div class="barfill" id="kept-bar"></div></div>
+        <div class="muted micro mt-2" id="kept-cap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/body-muscles/body-muscles.umd.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/muscle-figure.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/analysis_jobs.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}

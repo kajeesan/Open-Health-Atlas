@@ -1,0 +1,5 @@
+name: openhealthatlas-recovery-delivery
+version: "1.0.0"
+description: Fail-closed fictional OpenHealthAtlas evidence renderer for Telegram.
+author: OpenHealthAtlas contributors
+hooks: []

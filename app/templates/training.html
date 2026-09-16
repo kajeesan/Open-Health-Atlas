@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Body{% endblock %}
+{% block content %}
+{# Body (design v-body): analysis view — muscle + athletic radars, strength
+   ratios, V-taper, weight, quarter battery, per-lift progression. Set capture
+   lives in the Telegram loop. All numbers come from health.py endpoints;
+   nothing is computed here. The training-program editor joins this page when
+   the Plans page dissolves into Settings (nav flip). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Body</h1>
+      <span class="muted micro">muscle + athletic radars · strength &amp; balance</span>
+    </div>
+    <div class="row gap-2 wrap">
+      {# task-37: global period dd — windows the time-series trend cards
+         (Weight, Progression, Weight-to-strength). The radars (Muscle Balance
+         is a fixed 7-day effective-volume window by engine design; Athletic is
+         current score-vs-target), Strength ratios, V-taper, Quarter battery and
+         Goals are all current-state / fixed-window analyses with no time axis to
+         window — they don't subscribe (T26 precedent: no dead options). Default
+         Year: strength trends read over a meaningful horizon. #}
+      <div class="dd" data-dd="body">
+        <button class="ddbtn" type="button">Year <span class="cv">▾</span></button>
+        <div class="ddmenu">
+          <button type="button" data-val="Day">Day</button>
+          <button type="button" data-val="Week">Week</button>
+          <button type="button" data-val="Month">Month</button>
+          <button type="button" data-val="Year" class="on">Year</button>
+          <button type="button" data-val="All">All time</button>
+        </div>
+      </div>
+      <a class="back" href="{{ url_for('core.labs') }}">Bloodwork → Labs ↗</a>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">Muscle Balance <span class="muted micro">relative 7-group distribution</span></h3>
+      <div id="ch-muscle" class="h280"></div>
+      <p class="muted micro m0" id="muscle-note"></p>
+      {# §3b drill-down (owner round 2): the axis NAMES themselves are the
+         click targets now (wired in training.js via radar triggerEvent) —
+         the chip row is gone; same /training/muscle/<group> destinations. #}
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Athletic Profile <span class="muted micro">progress to target</span></h3>
+      <div id="ch-athletic" class="h280"></div>
+      <p class="muted micro m0" id="athletic-note">Five test-backed axes, each scored 0–100 vs a
+        target you set. Axes stay empty until a target is set and the test is logged (Telegram).</p>
+    </div>
+  </div>
+
+  {# §3f muscle figure (owner markup 2026-07-20, Task B): ONE cockpit card with
+     a shared lens bar spanning both columns, so the front and back figures stay
+     vertically PARALLEL. The lens selector + the strength-balance Combined|L/R
+     sub-toggle live ABOVE the two-column grid — so a lens that grows the bar
+     shifts BOTH figures down together, never one alone (the old layout put the
+     bar in the front card only, which pushed just the front figure down).
+     Regions are painted from health.py `muscle-map` verbatim; the click action
+     is lens-dependent (see training.js). #}
+  <div class="card">
+    <div class="row between wrap">
+      <h3 class="card-title">Body map <span class="muted micro">anterior &amp; posterior</span></h3>
+      <div class="tabrow" data-group="mflens" id="mf-lens">
+        <button class="on" type="button" data-tab="activation">Activation</button>
+        <button type="button" data-tab="strength-balance">Strength balance</button>
+        <button type="button" data-tab="pain">Pain</button>
+        <button type="button" data-tab="mobility">Mobility</button>
+      </div>
+    </div>
+    {# §3f Phase 2: Combined|L/R sub-view, only meaningful for the strength-
+       balance lens (training.js reveals it with the lens). It sits in the shared
+       bar so revealing it moves BOTH figures down evenly, keeping them aligned. #}
+    <div class="tabrow mt-2" data-group="mfside" id="mf-side" hidden>
+      <button class="on" type="button" data-tab="combined">Combined</button>
+      <button type="button" data-tab="lr">Left / right</button>
+    </div>
+    <div class="grid-2 mt-3">
+      <div>
+        <div class="label">Front · anterior</div>
+        <div id="mf-front" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+        <div id="mf-legend-f" class="mf-legend"></div>
+        <p class="muted micro m0 mt-1" id="mf-note" hidden></p>
+      </div>
+      <div>
+        <div class="label">Back · posterior</div>
+        <div id="mf-back" class="mf-mount mt-2"><p class="muted note-txt m0">Loading…</p></div>
+        <div id="mf-legend-b" class="mf-legend"></div>
+        <p class="muted micro m0 mt-1" id="mf-cap">Click a muscle to drill into its group.
+          Dashed outline = deep muscle shown on the nearest drawn region.</p>
+      </div>
+    </div>
+  </div>
+
+  {# §3g Phase 3: the physio-loop side card — READ-ONLY. Shown by training.js
+     only when the Pain lens is active. Every candidate cause, self-test, drill,
+     citation and boundary line is rendered from the engine's `muscle-map
+     --lens pain` payload VERBATIM (determinism law). Pain is reported by
+     telling the coach, never a panel form — there are no inputs here. #}
+  <div class="card" id="mf-loop" hidden>
+    <div class="row between wrap">
+      <div>
+        <h3 class="card-title">Pain &amp; physio loop</h3>
+        <div class="muted micro">cited candidate patterns · report pain by telling the coach</div>
+      </div>
+      <span class="chip" id="mf-loop-count"></span>
+    </div>
+    <p class="note-txt strong mt-2 mb-0" id="mf-boundary" hidden></p>
+    <div class="vstack gap-2 mt-3" id="mf-loop-body"></div>
+    <p class="muted micro m0 mt-3 pt-3 hair-top" id="mf-cv"></p>
+  </div>
+
+  {# §3h Phase 4: the mobility detail card — READ-ONLY. Shown by training.js only
+     when the Mobility lens is active. Each row is one cited mobility test (latest
+     value vs its cited norm + caveat), rendered from the engine's `muscle-map
+     --lens mobility` payload VERBATIM (determinism law). Mobility tests are logged
+     by telling the coach (a fitness test), never a panel form — no inputs here. #}
+  <div class="card" id="mf-mobility" hidden>
+    <div class="row between wrap">
+      <div>
+        <h3 class="card-title">Mobility &amp; range</h3>
+        <div class="muted micro">cited movement screens · log a test by telling the coach</div>
+      </div>
+      <span class="chip" id="mf-mobility-count"></span>
+    </div>
+    <div class="vstack gap-2 mt-3" id="mf-mobility-body"></div>
+    <p class="muted micro m0 mt-3 pt-3 hair-top" id="mf-mobility-flex"></p>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap">
+      <div>
+        <h3 class="card-title">Strength ratios</h3>
+        <div class="muted micro">centered on the target ratio · cited bands</div>
+      </div>
+      <div class="tabrow" data-group="ratio" id="ratio-view">
+        <button class="on" type="button" data-tab="tested">Tested</button>
+        <button type="button" data-tab="everyday">Everyday</button>
+      </div>
+    </div>
+    <div id="ch-ratios" class="h300"></div>
+    <p class="muted micro m0" id="ratio-note"></p>
+  </div>
+
+  <div class="grid-3">
+    <div class="card center">
+      <h3 class="card-title">V-taper <span class="muted micro">waist ÷ chest</span></h3>
+      <div id="ch-vtaper" class="gauge-sm"></div>
+      <div class="muted micro" id="vtaper-current">Loading…</div>
+      <p class="muted micro m0" id="vtaper-note"></p>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Weight</h3>
+      <div id="ch-weight" class="h170"></div>
+      <div class="muted micro center" id="weight-cap"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Quarter progress <span class="muted micro">isolation battery</span></h3>
+      <p class="quarter-strip" id="quarter-strip">Loading…</p>
+      <p class="muted micro m0" id="quarter-missing"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap">
+      <h3 class="card-title">Progression</h3>
+      <select id="prog-exercise" class="select" aria-label="Exercise"></select>
+    </div>
+    <div id="ch-progression" class="h300"></div>
+    <p class="muted micro m0" id="prog-cap">Top-set weight and estimated 1-rep max (Epley). ★ marks a new e1RM best.</p>
+  </div>
+
+  {# Weight-to-strength ratio (owner request, task 27): combined estimated
+     1-rep max across all lifts ÷ body weight — how strong you are for your
+     size. Same endpoint/plumbing as the Overall progression view. #}
+  <div class="card">
+    <h3 class="card-title">Weight-to-strength ratio <span class="muted micro">total e1RM ÷ bodyweight</span></h3>
+    <div id="ch-wsr" class="h300"></div>
+    <p class="muted micro m0" id="wsr-cap">Relative strength = combined e1RM ÷ body weight.</p>
+  </div>
+
+  {# Goals card (owner request, task 27) — replaced the Program & schedule
+     editor, which moved to Settings → Program (/program). REAL Body targets
+     only, derived from engine data (WCR target, athletic axes with a set
+     target, weekly volume vs plan); rows appear only when their data exists,
+     otherwise one honest empty line. No mock rows. #}
+  <div class="card">
+    <div class="row between wrap">
+      <h3 class="card-title">Goals</h3>
+      <span class="muted micro">progress toward your Body targets</span>
+    </div>
+    <div id="goals-list" class="goals-list mt-2"><p class="muted note-txt m0">Loading…</p></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/echarts.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/body-muscles/body-muscles.umd.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/muscle-figure.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/physio-render.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/training.js') }}" defer></script>
+{% endblock %}

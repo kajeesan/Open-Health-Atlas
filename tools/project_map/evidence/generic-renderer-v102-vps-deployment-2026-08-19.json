@@ -1,0 +1,81 @@
+{
+  "contract": "openhealthatlas-generic-renderer-v102-vps-deployment-v1",
+  "recorded_on": "2026-08-19",
+  "status": "generic_renderer_v102_active_natural_prose_enabled_exact_twelve_tools",
+  "supersedes": {
+    "path": "tools/project_map/evidence/generic-renderer-v101-vps-deployment-2026-08-19.json",
+    "record_commit": "0773a0bc211de4c12ba08ce7cc8b11f307b40682",
+    "byte_preserved": true
+  },
+  "owner_decision": {
+    "numeric_date_exact_line_restrictions_removed": true,
+    "replacement_numeric_verifier_added": false,
+    "future_generic_prose_restrictions_require_explicit_approval": true,
+    "unchanged_boundaries": [
+      "fictional_only",
+      "private_field_exclusion",
+      "writeback_disabled",
+      "untrusted_evidence_hash_rejection",
+      "non_diagnostic",
+      "non_causal"
+    ]
+  },
+  "candidates": {
+    "openhealthatlas_commit": "cf9aecdee262803be5aab655de42c9a03c1b5fc5",
+    "external_hermes_test_commit": "173514e52",
+    "candidate_archive_sha256": "sha256:ad27edaaae2df906674e23ae78b801409b50e3be9473b2fbe8496630fa03a1db",
+    "runtime_smoke_sha256": "sha256:b5e8ff98ca49198fe39012b8c42d84b55480023deeb803cac25b2969a24f096a",
+    "deployment_script_sha256": "sha256:a78c0878b08c5b653b08955317a9f646f8eaedeaed5976ce2a59c655b60686ce"
+  },
+  "verification": {
+    "openhealthatlas_focused_tests": 99,
+    "cross_repository_tests": 2,
+    "natural_dates_delivered": true,
+    "rounded_values_delivered": true,
+    "combined_facts_delivered": true,
+    "arbitrary_numeric_prose_delivered_as_model_generated": true,
+    "deterministic_disclosure_first": true
+  },
+  "deployment": {
+    "backup_root": "[REDACTED backup-location 06]",
+    "backup_archive_sha256": "sha256:e6aba654d5787c90bb5409b21f685eae4f3c115d851c29e1a4580a7ac31b44d7",
+    "backup_inventory_sha256": "sha256:0db55f796b993e50bd685468618ebeb03530bd9946daa62e25ae0d08153ed91a",
+    "restore_rehearsal": "passed",
+    "rollback_triggered": false
+  },
+  "runtime": {
+    "main_pid": 701217,
+    "active_state": "active",
+    "sub_state": "running",
+    "service_result": "success",
+    "loopback_health": "ok",
+    "working_directory": "[REDACTED release-location 01]",
+    "generic_renderer": "openhealthatlas-generic-evidence-delivery@1.0.2",
+    "renderer_marker_at": "2026-08-19T13:29:09.932Z",
+    "registered_fictional_tools": 12,
+    "exact_tool_set_verified": true,
+    "registry_marker_at": "2026-08-19T13:29:13.226Z"
+  },
+  "deployed_artifacts": {
+    "/opt/openhealthatlas-fictional/toolkit/hermes_insights/hermes_surface.py": "sha256:a76c9e35dc72d0c760b29a6889b4ec9ee9895d4b5fa522e0a245c508aded1853",
+    "/opt/openhealthatlas-fictional/toolkit/DEPLOYED.manifest": "sha256:a714a7411f0ead512ac9b39a57dce64ba30ac35433a3356e555f92d8dd5a9904",
+    "/usr/local/lib/hermes-openhealthatlas-fictional/hermes-openhealthatlas-mcp": "sha256:501c9392e7289dadadfece908fd6a7f0d415866b6271be554bf5e1533fbd2a9d",
+    "<redacted-local-artifact-1>": "sha256:fddd1d67809ce35282f98508b647488034c5c15e4d67f89e01d838266b481177",
+    "<redacted-local-artifact-2>": "sha256:19ca0e890da35992e21420c19e900916e4c2b952799f1b32785994653b441928",
+    "<redacted-local-artifact-3>": "sha256:75be64794cc68c2c7ff0365ad4a7aeba4900e98dac21ef32fbbc6bf1c80c918f"
+  },
+  "protected_state": {
+    "database_sha256": "sha256:680fa8230d3e9d6adc74f9c42183637eb45521663d1db1ee9444612653ced5e3",
+    "ancestry_sidecar_sha256": "sha256:ea4d2a0fcf8e98478c159c78e6064d00fea874b151713891224deb26fcdb8557",
+    "schema_version": 5,
+    "synthesis_runs": 0,
+    "writeback": "disabled",
+    "real_data": "disabled",
+    "private_health_data_accessed": false,
+    "telegram_message_sent": false
+  },
+  "remaining_acceptance": {
+    "live_generic_telegram_comparison": "Unverified",
+    "item_6_global": "Partially built"
+  }
+}

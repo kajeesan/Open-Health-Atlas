@@ -1,0 +1,18 @@
+{% extends "bare.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <div class="auth-brand">
+    <span class="brand-mark">⚕</span>
+    <h1>OpenHealthAtlas</h1>
+    <p class="dim">Private. Tailscale + passkey only.</p>
+  </div>
+  <button id="passkey-login" class="primary-btn" type="button" data-next="{{ next }}">
+    Sign in with passkey
+  </button>
+  <p id="auth-msg" class="auth-msg" role="status"></p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/auth.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,58 @@
+{
+  "contract_version": "hermes-autonomous-jobs-v1",
+  "owner": "hermes-open-source-insights-v1",
+  "timezone_disclosure": "All example schedules are UTC; adapt them explicitly before installation.",
+  "jobs": [
+    {
+      "id": "hermes-autonomous-weekly-v1",
+      "owner": "hermes-open-source-insights-v1",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expression": "0 8 * * 0",
+        "timezone": "UTC",
+        "local_disclosure": "08:00 UTC each Sunday"
+      },
+      "workdir": "/var/lib/hermes",
+      "context_from": "/etc/hermes/autonomous-context.md",
+      "model": null,
+      "provider": null,
+      "delivery": null,
+      "task": "Run health.py analysis-refresh --kind weekly and use only its returned structured preparation. Do not invent numerical evidence or a notification when the result is no_novelty or insufficient_data."
+    },
+    {
+      "id": "hermes-autonomous-monthly-v1",
+      "owner": "hermes-open-source-insights-v1",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expression": "30 8 1 * *",
+        "timezone": "UTC",
+        "local_disclosure": "08:30 UTC on the first day of each month"
+      },
+      "workdir": "/var/lib/hermes",
+      "context_from": "/etc/hermes/autonomous-context.md",
+      "model": null,
+      "provider": null,
+      "delivery": null,
+      "task": "Run health.py analysis-refresh --kind monthly and preserve explicit missing-data slots. Do not repeat unchanged weekly content or fabricate comparisons."
+    },
+    {
+      "id": "hermes-autonomous-trigger-v1",
+      "owner": "hermes-open-source-insights-v1",
+      "enabled": false,
+      "schedule": {
+        "kind": "cron",
+        "expression": "*/30 * * * *",
+        "timezone": "UTC",
+        "local_disclosure": "Every 30 minutes in UTC"
+      },
+      "workdir": "/var/lib/hermes",
+      "context_from": "/etc/hermes/autonomous-context.md",
+      "model": null,
+      "provider": null,
+      "delivery": null,
+      "task": "Claim at most one due trigger, pass its exact fence to analysis-refresh --kind trigger, and complete only after durable analysis, synthesis, and outbox state. Never resend an uncertain notification."
+    }
+  ]
+}

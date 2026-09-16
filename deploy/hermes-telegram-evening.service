@@ -1,0 +1,21 @@
+[Unit]
+Description=Hermes tap-first evening accountability check-in
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+WorkingDirectory=/var/lib/hermes
+Environment=HERMES_DATA_DIR=/var/lib/hermes
+Environment=HERMES_TELEGRAM_ACTIONS_STATE=/var/lib/hermes/.runtime/telegram-actions
+LoadCredential=telegram.env:/etc/hermes/telegram.env
+ExecStart=/usr/local/lib/hermes-bridge/hermes-telegram-actions send-evening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+InaccessiblePaths=/etc/hermes
+ReadWritePaths=/var/lib/hermes/.runtime/telegram-actions
+TimeoutStartSec=120

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Vault notes{% endblock %}
+{% block content %}
+{# Vault-notes settings page (design: Settings drawer → General). Split out of
+   the retired Plans page in the nav flip (task 15): edits the four whitelisted
+   Markdown notes with a diff preview + confirm. Reads/diff are done by the
+   panel (read-only vault access); the WRITE goes through /api/plans/note →
+   the bridge → health.py write-note (the panel can't write the vault). #}
+<div class="vstack">
+  <div class="row-top between wrap">
+    <div class="crumb">
+      <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
+      <h1 class="page-title">Vault notes</h1>
+      <span class="muted micro">edit your plan &amp; profile notes · preview before saving</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between wrap">
+      <h3 class="card-title">Note</h3>
+      <select id="note-picker" class="select" aria-label="Note">
+        <option value="personal/plan.md">plan.md</option>
+        <option value="personal/habits.md">habits.md</option>
+        <option value="personal/profile.md">profile.md</option>
+        <option value="personal/goals.md">goals.md</option>
+      </select>
+    </div>
+    <textarea id="note-editor" class="note-editor" spellcheck="false" placeholder="Loading…"></textarea>
+    <div class="note-actions">
+      <button id="note-diff-btn" class="log-more-btn" type="button">Preview changes</button>
+      <button id="note-save-btn" class="save-btn" type="button" disabled>Confirm &amp; save</button>
+      <span id="note-status" class="muted micro"></span>
+    </div>
+    <pre id="note-diff" class="note-diff" hidden></pre>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" aria-live="polite"></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/vault-notes.js') }}" defer></script>
+{% endblock %}
