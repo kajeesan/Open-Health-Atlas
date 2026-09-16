@@ -18,10 +18,10 @@ the calculations; the external model provides the interpretation.
 [Connect an MCP client](docs/LOCAL_MCP.md) ·
 [Develop the project](docs/DEVELOPMENT.md)**
 
-![Fictional Open Health Atlas dashboard showing three Green-day associations with sample counts, confidence intervals, evidence references and an insufficient-data note.](docs/assets/fictional-dashboard.png)
+![Fictional Open Health Atlas dashboard with Muscle Balance and Athletic Profile radar charts, front and back strength-balance body diagrams, and the navigation sidebar.](docs/assets/fictional-demo-overview-v2.png)
 
-*Current local demo, using generated records only. The analysis shows associations,
-not proven causes. [Image context and verification](docs/SCREENSHOTS.md).*
+*Fictional UI demo snapshot. [Explore the demo](https://kajeesan.com/openhealthatlas-demo/)
+· [Image details](docs/SCREENSHOTS.md).*
 
 ## Choose your starting point
 

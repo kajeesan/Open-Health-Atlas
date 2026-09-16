@@ -69,6 +69,8 @@ ALLOWED_EMAIL_LITERALS = {"git@github.com"}
 REVIEWED_BINARY_ASSETS: dict[str, str] = {
     "docs/assets/fictional-dashboard.png":
         "3f396a93f70120e599004c981a73aa52f35a3bd11c4a29a272990aa4638b7d0f",
+    "docs/assets/fictional-demo-overview-v2.png":
+        "6c2b403d8477549bd4e2901757ad3501767fb282bd1eb68eecf5c2ae2ba7ea99",
 }
 DOCUMENTATION_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
     "192.0.2.0/24",
