@@ -391,3 +391,13 @@ into reports. New generated metadata must be verified after the next reviewed
 branch update; earlier generated objects are not rewritten by this setting.
 The owner confirmed they do not have a Developer ID Application identity;
 normal signed/notarized distribution remains pending.
+
+### Native cancellation revalidation
+
+The cancellation-fixed `5d18014` bundle passed the actual native crash test while
+a copied panel DB remained locked: runtime shutdown in 0.07 seconds; both original
+databases byte-identical; old generation retained. Reopening completed recovery
+into a new generation with exact health-row preservation and the Ember theme
+still visible. The bundled offline verifier now independently exercises parent
+pipe loss during an actual blocked upgrade and confirms no partial generation
+is selected. All 13 packaged offline checks and 32 focused desktop tests pass.

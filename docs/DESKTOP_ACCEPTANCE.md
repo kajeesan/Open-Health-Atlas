@@ -47,9 +47,9 @@ Source tests and development previews cannot mark these rows passed.
 | Deterministic analysis and evidence | Passed locally | Actual bundled MCP query, positive analysis and evidence replay |
 | Actual bundled stdio MCP | Passed locally | SDK transport, status, analysis/evidence, active-worker disconnect cleanup and stable-workspace upgrade reconnect |
 | Quit/reopen and duplicate runtime | Passed locally | Exact health-row preservation; second runtime refused without data change; native second launch activates existing window |
-| Port/socket collisions and slow startup | Partial | OS-assigned port and exclusive private socket directory avoid fixed collisions; native waiting/retry implemented, long-delay injection still untested |
+| Port/socket collisions and slow startup | Passed with stated scope | OS-assigned port and exclusive private socket directory; native 15-second waiting message observed during a deliberately locked upgrade |
 | Launcher crash and startup recovery | Passed locally | Abrupt launcher termination/restart retains records; damaged settings recover through selection; native Try again recovered after deliberately killing its owned test broker |
-| Native crash during a long migration | Untested | Dedicated interruption of a live native migration remains required |
+| Native crash during a blocked upgrade | Passed locally | Real native process killed while a copied panel DB remained exclusively locked; fixed runtime exited in 0.07 s, originals stayed byte-identical, and reopening recovered |
 | Upgrade and migration backup | Passed with stated scope | Packaged simulated code-version update snapshots both DBs and preserves all health rows; no older published desktop release exists |
 | Interrupted/failed migration recovery | Passed in source tests | Failure before selection preserves original/backup; interruption after selection preserves later writes; v6→v7 import preserves named records |
 | App removal | Passed locally | Deleted only a disposable DMG-installed app copy; every data file stayed byte-identical; reinstall retained records and theme |
@@ -134,3 +134,32 @@ and injected slow-start acceptance remain explicitly untested.
 [Draft PR #7](https://github.com/kajeesan/Open-Health-Atlas/pull/7) contains the
 implementation and preserves the approved Body layout dependency. No public
 desktop release has been published.
+
+## Cancellation-fixed local candidate
+
+Source `5d18014bf126faef31e75578f2763646aecf252f`, clean. The earlier locked-Mac
+visual gap is resolved: the final native window retained Ember through quit
+and reopen, and through an interrupted-upgrade recovery. A real native-parent
+crash during a blocked SQLite backup first reproduced a lifetime bug; the
+corrected runtime stops in 0.07 seconds while the source remains locked. Both
+original database files remain byte-identical, the old generation stays
+selected until recovery succeeds, and recovered health rows match exactly.
+This exercises cancellation during backup before the upgrade commit point;
+source tests separately cover failed migration and post-commit recovery.
+
+The packaged offline verifier now covers 13 checks, including native-owner pipe
+loss during an actual locked backup. All 32 focused desktop tests pass. The
+original project/third-party license inventory and pinned dependencies are
+unchanged. Developer ID signing, notarization and default-Gatekeeper clean-Mac
+acceptance remain unavailable; the owner confirmed there is no Developer ID
+Application identity yet.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `openhealthatlas-0.1.0-macos-arm64-local-unsigned.dmg` | 50235772 | `37a44cca98f4370d95ce6495471fb30d5244922297371b35a31e0d4c9ce9bdb4` |
+| `openhealthatlas-0.1.0-macos-arm64-local-unsigned.zip` | 35617267 | `677c4284b4b3a5f1428a8217f1e3298a6c3b96fe58aa265d138c3fc12a03af9c` |
+
+GitHub email privacy was enabled under the owner's explicit instruction.
+That setting applies to future web operations and does not erase earlier
+metadata. Verify newly generated PR metadata after updating the branch; no
+real email address belongs in reports or source.

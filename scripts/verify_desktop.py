@@ -27,7 +27,7 @@ class Journey:
         self.events = queue.Queue()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
-    def launch(self):
+    def launch(self, wait_ready=True):
         runtime = self.bundle / "Contents/Resources/PythonRuntime/bin/python3"
         script = self.bundle / "Contents/Resources/app/desktop/launcher.py"
         self.child = subprocess.Popen([str(runtime), "-I", "-B", str(script), "--data-root", str(self.root)],
@@ -37,7 +37,7 @@ class Journey:
             for line in self.child.stdout:
                 self.events.put(json.loads(line))
         threading.Thread(target=lines, daemon=True).start()
-        return self.ready()
+        return self.ready() if wait_ready else None
 
     def ready(self):
         event = self.events.get(timeout=240)
@@ -82,13 +82,19 @@ class Journey:
         metadata = json.loads((folder / "workspace.json").read_text())
         return settings["selected"], folder / "generations" / metadata["generation"] / "health.db"
 
-    def stop(self, abrupt=False):
+    def stop(self, abrupt=False, timeout=15):
         if self.child and self.child.poll() is None:
             if abrupt:
                 self.child.kill()
             else:
                 self.child.stdin.close()
-            self.child.wait(timeout=15)
+            try:
+                self.child.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                self.child.kill()
+                self.child.wait()
+                self.child = None
+                raise AssertionError("Packaged runtime did not stop when its owner exited") from None
         self.child = None
 
 
@@ -165,14 +171,38 @@ def main():
             old_generation = metadata["generation"]
             metadata["prepared_code_version"] = "0" * 40
             metadata_path.write_text(json.dumps(metadata))
+            # Simulate loss of the native parent's pipe while an actual SQLite
+            # backup waits on a source lock. The lock stays held until shutdown.
+            backup_root = workspace_folder / "backups"
+            prior_backups = set(backup_root.iterdir()) if backup_root.exists() else set()
+            keeper = sqlite3.connect(database.with_name("panel.db"))
+            keeper.execute("BEGIN EXCLUSIVE")
+            try:
+                journey.launch(wait_ready=False)
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    assert journey.child.poll() is None, "Upgrade stopped before cancellation was tested"
+                    created = set(backup_root.iterdir()) - prior_backups if backup_root.exists() else set()
+                    if any((path / "health.db").is_file() and (path / "panel.db").is_file() for path in created):
+                        break
+                    time.sleep(0.05)
+                else:
+                    raise AssertionError("Packaged upgrade did not reach the blocked backup")
+                journey.stop(timeout=2)
+                assert journey.events.empty(), "Cancelled upgrade unexpectedly started a web session"
+                assert json.loads(metadata_path.read_text())["generation"] == old_generation
+            finally:
+                keeper.rollback()
+                keeper.close()
+            checks.append("parent_pipe_loss_cancels_blocked_upgrade_without_selecting_partial_data")
             journey.launch()
             journey.login()
             _, upgraded_db = journey.selected()
             assert upgraded_db != database
             assert database_rows(upgraded_db) == before == database_rows(database)
-            backups = list((workspace_folder / "backups").glob("*/health.db"))
-            assert len(backups) == 1 and database_rows(backups[0]) == before
-            assert (backups[0].parent / "panel.db").is_file()
+            backup = workspace_folder / "backups" / upgraded_db.parent.name
+            assert database_rows(backup / "health.db") == before
+            assert (backup / "panel.db").is_file()
             checks.append("simulated_code_upgrade_verified_backups_exact_record_preservation")
             assert '"panel-theme": "alpine"' in journey.request("/desktop/preferences.js")[1]
             checks.append("workspace_preferences_survive_restart_and_upgrade")
