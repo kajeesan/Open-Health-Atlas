@@ -46,6 +46,7 @@ ALLOWED_URL_HOSTS = {
     "api.telegram.org",
     "cdn.jsdelivr.net",
     "creativecommons.org",
+    "developer.apple.com",
     "docs.github.com",
     "doi.org",
     "example.invalid",
