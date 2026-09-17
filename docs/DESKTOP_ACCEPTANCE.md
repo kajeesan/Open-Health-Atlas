@@ -19,8 +19,8 @@ commit is the desktop release.
 | --- | --- | --- |
 | macOS 26.6.2 / arm64 local host | Available | Current development host; not a clean customer Mac |
 | Self-contained `.app` and original icon | Passed locally | Bundled CPython, pinned libraries and local assets; native launch on the stated host |
-| DMG and ZIP | Pending final build | Rebuild from the clean reviewed commit; record hashes |
-| macOS 15 / arm64 CI build | Untested | Workflow configured; a configuration is not a passing run |
+| DMG and ZIP | Passed locally at initial checkpoint | Generated, checksummed, verified, mounted read-only and copied to a disposable installation; final preference-fix rebuild follows |
+| macOS 15 / arm64 CI build | Passed at initial checkpoint | [Desktop build](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35172456354) built and tested the package; native visual/Gatekeeper checks remain separate |
 | Developer runtimes absent from command path | Passed locally | Packaged acceptance uses only bundled Python with system-only PATH; no first-use download |
 | Fresh customer Mac/account | Untested | This host has development tools; isolated PATH is not a clean-machine certification |
 | Developer ID signing | Blocked | No authorized signing identity present |
@@ -48,7 +48,7 @@ Source tests and development previews cannot mark these rows passed.
 | Actual bundled stdio MCP | Passed locally | SDK transport, status, analysis/evidence, active-worker disconnect cleanup and stable-workspace upgrade reconnect |
 | Quit/reopen and duplicate runtime | Passed locally | Exact health-row preservation; second runtime refused without data change; native second launch activates existing window |
 | Port/socket collisions and slow startup | Partial | OS-assigned port and exclusive private socket directory avoid fixed collisions; native waiting/retry implemented, long-delay injection still untested |
-| Launcher crash and startup recovery | Passed locally | Abrupt launcher termination/restart retains records; damaged settings recover through healthy workspace selection |
+| Launcher crash and startup recovery | Passed locally | Abrupt launcher termination/restart retains records; damaged settings recover through selection; native Try again recovered after deliberately killing its owned test broker |
 | Native crash during a long migration | Untested | Dedicated interruption of a live native migration remains required |
 | Upgrade and migration backup | Passed with stated scope | Packaged simulated code-version update snapshots both DBs and preserves all health rows; no older published desktop release exists |
 | Interrupted/failed migration recovery | Passed in source tests | Failure before selection preserves original/backup; interruption after selection preserves later writes; v6→v7 import preserves named records |
@@ -59,7 +59,7 @@ Source tests and development previews cannot mark these rows passed.
 
 ## Supporting checks
 
-- Thirty focused desktop tests passed: server boundary/child lifecycle, workspace
+- Thirty focused desktop tests passed before the preference follow-up: server boundary/child lifecycle, workspace
   initialization/import/upgrade/recovery, stable MCP configuration and artifact
   auditing. Existing application run: 1,972 passed, one PATH-related failure,
   fourteen optional-native skips. The failed test and native checks were rerun
@@ -103,3 +103,9 @@ build inputs, SHA-256, signature assessment and acceptance outcome recorded.
 Never upload a failed or unchecked artifact as the recommended download.
 Signing credentials must come from an authorized owner-managed facility; no
 secret contents need to be pasted into a conversation.
+
+The preference follow-up adds per-workspace persistence for existing display
+choices and opaque analysis handles. Server/preferences/shell checks passed
+(31 tests); final package verification additionally checks restart/upgrade
+persistence. Local signing identity discovery and repository secret-name
+inventory both found no existing Apple distribution facility.

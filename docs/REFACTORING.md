@@ -331,3 +331,14 @@ The authorized refactor, local checkpoints, retained-suite verification and isol
   available; notarization, Gatekeeper download acceptance and a clean customer
   Mac remain open. No public desktop release is claimed. Next: clean-commit
   build, final archive acceptance and reviewed PR; then authorized signing.
+
+### Desktop preference persistence follow-up
+
+The nonpersistent native browser session intentionally discards cookies, but
+its random loopback origin also discarded the existing theme and remembered
+analysis handles. The desktop adapter now restores and saves a closed set of
+validated display/opaque-handle preferences in each workspace's existing
+panel-state settings table. Authentication remains ephemeral; the normal web
+application is unchanged. The preferences are included in verified panel
+backup generations. Focused server/preferences/shell checks: 31 passed. The
+packaged verifier now asserts theme persistence across restart and upgrade.

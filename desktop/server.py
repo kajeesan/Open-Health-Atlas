@@ -6,7 +6,7 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Blueprint, jsonify, redirect, render_template, request
+from flask import Blueprint, Response, jsonify, redirect, render_template, request
 
 
 class LocalBoundary:
@@ -187,6 +187,23 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
                        system=platform.system(), architecture=platform.machine(),
                        workspace_kind=workspace.kind if workspace else "unselected",
                        selected=workspace is not None)
+
+    @bp.get("/preferences.js")
+    def browser_preferences():
+        from desktop.preferences import bootstrap_script
+        return Response(bootstrap_script(), mimetype="application/javascript")
+
+    @bp.post("/api/preferences")
+    def save_preference():
+        from desktop.preferences import write
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) != {"key", "value"}:
+            return jsonify(error="Unsupported display preference"), 400
+        try:
+            write(body["key"], body["value"])
+        except (ValueError, TypeError):
+            return jsonify(error="Unsupported display preference"), 400
+        return jsonify(ok=True)
 
     @app.after_request
     def desktop_headers(response):
