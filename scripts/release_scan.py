@@ -47,6 +47,7 @@ ALLOWED_URL_HOSTS = {
     "cdn.jsdelivr.net",
     "creativecommons.org",
     "docs.github.com",
+    "developer.apple.com",
     "doi.org",
     "example.invalid",
     "github.com",

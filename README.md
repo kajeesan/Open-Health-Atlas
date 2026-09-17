@@ -18,6 +18,12 @@ the calculations; the external model provides the interpretation.
 [Connect an MCP client](docs/LOCAL_MCP.md) ·
 [Develop the project](docs/DEVELOPMENT.md)**
 
+**macOS desktop preview:** a bundled native app is being verified. See the
+[installation and build guide](docs/DESKTOP.md) and
+[tested/blocked acceptance matrix](docs/DESKTOP_ACCEPTANCE.md). A notarized
+public installer is not yet available; evaluation artifacts are not a normal
+public release.
+
 ![Fictional Open Health Atlas dashboard with Muscle Balance and Athletic Profile radar charts, front and back strength-balance body diagrams, and the navigation sidebar.](docs/assets/fictional-demo-overview-v2.png)
 
 *Fictional UI demo snapshot. [Explore the demo](https://kajeesan.com/openhealthatlas-demo/)
@@ -75,8 +81,11 @@ supported by the Unix-socket broker and POSIX file locks. The standalone MCP
 entry point uses stdio. Clients requiring remote MCP need a separate transport
 setup.
 
-A desktop installer, built-in API-key chat, hosted multi-user service and
-bundled always-on agent are not included. Existing Hermes and external-service
+A macOS desktop packaging preview includes the existing dashboard, guided
+local workspaces and a bundled optional MCP executable. Public distribution
+remains gated on signing, notarization and the recorded acceptance checks.
+Built-in API-key chat, a hosted multi-user service and a bundled always-on
+agent are not included. Existing Hermes and external-service
 integrations require their own configuration. Results describe recorded data
 and bounded associations; clinical validation and causal conclusions are not
 claimed. See [known limitations](UNIMPLEMENTED.md) and the

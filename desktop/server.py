@@ -1,0 +1,197 @@
+"""Desktop-only session establishment and setup around the retained Flask UI."""
+from __future__ import annotations
+
+import secrets
+import threading
+import time
+from pathlib import Path
+
+from flask import Blueprint, jsonify, redirect, render_template, request
+
+
+class LocalBoundary:
+    """Reject rebinding/cross-origin requests before any app or proxy middleware."""
+
+    def __init__(self, application):
+        self.application = application
+        self.origin = None
+
+    def __call__(self, environ, start_response):
+        origin = self.origin
+        host = environ.get("HTTP_HOST", "")
+        supplied_origin = environ.get("HTTP_ORIGIN")
+        # A native WebKit POST can originate from its initial opaque document.
+        # Only this one-use, capability-protected endpoint accepts that origin;
+        # it still checks the exact Host/peer and rejects forwarding headers.
+        native_bootstrap = (environ.get("PATH_INFO") == "/desktop/session"
+                            and environ.get("REQUEST_METHOD") == "POST"
+                            and supplied_origin in (None, "null"))
+        forwarded = any(key.startswith("HTTP_X_FORWARDED_") or key == "HTTP_FORWARDED"
+                        for key in environ)
+        denied = (not origin or host != origin.removeprefix("http://")
+                  or environ.get("REMOTE_ADDR") != "127.0.0.1"
+                  or forwarded or (supplied_origin is not None and supplied_origin != origin and not native_bootstrap)
+                  or (environ.get("HTTP_SEC_FETCH_SITE") == "cross-site" and not native_bootstrap))
+        if denied:
+            body = b"Local application request refused."
+            start_response("403 Forbidden", [("Content-Type", "text/plain"),
+                                             ("Content-Length", str(len(body)))])
+            return [body]
+        return self.application(environ, start_response)
+
+
+def build_app(manager, workspace, socket_path, launch_token, restart_event, code_version,
+              quiesce=lambda: None, startup_message=None):
+    # Imports happen only after launcher configures the selected workspace.
+    from app import create_app, csrf
+    from app import auth
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    root = Path(manager.data_root)
+    app = create_app({
+        "SECRET_KEY": secrets.token_hex(32),
+        "PANEL_DB": str(workspace.panel_db if workspace else root / "setup-panel.db"),
+        "HEALTH_DB": str(workspace.health_db if workspace else root / "unselected.db"),
+        "BRIDGE_SOCKET": str(socket_path),
+        "PANEL_COOKIE_SECURE": False,
+        "SESSION_COOKIE_SECURE": False,
+        "SESSION_COOKIE_NAME": "oha_desktop_csrf",
+        "MAX_CONTENT_LENGTH": 131072,
+        "HERMES_DISPLAY_NAME": "Fictional sample" if workspace and workspace.kind == "demo" else "Your workspace",
+        "HERMES_TIMEZONE": workspace.timezone if workspace else "UTC",
+    })
+    @app.context_processor
+    def desktop_context():
+        return {"desktop_mode": True, "desktop_workspace": workspace}
+    # The loopback desktop server has no reverse proxy.
+    if isinstance(app.wsgi_app, ProxyFix):
+        app.wsgi_app = app.wsgi_app.app
+    bp = Blueprint("desktop", __name__, url_prefix="/desktop",
+                   template_folder="templates", static_folder="static")
+    token_lock = threading.Lock()
+    pending = {"token": launch_token, "expires": time.monotonic() + 120}
+    mutation_lock = threading.Lock()
+
+    def desktop_gate():
+        if request.endpoint == "desktop.session":
+            return None
+        if request.path in ("/login", "/enroll"):
+            return "Open Open Health Atlas from its app icon to sign in.", 401
+        if request.path.startswith("/api/auth/"):
+            return jsonify(error="Use the app icon to start a desktop session."), 403
+        if request.endpoint != "static" and not request.path.startswith("/desktop/static/"):
+            if auth.current_session() is None:
+                return jsonify(error="Open the app icon to sign in."), 401
+        if workspace is None and not request.path.startswith("/desktop/"):
+            return redirect("/desktop/")
+
+    # Before the original session gate; bootstrap only exists in this adapter.
+    app.before_request_funcs[None].insert(0, desktop_gate)
+
+    @bp.post("/session")
+    @csrf.exempt
+    def session():
+        with token_lock:
+            candidate = request.headers.get("X-OHA-Launch-Token", "")
+            valid = (pending["token"] is not None and time.monotonic() < pending["expires"]
+                     and secrets.compare_digest(candidate, pending["token"]))
+            if not valid:
+                return jsonify(error="Launch session expired. Reopen the app."), 401
+            pending["token"] = None
+        token = auth.create_session()
+        response = auth.set_session_cookie(redirect("/desktop/", code=303), token)
+        return response
+
+    # Existing gate must recognize ONLY the new native bootstrap endpoint.
+    original_gate = app.before_request_funcs[None][-1]
+    def retained_gate():
+        if request.endpoint == "desktop.session":
+            return None
+        return original_gate()
+    app.before_request_funcs[None][-1] = retained_gate
+
+    @bp.get("/")
+    @bp.get("/setup")
+    def setup():
+        if workspace and request.path != "/desktop/setup" and request.args.get("setup") != "1":
+            return redirect("/")
+        return render_template("desktop/setup.html", workspace=workspace,
+                               workspaces=manager.list_workspaces(), startup_message=startup_message)
+
+    @bp.get("/help")
+    def help_page():
+        return render_template("desktop/help.html", workspace=workspace,
+                               code_version=code_version)
+
+    @bp.get("/api/workspaces")
+    def list_workspaces():
+        return jsonify(manager.public_status())
+
+    def mutate(operation):
+        if not mutation_lock.acquire(blocking=False):
+            return jsonify(error="A workspace is already opening."), 409
+        try:
+            if restart_event.is_set():
+                return jsonify(error="The application is restarting."), 409
+            quiesce()
+            operation()
+            # Let the response reach WebKit before the launcher's exec restart.
+            timer = threading.Timer(0.5, restart_event.set)
+            timer.daemon = True
+            timer.start()
+            return jsonify(ok=True, restarting=True)
+        except (ValueError, OSError, RuntimeError) as error:
+            timer = threading.Timer(3, restart_event.set)
+            timer.daemon = True
+            timer.start()
+            from desktop.workspaces import WorkspaceError
+            message = str(error) if isinstance(error, WorkspaceError) else "The workspace could not be opened. Your existing data was kept. Check the file and timezone, then try again."
+            return jsonify(error=message), 400
+        finally:
+            mutation_lock.release()
+
+    @bp.post("/api/workspaces")
+    def create_workspace():
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) - {"kind", "timezone", "source_database"}:
+            return jsonify(error="Choose a workspace and timezone."), 400
+        return mutate(lambda: manager.create(kind=body.get("kind"), timezone=body.get("timezone"),
+                                             source_database=body.get("source_database")))
+
+    @bp.post("/api/select")
+    def select_workspace():
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) != {"id"}:
+            return jsonify(error="Choose a saved workspace."), 400
+        return mutate(lambda: manager.select(body["id"]))
+
+    @bp.get("/api/mcp-config")
+    def mcp_config():
+        if workspace is None:
+            return jsonify(error="Open a workspace first."), 409
+        from desktop.mcp_config import bundled_executable, client_configuration
+        try:
+            config = client_configuration(bundled_executable(), workspace.health_db, workspace.timezone,
+                                          workspace=workspace.directory)
+        except (ValueError, FileNotFoundError):
+            return jsonify(error="AI connection configuration is available in the installed desktop app."), 409
+        response = jsonify(config)
+        if request.args.get("download") == "1":
+            response.headers["Content-Disposition"] = 'attachment; filename="openhealthatlas-mcp.json"'
+        return response
+
+    @bp.get("/api/diagnostics")
+    def diagnostics():
+        import platform
+        return jsonify(product="Open Health Atlas", code_version=code_version,
+                       system=platform.system(), architecture=platform.machine(),
+                       workspace_kind=workspace.kind if workspace else "unselected",
+                       selected=workspace is not None)
+
+    @app.after_request
+    def desktop_headers(response):
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    app.register_blueprint(bp)
+    return app

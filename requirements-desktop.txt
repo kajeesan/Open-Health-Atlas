@@ -1,0 +1,3 @@
+# Self-contained desktop distribution, including optional local stdio MCP.
+-r requirements-mcp.txt
+waitress==3.0.2

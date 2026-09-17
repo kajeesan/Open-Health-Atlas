@@ -7,6 +7,24 @@ in user-controlled paths outside it.
 
 ## Runtime shape
 
+The macOS desktop adapter in `desktop/` bundles the retained application and a
+Python runtime inside a native AppKit/WebKit window. It binds an OS-assigned
+loopback port and a private, per-launch broker socket. A one-use capability
+travels over an anonymous parent pipe to the native window, establishing the
+existing server-side session. Exact host/origin checks, CSRF, restrictive
+cookies and a native local-origin filter remain active. The existing web
+deployment retains its passkey flow; the desktop trust boundary is the signed
+local application and the user's operating-system account.
+
+`desktop/workspaces.py` initializes through supported product scripts, imports
+verified copies and migrates new database generations after snapshot checks.
+Metadata changes select a generation atomically. Workspace changes restart
+the runtime so import-time timezone and database settings cannot cross over.
+Parent pipes own setup helpers and the existing broker's process group;
+quitting or losing the native parent stops owned work. Existing Hermes
+services and global sockets are never selected by the desktop adapter.
+See [desktop build and installation](DESKTOP.md) for distribution limits.
+
 An optional standalone stdio MCP server connects an external AI client to a
 fixed local database through `LocalSurface`. It reuses the deterministic
 catalog, query, analysis and evidence functions with explicit per-instance

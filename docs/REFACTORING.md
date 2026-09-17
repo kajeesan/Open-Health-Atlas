@@ -307,3 +307,27 @@ The authorized refactor, local checkpoints, retained-suite verification and isol
 - Recovery point: `1dc2fcb889e5ecdaacdd05afbc109c041929d948`. The owner approved publishing the proposed layout to GitHub. The Body map now leads in the DOM and occupies the larger desktop column; Muscle Balance and Athletic Profile use compact cards stacked beside it. Tablet layouts place the charts below the map, and narrow screens stack the figures with a two-column lens selector.
 - Changes are confined to `app/templates/training.html` and Body-page-scoped rules in `app/static/css/panel.css`, plus this checkpoint and the release manifest. Every existing ID and control/link attribute set is retained. Pain, Mobility and all later sections remain unchanged; no calculations, JavaScript handlers, data schemas, dependencies or live installations changed.
 - All 77 existing training API, application-shell and authentication tests passed in 2.30s. Independent review found no blocking issues, and the layout detector returned no findings. Actual fictional-app browser checks confirmed aligned front/back figures, visible lens controls and no horizontal overflow at 1180px and 390px; Pain and Mobility panels loaded through their existing APIs. Temporary browser and demo processes were stopped after verification. Full hosted workflow results are reported separately by GitHub.
+
+
+## Desktop packaging checkpoint — 17 September 2026
+
+- Owner authorized a self-contained macOS package from the clean public repository.
+  Public main was `1dc2fcb889e5ecdaacdd05afbc109c041929d948`; the approved Body layout
+  at `8ab53324f5b5858314b4266326092f0ce5f0147d` is preserved in branch ancestry.
+- Added a small Swift AppKit/WebKit host, pinned relocatable Python runtime build,
+  loopback session boundary, process-owned validated broker, guided workspaces,
+  checked snapshot migrations, stable bundled MCP entry point and release CI.
+  Existing numerical engine and web passkey deployment are retained.
+- Packaged fictional acceptance passed local auth/CSRF/origin checks, validated
+  write, exact restart preservation, isolated demo/import, simulated upgrade
+  backups, abrupt launcher restart and damaged-settings recovery. The same
+  journey passed with external networking denied. Real bundled MCP completed
+  positive analysis/evidence/status and disconnect/upgrade-reconnect checks.
+- Native macOS window completed fictional setup, rendered the approved Body map
+  and radar, navigated to Help, copied MCP settings and saved via NSSavePanel.
+  Thirty focused desktop regressions pass. Retained test partitions and precise
+  qualifications are recorded in `docs/DESKTOP_ACCEPTANCE.md`.
+- Local ad hoc signing verifies integrity only. No Developer ID identity is
+  available; notarization, Gatekeeper download acceptance and a clean customer
+  Mac remain open. No public desktop release is claimed. Next: clean-commit
+  build, final archive acceptance and reviewed PR; then authorized signing.

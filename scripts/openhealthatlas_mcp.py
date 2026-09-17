@@ -174,8 +174,11 @@ class AnalysisTasks:
         process = None
         terminal_status = "failed"
         try:
+            # Bundled launchers use isolated Python. Retain that boundary in
+            # workers, and pass -B explicitly because -I ignores Python env.
+            python_flags = (["-I"] if sys.flags.isolated else []) + ["-B"]
             process = await asyncio.create_subprocess_exec(
-                sys.executable, str(Path(__file__).resolve()), "--database", str(self.database),
+                sys.executable, *python_flags, str(Path(__file__).resolve()), "--database", str(self.database),
                 "--timezone", self.timezone, "--worker",
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,

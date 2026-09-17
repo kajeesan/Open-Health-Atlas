@@ -55,3 +55,16 @@ Creative Commons Attribution 4.0 International. Its source attribution,
 license link and description of the reporting-section adaptation are retained
 in that document. This documentation license does not change the MIT license
 for original project code.
+
+
+## Optional macOS desktop distribution
+
+The desktop builder uses SHA-256-pinned python-build-standalone archives and
+fully hash-pinned Python wheels (`requirements-desktop.lock`). Waitress 3.0.2
+(Zope Public License 2.1) serves the loopback application. CPython and its
+bundled native libraries keep their upstream license texts and build metadata
+in `Contents/Resources/PythonLicenses`; wheel license texts and metadata remain
+with `PythonRuntime/lib/python3.12/site-packages/*.dist-info`. The generated
+`THIRD_PARTY_RUNTIME.txt` inventories exact package names and versions. Existing
+browser vendor notices and original MIT creator attribution are included.
+The app icon and native host are original MIT-licensed project assets.
