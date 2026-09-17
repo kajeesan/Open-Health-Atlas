@@ -19,8 +19,8 @@ commit is the desktop release.
 | --- | --- | --- |
 | macOS 26.6.2 / arm64 local host | Available | Current development host; not a clean customer Mac |
 | Self-contained `.app` and original icon | Passed locally | Bundled CPython, pinned libraries and local assets; native launch on the stated host |
-| DMG and ZIP | Passed locally at initial checkpoint | Generated, checksummed, verified, mounted read-only and copied to a disposable installation; final preference-fix rebuild follows |
-| macOS 15 / arm64 CI build | Passed at initial checkpoint | [Desktop build](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35172456354) built and tested the package; native visual/Gatekeeper checks remain separate |
+| DMG and ZIP | Passed locally | Clean `acfcca18739fe54486f19bd9746c1242dfc0abb0` artifacts generated, checksummed, mounted read-only and installed to a disposable path |
+| macOS 15 / arm64 CI build | Passed for packaged source | [Desktop build](https://github.com/kajeesan/Open-Health-Atlas/actions/runs/35172922094) built and tested the final package; native visual/Gatekeeper checks remain separate |
 | Developer runtimes absent from command path | Passed locally | Packaged acceptance uses only bundled Python with system-only PATH; no first-use download |
 | Fresh customer Mac/account | Untested | This host has development tools; isolated PATH is not a clean-machine certification |
 | Developer ID signing | Blocked | No authorized signing identity present |
@@ -52,9 +52,9 @@ Source tests and development previews cannot mark these rows passed.
 | Native crash during a long migration | Untested | Dedicated interruption of a live native migration remains required |
 | Upgrade and migration backup | Passed with stated scope | Packaged simulated code-version update snapshots both DBs and preserves all health rows; no older published desktop release exists |
 | Interrupted/failed migration recovery | Passed in source tests | Failure before selection preserves original/backup; interruption after selection preserves later writes; v6→v7 import preserves named records |
-| App removal | Pending final archive journey | Data lives outside bundle; verify deletion of a disposable installed copy |
+| App removal | Passed locally | Deleted only a disposable DMG-installed app copy; every data file stayed byte-identical; reinstall retained records and theme |
 | Redacted diagnostics | Passed locally | Explicit diagnostic field allowlist; native errors use domain/status codes; no raw child output exported |
-| Candidate bundle privacy and integrity | Passed locally; final artifact pending | 3,057 files scanned with zero findings; strict signature valid after native use; exact final source/history/artifacts rerun before upload |
+| Final bundle privacy and integrity | Passed locally | 3,058 files, zero findings; post-acceptance deep/strict signature passes; all pre/post file hashes identical and zero bytecode files |
 | Runtime/dependency license inventory | Passed locally | CPython/native-library license texts, upstream build metadata, wheel dist-info licenses and existing browser notices retained |
 
 ## Supporting checks
@@ -109,3 +109,28 @@ choices and opaque analysis handles. Server/preferences/shell checks passed
 (31 tests); final package verification additionally checks restart/upgrade
 persistence. Local signing identity discovery and repository secret-name
 inventory both found no existing Apple distribution facility.
+
+## Final local evaluation artifacts
+
+Packaged source: `acfcca18739fe54486f19bd9746c1242dfc0abb0` (clean).
+Version `0.1.0`, macOS arm64, built on macOS 26.6.2. These are ad hoc
+evaluation artifacts, not signed/notarized public downloads.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `openhealthatlas-0.1.0-macos-arm64-local-unsigned.dmg` | 49491758 | `c9d9c39a712736945575b070bf53d468b65b7869505ff3bbeb143fdc2b255c91` |
+| `openhealthatlas-0.1.0-macos-arm64-local-unsigned.zip` | 35617170 | `7352179d28dfe6b74c01e56300a2d6b9cacfb55b6e94339979ac5ab736462ef5` |
+
+The final DMG-installed copy passed twelve packaged HTTP lifecycle/data checks
+with external IP networking denied, plus the real bundled MCP SDK journey
+(query, positive analysis, evidence, task status, disconnect cleanup and
+generation reconnect). A separate removal/reinstall journey preserved every
+data file and restored the saved theme. Thirty-one focused desktop tests pass.
+Theme persistence is verified at the packaged server boundary across restart
+and upgrade. Its final native visual recheck was interrupted by the locked Mac;
+no unlock or security bypass was attempted. Native long-migration interruption
+and injected slow-start acceptance remain explicitly untested.
+
+[Draft PR #7](https://github.com/kajeesan/Open-Health-Atlas/pull/7) contains the
+implementation and preserves the approved Body layout dependency. No public
+desktop release has been published.
