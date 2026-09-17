@@ -49,6 +49,7 @@ ALLOWED_URL_HOSTS = {
     "docs.github.com",
     "doi.org",
     "example.invalid",
+    "fsf.org",
     "github.com",
     "health.googleapis.com",
     "localhost",
@@ -61,6 +62,7 @@ ALLOWED_URL_HOSTS = {
     "repository.up.ac.za",
     "www.contributor-covenant.org",
     "www.googleapis.com",
+    "www.gnu.org",
     "www.w3.org",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}

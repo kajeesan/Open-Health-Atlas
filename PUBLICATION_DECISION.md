@@ -32,11 +32,17 @@ verification scopes are recorded in `VERIFICATION.md`.
 
 ## License and creator credit
 
-The original project code is licensed under MIT, with
-`Copyright (c) 2026 Kajeesan Jeevendra` in `LICENSE`. The README, `NOTICE` and
-`CITATION.cff` identify Kajeesan Jeevendra as the creator. MIT's copyright and
-permission-notice retention condition is preserved without adding a separate
-attribution restriction.
+The owner authorized changing subsequent original project code to the GNU
+Affero General Public License, version 3 only (`AGPL-3.0-only`), on
+17 September 2026. The complete standard license is in `LICENSE`; the README,
+`NOTICE` and `CITATION.cff` retain Kajeesan Jeevendra's creator credit.
+
+The initial public MIT release recorded above remains a historical fact.
+Previously granted MIT permissions are not revoked. `docs/LICENSE-MIT.md`
+preserves that notice, and `LICENSING.md` explains the transition, commercial
+use, corresponding source and the absence of mandatory upstream contributions.
+This license-only revision does not authorize deployment or import of private
+history.
 
 Third-party components retain their original licenses and notices. The
 vendored browser bundles, Apache/BSD notices and embedded permission text are

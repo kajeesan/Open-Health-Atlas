@@ -135,4 +135,4 @@ https://www.contributor-covenant.org/translations.
 The Contributor Covenant 2.0 text is licensed under
 [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/).
 The reporting section above is adapted for this repository's available channels.
-This document's license does not change the project's MIT code license.
+This document's license does not change the project's AGPL-3.0-only code license.

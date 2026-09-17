@@ -32,6 +32,8 @@ def test_safe_generic_examples_and_public_provenance_are_accepted():
         "git@github.com:OWNER/Hermes-Health-Open-Source.git",
         "http://localhost:5111",
         "https://github.com/apache/echarts",
+        "https://fsf.org/",
+        "https://www.gnu.org/licenses/",
         "https://api.open-meteo.com/v1/forecast",
         "198.51.100.77",
         "/var/lib/hermes/health.db",

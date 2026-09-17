@@ -1,6 +1,7 @@
 # Third-party notices
 
-Open Health Atlas project code is licensed under the MIT License. The
+Open Health Atlas original project code in this revision is licensed under
+the GNU Affero General Public License, version 3 only (AGPL-3.0-only). The
 components below retain their own copyright, license, notice, and attribution
 requirements.
 
@@ -53,5 +54,5 @@ by the ordinary panel/runtime requirements, and no SDK source is vendored here.
 `CODE_OF_CONDUCT.md` adapts Contributor Covenant 2.0, licensed under
 Creative Commons Attribution 4.0 International. Its source attribution,
 license link and description of the reporting-section adaptation are retained
-in that document. This documentation license does not change the MIT license
-for original project code.
+in that document. This documentation license does not change the
+AGPL-3.0-only license for original project code.
