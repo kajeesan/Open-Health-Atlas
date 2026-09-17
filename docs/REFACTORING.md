@@ -355,3 +355,16 @@ Exact hashes, hosted build link and remaining release gates are in
 `docs/DESKTOP_ACCEPTANCE.md`. No Apple signing facility exists locally or in
 repository secrets. The Mac locked before the final native theme recheck;
 owner action is needed for that check and for distribution signing.
+
+### Local follow-up pending account-privacy resolution
+
+The retained report workspace routes use pain and mobility lens identifiers.
+The desktop preference allowlist now follows those actual identifiers, plus
+the Insight workspace, instead of unused pillar guesses. A regression checks
+all three remembered selections. Five focused preference/server tests pass.
+This follow-up stays local because GitHub's automatic PR test-merge author
+metadata does not currently meet the publication email policy. Pushed source
+commits retain the sanitized identity; no account-wide privacy setting has
+been changed without owner approval. Existing local archive acceptance above
+identifies its exact source snapshot and is not a claim that this newer
+follow-up was published.

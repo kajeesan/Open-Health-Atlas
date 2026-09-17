@@ -16,9 +16,13 @@ def test_preferences_persist_in_panel_state_and_reject_arbitrary_values(tmp_path
     assert client.post("/desktop/api/preferences", json={"key": "panel-theme", "value": "alpine"}).status_code == 200
     assert client.post("/desktop/api/preferences", json={"key": "arbitrary-data", "value": "hello"}).status_code == 400
     assert client.post("/desktop/api/preferences", json={"key": "panel-theme", "value": "invalid"}).status_code == 400
+    for lens in ("insight", "pain", "mobility"):
+        assert client.post("/desktop/api/preferences", json={"key": f"hermes.{lens}.conversation", "value": f"synthetic-{lens}-thread"}).status_code == 200
     second = app().test_client()
     assert second.get("/desktop/preferences.js").status_code == 401
     second.post("/desktop/session", headers={"X-OHA-Launch-Token": "test-launch"})
     assert '"panel-theme": "alpine"' in second.get("/desktop/preferences.js").text
+    for lens in ("insight", "pain", "mobility"):
+        assert f'synthetic-{lens}-thread' in second.get("/desktop/preferences.js").text
     assert second.post("/desktop/api/preferences", json={"key": "panel-theme", "value": None}).status_code == 200
     assert '"panel-theme": "alpine"' not in second.get("/desktop/preferences.js").text

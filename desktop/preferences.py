@@ -5,10 +5,9 @@ import re
 THEMES = {"paper", "ember", "alpine", "verdant", "sunbeam", "ridge",
           "grove", "timber", "glacier", "canyon", "cyber", "cosmos"}
 KEYS = {"panel-theme", "hermes.dashboard.analysis-job", "hermes.insight.analysis-job",
-        "hermes.insight.conversation", "hermes.training.conversation",
-        "hermes.recovery.conversation", "hermes.nutrition.conversation",
-        "hermes.labs.conversation", "hermes.mind.conversation",
-        "hermes.care.conversation", "hermes.consistency.conversation"}
+        # The retained report workspace has exactly the pain/mobility lenses.
+        "hermes.insight.conversation", "hermes.pain.conversation",
+        "hermes.mobility.conversation"}
 PREFIX = "desktop-browser:"
 
 
