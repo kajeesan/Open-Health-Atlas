@@ -368,3 +368,26 @@ commits retain the sanitized identity; no account-wide privacy setting has
 been changed without owner approval. Existing local archive acceptance above
 identifies its exact source snapshot and is not a claim that this newer
 follow-up was published.
+
+### Native interrupted-upgrade cancellation
+
+With the Mac available again, the final local app retained its Ember theme
+after a genuine native quit/reopen. A disposable locked-panel upgrade fixture
+also showed the intended slow-start message. Killing the native parent while
+the backup was blocked exposed a remaining launcher lifetime gap: the runtime
+waited for SQLite instead of promptly observing parent EOF. Original health
+and panel database bytes were unchanged.
+
+Backups now receive the launcher's cancellation signal, with a short SQLite
+busy wait so the backup progress callback observes cancellation promptly. A
+cancelled startup exits before creating a replacement web session. One real
+exclusive-lock regression reproduced the fault and verifies cancellation
+while the source stays locked, unchanged source bytes and preserved selection.
+All 32 focused desktop tests pass. Packaged native revalidation follows.
+
+The owner requested GitHub email privacy. The account setting was off and is
+now enabled, with a server confirmation. No email-address values were copied
+into reports. New generated metadata must be verified after the next reviewed
+branch update; earlier generated objects are not rewritten by this setting.
+The owner confirmed they do not have a Developer ID Application identity;
+normal signed/notarized distribution remains pending.

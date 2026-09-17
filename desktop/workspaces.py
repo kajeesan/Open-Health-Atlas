@@ -101,16 +101,19 @@ def _integrity(path: Path) -> None:
         raise WorkspaceError("This database did not pass its safety check. Choose a healthy Open Health Atlas backup.") from None
 
 
-def _snapshot(source: Path, destination: Path) -> None:
+def _snapshot(source: Path, destination: Path, *, cancelled=None) -> None:
     """Include committed WAL records while leaving the source untouched."""
     if destination.exists():
         raise WorkspaceError("A recovery copy already exists. It has not been overwritten.")
     deadline = time.monotonic() + 120
     def progress(_status, _remaining, _total):
+        if cancelled is not None and cancelled():
+            raise WorkspaceError("Opening was cancelled. Your original data is safe.")
         if time.monotonic() > deadline:
             raise WorkspaceError("Copying this database took too long. Close the app using it, then try again.")
     try:
-        with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as original:
+        with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True,
+                                     timeout=0.1)) as original:
             original.execute("PRAGMA query_only=ON")
             with closing(sqlite3.connect(destination)) as copy:
                 original.backup(copy, pages=256, progress=progress, sleep=0.05)
@@ -161,16 +164,20 @@ ScriptRunner = Callable[[str, list[str], dict[str, str]], dict]
 
 class WorkspaceManager:
     def __init__(self, data_root: Path, source_root: Path, code_version: str,
-                 run_script: ScriptRunner | None = None):
+                 run_script: ScriptRunner | None = None, cancelled=None):
         if not re.fullmatch(r"[0-9a-f]{40}", code_version):
             raise ValueError("code_version must identify the packaged source commit")
         self.data_root = Path(data_root).expanduser().resolve()
         self.source_root = Path(source_root).resolve()
         self.code_version = code_version
         self.run_script = run_script or self._run_script
+        self.cancelled = cancelled
         self._lock = threading.RLock()
         _private_directory(self.data_root)
         _private_directory(self.data_root / "workspaces")
+
+    def _snapshot(self, source: Path, destination: Path) -> None:
+        _snapshot(source, destination, cancelled=self.cancelled)
 
     def _run_script(self, script: str, args: list[str], env: dict[str, str]) -> dict:
         # Do not inherit Hermes/provider configuration, PYTHONPATH or secrets.
@@ -304,13 +311,13 @@ class WorkspaceManager:
                 os.replace(demo, workspace.health_db)
             elif source is not None:
                 imported = target / "imported.db"
-                _snapshot(source, imported)
+                self._snapshot(source, imported)
                 os.replace(imported, workspace.health_db)
                 # Preserve a verified, untouched import before any migrations.
                 backup = directory / "backups" / uuid4().hex
                 _private_directory(backup)
-                _snapshot(workspace.health_db, backup / "health.db")
-                _snapshot(workspace.panel_db, backup / "panel.db")
+                self._snapshot(workspace.health_db, backup / "health.db")
+                self._snapshot(workspace.panel_db, backup / "panel.db")
             workspace.health_db.chmod(0o600)
             self._migrate(workspace)
             _write_json(directory / "workspace.json", {
@@ -348,8 +355,8 @@ class WorkspaceManager:
             _private_directory(backup)
             _private_directory(destination)
             for name in ("health.db", "panel.db"):
-                _snapshot(workspace.health_db.parent / name, backup / name)
-                _snapshot(backup / name, destination / name)
+                self._snapshot(workspace.health_db.parent / name, backup / name)
+                self._snapshot(backup / name, destination / name)
             candidate = Workspace(workspace.id, workspace.kind, workspace.directory,
                                   generation, workspace.timezone, workspace.anchor_date)
             _write_json(journal_path, {"version": 1, "from_generation": workspace.generation,

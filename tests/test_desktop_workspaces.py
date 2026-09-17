@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import threading
 
 import pytest
 
@@ -245,4 +246,45 @@ def test_snapshot_timeout_leaves_original_unchanged(tmp_path, monkeypatch):
     with pytest.raises(WorkspaceError, match="took too long"):
         workspaces._snapshot(workspace.health_db, tmp_path / "incomplete-copy.db")
     assert workspace.health_db.read_bytes() == before
+    assert m.current() == workspace
+
+
+def test_locked_snapshot_cancels_promptly_without_changing_original(tmp_path):
+    m = manager(tmp_path / "desktop")
+    workspace = m.create("personal", "UTC")
+    blocker = sqlite3.connect(workspace.panel_db)
+    blocker.execute("PRAGMA journal_mode=DELETE")
+    before = workspace.panel_db.read_bytes()
+    cancelled, started, finished = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+
+    def copy_while_locked():
+        started.set()
+        try:
+            workspaces._snapshot(workspace.panel_db, tmp_path / "cancelled-panel.db",
+                                 cancelled=cancelled.is_set)
+        except Exception as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    blocker.execute("BEGIN EXCLUSIVE")
+    worker = threading.Thread(target=copy_while_locked, daemon=True)
+    try:
+        worker.start()
+        assert started.wait(2), "Snapshot worker did not start"
+        assert not finished.wait(0.2), "Snapshot did not wait for the exclusive database lock"
+        cancelled.set()
+        # Keep the actual SQLite lock held throughout the cancellation check.
+        # Releasing it before waiting would mask the native-parent-exit fault.
+        assert finished.wait(2), "Cancelled snapshot remained blocked on SQLite"
+        assert len(errors) == 1 and isinstance(errors[0], WorkspaceError)
+        assert workspace.panel_db.read_bytes() == before
+    finally:
+        cancelled.set()
+        blocker.rollback()
+        blocker.close()
+        worker.join(timeout=3)
+    assert not worker.is_alive()
+    assert workspace.panel_db.read_bytes() == before
     assert m.current() == workspace

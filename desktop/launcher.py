@@ -152,7 +152,8 @@ def main():
                     pass
                 child.wait()
 
-    manager = WorkspaceManager(data_root, ROOT, version, run_script=run_script)
+    manager = WorkspaceManager(data_root, ROOT, version, run_script=run_script,
+                               cancelled=stopped.is_set)
     startup_message = None
     workspace = None
     try:
@@ -165,6 +166,9 @@ def main():
         workspace = None
         startup_message = str(error)
         os.environ["HERMES_TIMEZONE"] = "UTC"
+    if stopped.is_set():
+        lock_file.close()
+        return 0
     if workspace is None:
         os.environ.update(HERMES_DATA_DIR=str(data_root), HEALTH_DB=str(data_root / "unselected.db"),
                           HEALTH_VAULT=str(data_root / "unused-vault"))
