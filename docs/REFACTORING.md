@@ -401,3 +401,22 @@ into a new generation with exact health-row preservation and the Ember theme
 still visible. The bundled offline verifier now independently exercises parent
 pipe loss during an actual blocked upgrade and confirms no partial generation
 is selected. All 13 packaged offline checks and 32 focused desktop tests pass.
+
+### Reviewed build inputs and masked GitHub metadata
+
+The account's email-privacy setting is enabled under owner instruction, and
+PR7's newly generated test merge now uses GitHub-provided no-reply identities.
+The scanner accepts only the two reviewed exact identities in whole Git
+author/committer email fields. The same values remain rejected in source,
+reference names, name fields and message bodies; private and near-match
+addresses remain rejected. Local commits keep the original example.invalid
+identity. Earlier platform-generated objects are not rewritten by the setting.
+
+The builder now copies only manifest-listed entries within its existing
+explicit source scopes, verifies regular non-symlink source bytes/size/hash
+before creating output, and writes the checked bytes rather than rereading
+paths. Ignored JSONL and unreviewed modules are excluded. The selected 154
+product files match the verified cancellation-fixed app byte-for-byte.
+Combined scanner/build-input regression tests: 22 passed. Independent review
+found no blocking issue. No app runtime or numerical engine changed in this
+batch; the evaluated app remains source `5d18014`.

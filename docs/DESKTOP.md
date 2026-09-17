@@ -115,7 +115,10 @@ python3 scripts/build_desktop.py \
 ```
 
 The builder verifies the Python archive's recorded SHA-256 and installs the
-hash-pinned `requirements-desktop.lock`. It copies an explicit source inventory,
+hash-pinned `requirements-desktop.lock`. It copies only manifest-reviewed files
+within the explicit source scopes, checking regular-file status, size and
+SHA-256 through no-follow file descriptors. Ignored or unlisted local files
+never enter this source projection. It
 retains notices and makes a self-contained `.app`, disk image, archive and
 checksums. The build receipt must identify the exact source commit and build
 platform. Reproducibility here means pinned, reviewable build inputs; Apple

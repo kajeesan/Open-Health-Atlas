@@ -7,13 +7,16 @@ notarization are opt-in and use an existing Keychain profile, never raw secrets.
 """
 from __future__ import annotations
 import argparse
+import csv
+import io
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import plistlib
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -31,6 +34,10 @@ DIRECTORIES = ('app', 'toolkit/hermes_insights', 'desktop/static', 'desktop/temp
 FILES = ('LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'toolkit/health.py',
          'toolkit/SCHEMA.sql', 'docs/authored-submuscle-map.md', 'deploy/bridge_commands.py', 'deploy/hermes-bridge',
          'scripts/init_hermes.py', 'scripts/make_demo_db.py', 'scripts/openhealthatlas_mcp.py')
+REQUIRED_DESKTOP_FILES = tuple('desktop/' + name + '.py' for name in (
+    '__init__', 'broker', 'child', 'launcher', 'mcp', 'mcp_config',
+    'preferences', 'server', 'workspaces',
+))
 FULL_RUNTIME_HASHES = {
     'arm64': 'ce5a2d552077d869f69dc25d834c2fe4d036f9d78e770fb5d916273db802cabc',
     'x86_64': '3b2ee510354f51b6bda71fec7d5cf70dfad29ed672aa5847d1f5216ee22fc5ef',
@@ -47,19 +54,79 @@ def digest(path):
     return hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
 
 
+def _reviewed_bytes(root, relative, expected_size=None):
+    """Read through no-follow descriptors; never follow a substituted directory."""
+    directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        parts = PurePosixPath(relative).parts
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=directory)
+            os.close(directory)
+            directory = child
+        descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError('Reviewed source is not a regular file: ' + relative)
+            if expected_size is not None and info.st_size != expected_size:
+                raise ValueError('Reviewed source size mismatch: ' + relative)
+            data = stream.read(info.st_size + 1)
+            if len(data) != info.st_size:
+                raise ValueError('Reviewed source changed while reading: ' + relative)
+            return data, stat.S_IMODE(info.st_mode) & 0o777
+    except OSError as error:
+        raise ValueError('Reviewed source is missing, nonregular or symlinked: ' + relative) from error
+    finally:
+        os.close(directory)
+
+
 def copy_sources(target):
+    manifest, _ = _reviewed_bytes(ROOT, 'RELEASE_MANIFEST.tsv')
+    reader = csv.DictReader(io.StringIO(manifest.decode('utf-8')), dialect='excel-tab')
+    if reader.fieldnames != ['path', 'sha256', 'bytes', 'kind']:
+        raise ValueError('Release manifest header mismatch.')
+    entries = {}
+    for row in reader:
+        if None in row or any(value is None for value in row.values()):
+            raise ValueError('Release manifest contains a malformed source row.')
+        relative = row['path']
+        path = PurePosixPath(relative)
+        if (not relative or not path.parts or path.is_absolute() or path.as_posix() != relative
+                or '..' in path.parts or '\\' in relative or '\x00' in relative
+                or relative in entries):
+            raise ValueError('Release manifest contains a duplicate or unsafe source path.')
+        size, checksum = row['bytes'], row['sha256']
+        if (not size or not size.isascii() or not size.isdecimal()
+                or len(checksum) != 64 or any(c not in '0123456789abcdef' for c in checksum)):
+            raise ValueError('Release manifest contains invalid source metadata: ' + relative)
+        entries[relative] = (int(size), checksum)
+    for required in (*FILES, *REQUIRED_DESKTOP_FILES):
+        if required not in entries:
+            raise ValueError('Required source is absent from the release manifest: ' + required)
     for directory in DIRECTORIES:
-        shutil.copytree(ROOT / directory, target / directory,
-                        ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.so', '.DS_Store'))
-    for filename in FILES:
-        destination = target / filename; destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / filename, destination)
-    # Desktop package is new reviewed code; keep native build sources out of runtime.
-    for source in sorted((ROOT / 'desktop').glob('*.py')):
-        destination = target / 'desktop' / source.name
-        shutil.copy2(source, destination)
-    if not (target / 'desktop/launcher.py').exists():
-        raise SystemExit('Desktop launcher is missing; refusing an incomplete application.')
+        if not any(name.startswith(directory + '/') for name in entries):
+            raise ValueError('Required source directory is absent from the release manifest: ' + directory)
+    selected = [name for name in entries if name in FILES
+                or any(name.startswith(directory + '/') for directory in DIRECTORIES)
+                or (PurePosixPath(name).parent == PurePosixPath('desktop')
+                    and PurePosixPath(name).suffix == '.py')]
+    # Validate all inputs before creating output; write precisely the checked bytes,
+    # not a second path-based read that could pick up a changed local file.
+    verified = []
+    for relative in sorted(selected):
+        size, checksum = entries[relative]
+        data, mode = _reviewed_bytes(ROOT, relative, size)
+        if hashlib.sha256(data).hexdigest() != checksum:
+            raise ValueError('Reviewed source hash mismatch: ' + relative)
+        verified.append((relative, data, mode))
+    target.mkdir(parents=True, exist_ok=False)
+    for relative, data, mode in verified:
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        destination.chmod(mode)
 
 
 def prepare_runtime(cache, runtime):

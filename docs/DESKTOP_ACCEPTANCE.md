@@ -163,3 +163,15 @@ GitHub email privacy was enabled under the owner's explicit instruction.
 That setting applies to future web operations and does not erase earlier
 metadata. Verify newly generated PR metadata after updating the branch; no
 real email address belongs in reports or source.
+
+### Publication metadata and build provenance
+
+After the owner-requested privacy change, current PR7 generated author and
+committer metadata use GitHub's masked no-reply identities. Source scanner
+exceptions are restricted to the two reviewed exact Git email-field values;
+no domain-wide or general file/message exemption is granted. Earlier generated
+objects were not rewritten. The builder's source projection now requires
+manifest membership and exact checked bytes; ignored/unlisted local data,
+symlinked, missing, nonregular or altered inputs fail closed. Combined focused
+scanner/build-input tests: 22 passed. The current app's 154 product source files
+remain byte-identical under this stricter copying path.
