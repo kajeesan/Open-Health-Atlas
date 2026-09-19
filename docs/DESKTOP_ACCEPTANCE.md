@@ -1,7 +1,7 @@
 # Desktop acceptance record
 
 Updated 2026-09-20. **No normal public desktop release is qualified.** The
-`0.2.1` candidate adds the first-run action/theme repair to the current AGPL-3.0-only public source. Its exact
+`0.2.2` candidate uses the selected Personal Contour Mark and retains the first-run action/theme repair. Its exact
 results belong in candidate-specific receipts attached to
 [the desktop pull request](https://github.com/kajeesan/Open-Health-Atlas/pull/7)
 and, when qualified, the matching release. Earlier passing checks below are
@@ -11,7 +11,7 @@ The public release inspected on 2026-09-19 was the `v0.1.0` source-only
 prerelease. It is not an end-user Mac download. The subsequent 0.2.0 candidate
 from `61c8a199ef6f367d7925bf77d92f12bad48667c0` passed Developer ID signing,
 app/DMG notarization, stapling and Gatekeeper checks on the development Mac.
-Those receipts do not qualify the changed 0.2.1 artifact. A normal browser
+Those receipts do not qualify the changed artifact. A normal browser
 download and clean-Mac installation remain separate acceptance gates. No
 purchase, account change or security bypass is part of these checks.
 

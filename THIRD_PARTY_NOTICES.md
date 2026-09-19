@@ -70,3 +70,8 @@ browser vendor notices and original creator attribution are included.
 The app icon and native host are original project assets covered by the current
 AGPL-3.0-only project license. Earlier MIT permissions remain described in
 `LICENSING.md`; they are not an alternative license for subsequent additions.
+
+The official Open Health Atlas logo is the Personal Contour Mark. Its canonical
+vector is `desktop/macos/icon.svg`; `desktop/macos/Icon.swift` renders the same
+geometry and colours for the native icon family. It is original project artwork
+covered by the project license and creator credit above.
