@@ -3,7 +3,8 @@
   const form = document.getElementById('workspace-form');
   if (!form) return;
   const status = document.getElementById('setup-status');
-  const submit = document.getElementById('open-workspace');
+  const continueLabel = document.getElementById('continue-label');
+  const selectionDescription = document.getElementById('selection-description');
   const timezone = document.getElementById('timezone');
   const importDetails = document.getElementById('import-details');
   const filePath = document.getElementById('source-database');
@@ -15,6 +16,7 @@
   };
   const setBusy = (value) => {
     busy = value;
+    continueLabel.textContent = value ? 'Opening…' : 'Continue';
     form.setAttribute('aria-busy', String(value));
     document.querySelectorAll('button, input').forEach(input => { input.disabled = value; });
   };
@@ -43,10 +45,15 @@
   };
 
   try { timezone.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { /* UTC stays explicit. */ }
+  const zoneSummary = document.getElementById('timezone-value');
+  zoneSummary.textContent = timezone.value;
+  timezone.addEventListener('invalid', () => { timezone.closest('details').open = true; });
   form.addEventListener('change', () => {
+    zoneSummary.textContent = timezone.value.trim() || 'Choose a time zone';
     const kind = form.elements.kind.value;
     importDetails.hidden = kind !== 'import';
-    submit.textContent = {demo: 'Explore fictional data', personal: 'Create my workspace', import: 'Copy and open my data'}[kind];
+    selectionDescription.textContent = {demo: 'Open the fictional example', personal: 'Create your empty workspace', import: 'Copy and open your existing data'}[kind];
+    if (!busy) setStatus('');
   });
   document.getElementById('choose-database').addEventListener('click', () => {
     const handler = window.webkit?.messageHandlers?.oha;
@@ -84,9 +91,10 @@
         }
         const button = document.createElement('button');
         button.type = 'button';
+        button.disabled = busy;
         button.textContent = workspace.label + (workspace.fictional ? ' · fictional' : '') + ' · ' + workspace.timezone;
         button.addEventListener('click', () => open('/desktop/api/select', {id: workspace.id}));
         list.appendChild(button);
       });
-    }).catch(() => setStatus('Existing workspaces could not be listed. Reopen the app before creating another workspace.', true));
+    }).catch(() => { if (!busy) setStatus('Existing workspaces could not be listed. Reopen the app before creating another workspace.', true); });
 })();

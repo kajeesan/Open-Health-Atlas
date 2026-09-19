@@ -1,6 +1,6 @@
 # macOS desktop build and release runbook
 
-This is the maintainer procedure for **0.2.0, macOS Apple silicon (arm64)**.
+This is the maintainer procedure for **0.2.1, macOS Apple silicon (arm64)**.
 Users should follow [Install Open Health Atlas](DESKTOP.md). Read the current
 [acceptance record](DESKTOP_ACCEPTANCE.md) before making a support or release
 claim. The existing `v0.1.0` release is source-only; do not overwrite it or reuse
@@ -68,9 +68,9 @@ command -v zstd >/dev/null
 "$oha_build_python" -B scripts/release_manifest.py verify
 "$oha_build_python" -B scripts/release_scan.py --history
 
-oha_version=0.2.0
+oha_version=0.2.1
 oha_commit=$(git rev-parse HEAD)
-oha_output=$(mktemp -d /private/tmp/oha-release-0.2.0.XXXXXX)
+oha_output=$(mktemp -d /private/tmp/oha-release-0.2.1.XXXXXX)
 oha_mode=${OHA_BUILD_MODE:-preview}
 oha_build_args=(--output-dir "$oha_output" --version "$oha_version" --arch arm64)
 case "$oha_mode" in
@@ -161,7 +161,7 @@ databases and developer secrets are not build inputs.
 
 Each app includes its exact manifest-backed source archive at
 `Contents/Resources/CorrespondingSource.zip`. The same archive is delivered as
-`openhealthatlas-0.2.0-source-<full-source-commit>.zip` alongside the installer.
+`openhealthatlas-0.2.1-source-<full-source-commit>.zip` alongside the installer.
 The app's build information binds the source commit, manifest, source archive,
 runtime and dependency lock. The checksum file covers the source archive,
 application ZIP and DMG. Preserve those bindings when preparing release assets;

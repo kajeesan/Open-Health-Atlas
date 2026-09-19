@@ -90,7 +90,7 @@ jobs:
           python -m pytest -q --noconftest -p no:cacheprovider tests/test_desktop_bundle_audit.py tests/test_desktop_build_inputs.py
       - name: Build self-contained evaluation app
         run: |
-          python scripts/build_desktop.py --output-dir "$RUNNER_TEMP/oha-desktop" --version 0.2.0 --arch arm64
+          python scripts/build_desktop.py --output-dir "$RUNNER_TEMP/oha-desktop" --version 0.2.1 --arch arm64
       - name: Inspect packaged app
         run: |
           python scripts/audit_desktop_bundle.py "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --report "$RUNNER_TEMP/oha-desktop/bundle-audit.json"

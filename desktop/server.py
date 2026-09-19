@@ -93,7 +93,7 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
                 if request.path.startswith(("/api/", "/desktop/api/")):
                     return jsonify(error="Your session ended. Quit and reopen Open Health Atlas to continue."), 401
                 return session_ended()
-        if workspace is None and not request.path.startswith("/desktop/"):
+        if workspace is None and request.endpoint != "static" and not request.path.startswith("/desktop/"):
             return redirect("/desktop/")
 
     # Before the original session gate; bootstrap only exists in this adapter.
@@ -140,7 +140,8 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
     def setup():
         if workspace and request.path != "/desktop/setup" and request.args.get("setup") != "1":
             return redirect("/")
-        return render_template("desktop/setup.html", workspace=workspace,
+        from desktop.preferences import read
+        return render_template("desktop/setup.html", setup_theme=read().get("panel-theme", "paper"), workspace=workspace,
                                workspaces=manager.list_workspaces(), startup_message=startup_message)
 
     @bp.get("/help")

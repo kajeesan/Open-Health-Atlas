@@ -17,6 +17,10 @@ def test_launch_session_single_use_and_retained_csrf(tmp_path):
                     threading.Event(), "a" * 40)
     app.config["RATELIMIT_ENABLED"] = False
     client = app.test_client()
+    # The first-run page needs the actual theme, not a redirect to setup HTML.
+    stylesheet = client.get("/static/css/panel.css")
+    assert stylesheet.status_code == 200
+    assert stylesheet.mimetype == "text/css"
     assert client.get("/desktop/").status_code == 401
     assert client.post("/desktop/session", headers={"X-OHA-Launch-Token": "wrong"}).status_code == 401
     assert client.post("/desktop/session", headers={"X-OHA-Launch-Token": "test-launch-token"}).status_code == 303
