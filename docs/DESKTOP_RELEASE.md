@@ -184,7 +184,7 @@ new local source identity. Preserve the original archive and its checksum so
 the upstream source mapping remains available. Runtime/wheel downloads still
 require connectivity unless their verified caches already exist.
 
-The app menu offers **License and notices** and **Show corresponding source**,
+The app menu offers **License and notices** and **Save corresponding source**,
 including access to the bundled source archive offline. Retain its creator
 credit, current license and all bundled third-party materials. The source
 archive and runtime audit are separate checks; narrow reviewed upstream

@@ -43,7 +43,7 @@ final class AtlasApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavig
         let appMenu = NSMenu(); appItem.submenu = appMenu
         appMenu.addItem(withTitle: "About Open Health Atlas", action: #selector(about), keyEquivalent: "")
         appMenu.addItem(withTitle: "License and notices…", action: #selector(showLicenses), keyEquivalent: "")
-        appMenu.addItem(withTitle: "Show corresponding source…", action: #selector(showSource), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Save corresponding source…", action: #selector(showSource), keyEquivalent: "")
         appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Quit Open Health Atlas", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let edit = NSMenuItem(); edit.title = "Edit"; menu.addItem(edit); edit.submenu = NSMenu(title: "Edit")
         for (title, action, key) in [("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Cut", "cut:", "x"), ("Select All", "selectAll:", "a")] { edit.submenu!.addItem(withTitle: title, action: Selector(action), keyEquivalent: key) }
@@ -54,11 +54,49 @@ final class AtlasApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavig
     }
     @objc func showLicenses() {
         guard let resources = Bundle.main.resourceURL else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([resources.appendingPathComponent("app/LICENSE"), resources.appendingPathComponent("app/THIRD_PARTY_NOTICES.md"), resources.appendingPathComponent("THIRD_PARTY_RUNTIME.txt")])
+        let primary = ["app/LICENSE", "app/LICENSING.md", "app/NOTICE", "app/THIRD_PARTY_NOTICES.md", "THIRD_PARTY_RUNTIME.txt"]
+        var files = primary.map { resources.appendingPathComponent($0) }
+        if let enumerator = FileManager.default.enumerator(at: resources, includingPropertiesForKeys: nil) {
+            for case let file as URL in enumerator {
+                let name = file.lastPathComponent.lowercased()
+                if (name.contains("license") || name == "copying" || name == "copyright"), !files.contains(file) {
+                    var directory: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: file.path, isDirectory: &directory), !directory.boolValue { files.append(file) }
+                }
+            }
+        }
+        let text = files.compactMap { file -> String? in
+            guard let value = try? String(contentsOf: file, encoding: .utf8) else { return nil }
+            let name = file.path.replacingOccurrences(of: resources.path + "/", with: "")
+            return name + "\n\n" + value
+        }.joined(separator: "\n\n────────────────────\n\n")
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 620, height: 360))
+        scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
+        let content = NSTextView(frame: scroll.bounds)
+        content.isEditable = false; content.isSelectable = true; content.font = .systemFont(ofSize: 12)
+        content.isVerticallyResizable = true; content.isHorizontallyResizable = false
+        content.autoresizingMask = [.width]; content.textContainer?.widthTracksTextView = true
+        content.string = text; scroll.documentView = content
+        let alert = NSAlert(); alert.messageText = "License and notices"
+        alert.informativeText = "Original code: AGPL-3.0-only · Created by Kajeesan Jeevendra. Third-party components retain their own terms."
+        alert.accessoryView = scroll; alert.addButton(withTitle: "Close")
+        alert.beginSheetModal(for: window)
     }
     @objc func showSource() {
         guard let resources = Bundle.main.resourceURL else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([resources.appendingPathComponent("CorrespondingSource.zip")])
+        let source = resources.appendingPathComponent("CorrespondingSource.zip")
+        let panel = NSSavePanel(); panel.nameFieldStringValue = "Open-Health-Atlas-corresponding-source.zip"
+        panel.allowedContentTypes = [.zip]; panel.message = "Save the exact source and build materials included with this app."
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let destination = panel.url, let self = self else { return }
+            do {
+                try Data(contentsOf: source).write(to: destination, options: .atomic)
+            } catch {
+                let alert = NSAlert(); alert.messageText = "The source archive could not be saved"
+                alert.informativeText = "Try again and choose a writable folder."
+                alert.beginSheetModal(for: self.window)
+            }
+        }
     }
     func dataRoot() -> URL {
         // Explicit command-line override supports isolated acceptance workspaces only.
