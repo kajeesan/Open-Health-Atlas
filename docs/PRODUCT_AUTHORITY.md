@@ -7,6 +7,15 @@ override it.
 
 ## Local MCP extension
 
+On 17 September 2026 the owner authorized packaging the existing application
+as a self-contained macOS desktop app, with guided fictional/personal/imported
+workspaces and an optional stable local MCP executable. This changes
+installation and local runtime ownership, not the deterministic engine or the
+external client's responsibility for interpretation. No built-in provider
+chat, model download, external Hermes activation or paid signing service is
+authorized by the implementation alone. Release status is tracked separately
+in [desktop acceptance](DESKTOP_ACCEPTANCE.md).
+
 The owner approved a standalone, provider-neutral MCP connection for reading
 and analysing a user-selected local OpenHealthAtlas database. The external
 MCP client owns the conversation and chooses its model. Hermes remains the

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Welcome · Open Health Atlas</title>
+  <link rel="stylesheet" href="/static/css/panel.css">
+  <link rel="stylesheet" href="/desktop/static/setup.css">
+  <script src="/desktop/static/setup.js" defer></script>
+</head>
+<body class="desktop-page">
+  <main class="desktop-main">
+    <header class="desktop-header"><a href="/desktop/setup">Open Health Atlas</a><a href="/desktop/help">Help</a></header>
+    <h1>Your health, in one place.</h1>
+    <p class="desktop-intro">Explore an example or start collecting your own records. Your dashboard works on this Mac without an AI account.</p>
+    {% if startup_message %}<p class="setup-status error" role="status">{{ startup_message }} You can open another workspace below. The previous workspace has been kept.</p>{% endif %}
+    <section id="existing-workspaces" hidden aria-labelledby="existing-title">
+      <h2 id="existing-title">Continue where you left off</h2>
+      <div id="workspace-list" class="workspace-list"></div>
+      <h2>Create another workspace</h2>
+    </section>
+    <form id="workspace-form">
+      <fieldset class="workspace-choices">
+        <legend class="sr-only">Choose how to get started</legend>
+        <label class="workspace-choice"><input type="radio" name="kind" value="demo" checked><span><strong>Try fictional data</strong><span>Explore charts and patterns with a made-up example. Kept separate from your own records.</span></span></label>
+        <label class="workspace-choice"><input type="radio" name="kind" value="personal"><span><strong>Start with my own data</strong><span>Begin with an empty workspace. Add records through the dashboard’s supported forms.</span></span></label>
+        <label class="workspace-choice"><input type="radio" name="kind" value="import"><span><strong>Open existing Open Health Atlas data</strong><span>Make a private copy of an existing database. The original stays where it is.</span></span></label>
+      </fieldset>
+      <div id="import-details" class="setup-detail" hidden>
+        <label for="source-database">Open Health Atlas database</label>
+        <div class="file-choice"><input id="source-database" name="source_database" readonly placeholder="No file selected"><button type="button" id="choose-database">Choose file…</button></div>
+        <p class="field-note">Choose a complete Open Health Atlas database (.db or .sqlite). PDFs, spreadsheets and databases from other apps cannot be opened here. Existing login sessions are not copied.</p>
+      </div>
+      <div class="setup-detail">
+        <label for="timezone">Time zone for your daily records</label>
+        <input id="timezone" name="timezone" type="text" list="timezones" required value="UTC" autocomplete="off" aria-describedby="timezone-help">
+        <datalist id="timezones"><option value="UTC"><option value="Europe/Paris"><option value="Europe/London"><option value="America/New_York"><option value="America/Los_Angeles"><option value="Asia/Kolkata"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist>
+        <p id="timezone-help" class="field-note">We suggest your Mac’s time zone. This decides which calendar day each measurement belongs to.</p>
+      </div>
+      <p id="setup-status" class="setup-status" role="status" aria-live="polite"></p>
+      <button class="desktop-primary" id="open-workspace" type="submit">Explore fictional data</button>
+      <p class="desktop-footnote">Records stay in this Mac’s application data folder. Updating or removing the app does not remove your workspaces.</p>
+    </form>
+  </main>
+</body>
+</html>

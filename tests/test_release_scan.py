@@ -33,6 +33,7 @@ def test_safe_generic_examples_and_public_provenance_are_accepted():
         "http://localhost:5111",
         "https://github.com/apache/echarts",
         "https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution",
+        "https://files.pythonhosted.org/packages/reviewed/package-source.tar.gz",
         "https://fsf.org/",
         "https://www.gnu.org/licenses/",
         "https://api.open-meteo.com/v1/forecast",
@@ -131,4 +132,63 @@ def test_history_checks_unapproved_path_even_for_same_reviewed_blob(tmp_path, mo
     assert blob_count == 1
     assert [item.as_dict() for item in findings] == [{
         "category": "unexplained_binary", "path": f"history/{unapproved}",
+    }]
+
+
+def test_github_noreply_allowance_is_exact_and_only_for_commit_email_fields():
+    owner = "@".join(("249340830+kajeesan", "users.noreply.github.com"))
+    service = "@".join(("noreply", "github.com"))
+    fields = ['a' * 40, 'Public Author', owner, 'GitHub', service, 'Reviewed change\n']
+    assert release_scan._commit_metadata_findings('\n' + '\n'.join(fields)) == []
+    rejected = (
+        "@".join(("private-contact", "unapproved.test")),
+        owner.replace('249340830', '249340831'),
+        owner.replace('kajeesan', 'kajeesan-other'),
+        owner + '.unapproved.test',
+        owner + '+extra',
+        'prefix ' + owner,
+        service.replace('noreply', 'no-reply'),
+    )
+    for email in rejected:
+        for index in (2, 4):
+            changed = fields.copy()
+            changed[index] = email
+            findings = release_scan._commit_metadata_findings('\n'.join(changed))
+            assert [item.as_dict() for item in findings] == [{
+                'category': 'non_example_email', 'path': 'history/<commit-metadata>',
+            }]
+            assert email not in repr([item.as_dict() for item in findings])
+    for email in (owner, service):
+        for index in (1, 3, 5):
+            changed = fields.copy()
+            changed[index] = email
+            assert 'non_example_email' in {
+                item.category for item in release_scan._commit_metadata_findings('\n'.join(changed))
+            }
+        for path in ('README.md', 'history/<references>'):
+            assert [item.category for item in release_scan._text_findings(email, path)] == ['non_example_email']
+    changed = fields.copy()
+    changed[5] = '/' + 'Users/fictional/private-file'
+    assert [item.category for item in release_scan._commit_metadata_findings('\n'.join(changed))] == ['private_absolute_home_path']
+
+
+def test_actual_history_accepts_only_reviewed_github_fields(tmp_path):
+    owner = "@".join(("249340830+kajeesan", "users.noreply.github.com"))
+    service = "@".join(("noreply", "github.com"))
+
+    def git(*args):
+        subprocess.run(['git', '-C', str(tmp_path), *args], check=True, capture_output=True)
+
+    git('init', '--quiet')
+    git('config', 'user.name', 'GitHub')
+    git('config', 'user.email', service)
+    git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '--quiet',
+        '--author', f'Public Author <{owner}>', '-m', 'Reviewed merge')
+    assert release_scan._history_scan(tmp_path) == ([], 0)
+    git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '--quiet',
+        '--author', f'Public Author <{owner}>', '-m', service)
+    findings, blobs = release_scan._history_scan(tmp_path)
+    assert blobs == 0
+    assert [item.as_dict() for item in findings] == [{
+        'category': 'non_example_email', 'path': 'history/<commit-metadata>',
     }]

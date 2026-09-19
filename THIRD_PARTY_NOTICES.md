@@ -56,3 +56,17 @@ Creative Commons Attribution 4.0 International. Its source attribution,
 license link and description of the reporting-section adaptation are retained
 in that document. This documentation license does not change the
 AGPL-3.0-only license for original project code.
+
+## Optional macOS desktop distribution
+
+The desktop builder includes a pinned CPython runtime from
+`python-build-standalone` and the exact packages in
+`requirements-desktop.lock`. It retains the upstream Python and bundled-native
+library license texts and the upstream `PYTHON.json` build metadata
+in `Contents/Resources/PythonLicenses`; wheel license texts and metadata remain
+with `PythonRuntime/lib/python3.12/site-packages/*.dist-info`. The generated
+`THIRD_PARTY_RUNTIME.txt` inventories exact package names and versions. Existing
+browser vendor notices and original creator attribution are included.
+The app icon and native host are original project assets covered by the current
+AGPL-3.0-only project license. Earlier MIT permissions remain described in
+`LICENSING.md`; they are not an alternative license for subsequent additions.

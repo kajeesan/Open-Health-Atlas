@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Help · Open Health Atlas</title>
+  <link rel="stylesheet" href="/static/css/panel.css">
+  <link rel="stylesheet" href="/desktop/static/setup.css">
+  <script src="/desktop/static/help.js" defer></script>
+</head>
+<body class="desktop-page">
+  <main class="desktop-main desktop-help">
+    <header class="desktop-header"><a href="/">Open Health Atlas</a><a href="/desktop/setup">Workspaces</a></header>
+    <h1>A little help.</h1>
+    <p class="desktop-intro">Your records and dashboard are local. Connecting an AI client is optional.</p>
+    <section><h2>Start exploring</h2><p>Choose <a href="/desktop/setup">Try fictional data</a> to see working examples. Fictional and personal workspaces are kept separate. The workspace label tells you which one is open.</p><p>For your own data, begin with an empty workspace and use the existing entry forms. Opening an existing database creates a copy; it does not connect to or change another installation.</p></section>
+    <section><h2>Your data stays with you</h2><p>Workspaces are saved in your user Library, under Application Support → Open Health Atlas. They stay there when you update the app or move the app to the Trash.</p><p>Before an update changes a database, the app makes and checks recovery copies of your health records and app settings. If an update fails, the previous data remains available. Quit the app before restoring a backup; keep the original and recovery copies.</p><p>For a full backup, quit Open Health Atlas and copy its entire application data folder to a private backup location. Database imports do not include notes or attachments from another installation.</p></section>
+    <section id="ai-connection"><h2>Connect an AI client</h2><p>Open Health Atlas supplies records, calculations and evidence; the client provides conversation. Choose your model in that client. No API key is needed here.</p><p>A client must support launching a local stdio MCP server. Remote-only connections need a separate setup. Your chosen client may send returned records to its model provider, so review its privacy settings before connecting personal data.</p><p id="connection-workspace">Choose a workspace before connecting a client.</p><div id="connection-controls" hidden><button type="button" id="copy-mcp">Copy connection settings</button> <a href="/desktop/api/mcp-config?download=1" download>Download settings</a><p class="field-note">Add these settings to your client’s local MCP configuration. Disconnect the client before updating the app. Open the updated app and your workspace successfully, then reconnect the client. Switching workspaces in the dashboard does not change the workspace selected by an existing AI connection. Export new settings to connect that client to another workspace, or if you change time zones or move the app.</p><details><summary>View connection settings</summary><pre id="mcp-config" class="connection-config"></pre></details></div><p id="connection-status" role="status" aria-live="polite"></p></section>
+    <section><h2>If something gets stuck</h2><ul><li>First launch may take longer while the example or an upgrade is prepared.</li><li>Quit Open Health Atlas, then open it again. Your workspace selection and saved entries are retained.</li><li>If an existing database is rejected, choose a complete Open Health Atlas database or a healthy backup. Other SQLite files are not supported.</li><li>If an update fails repeatedly, reopen the previous app version. Keep the application data folder intact.</li></ul><p>Review any diagnostic report before sharing it. Never include health records, database files or provider keys in a public issue.</p><details id="diagnostics"><summary>View redacted diagnostics</summary><pre id="diagnostic-report" class="connection-config">Loading app information…</pre></details></section>
+    <footer class="desktop-footnote">Open Health Atlas · Created by Kajeesan Jeevendra · AGPL-3.0-only</footer>
+  </main>
+</body>
+</html>

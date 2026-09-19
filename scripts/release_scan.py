@@ -50,6 +50,7 @@ ALLOWED_URL_HOSTS = {
     "docs.github.com",
     "doi.org",
     "example.invalid",
+    "files.pythonhosted.org",
     "fsf.org",
     "github.com",
     "health.googleapis.com",
@@ -67,6 +68,14 @@ ALLOWED_URL_HOSTS = {
     "www.w3.org",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}
+# Exact public identities verified against the current PR merge and owner public
+# user ID. These exceptions apply ONLY to Git author/committer email fields,
+# never file contents, reference names, names or commit-message bodies. Keep
+# local development commits on the existing example.invalid identity.
+REVIEWED_GITHUB_COMMIT_EMAILS = frozenset((
+    "@".join(("249340830+kajeesan", "users.noreply.github.com")),
+    "@".join(("noreply", "github.com")),
+))
 # Visually reviewed fictional documentation assets only. Replacement bytes or
 # another path require a fresh review; this is not a general binary allowance.
 REVIEWED_BINARY_ASSETS: dict[str, str] = {
@@ -166,7 +175,9 @@ def _path_findings(relative: str) -> list[Finding]:
     return findings
 
 
-def _text_findings(text: str, relative: str) -> list[Finding]:
+def _text_findings(
+    text: str, relative: str, *, allowed_emails: frozenset[str] = frozenset(),
+) -> list[Finding]:
     findings = []
     if any(pattern.search(text) for pattern in REMOVED_PERSONAL_TERMS):
         findings.append(Finding("removed_personal_fixture_term", relative))
@@ -185,6 +196,8 @@ def _text_findings(text: str, relative: str) -> list[Finding]:
             findings.append(Finding("literal_secret_assignment", relative))
             break
     for value in EMAIL.findall(text):
+        if value in allowed_emails:
+            continue
         if value.lower() in ALLOWED_EMAIL_LITERALS:
             continue
         if value in {
@@ -305,6 +318,23 @@ def _tree_scan(root: Path) -> tuple[list[Finding], int, int]:
     return findings, len(paths), total_bytes
 
 
+def _commit_metadata_findings(record: str) -> list[Finding]:
+    """Scope reviewed no-reply identities to the two Git email fields only."""
+    relative = "history/<commit-metadata>"
+    # Git log inserts a newline after each record separator. The first five
+    # fields are single-line Git metadata; everything remaining is the message.
+    fields = record.lstrip("\n").split("\n", 5)
+    if len(fields) != 6:
+        return _text_findings(record, relative)
+    findings = []
+    for index, field in enumerate(fields):
+        allowed = (REVIEWED_GITHUB_COMMIT_EMAILS
+                   if index in (2, 4) and field in REVIEWED_GITHUB_COMMIT_EMAILS
+                   else frozenset())
+        findings.extend(_text_findings(field, relative, allowed_emails=allowed))
+    return findings
+
+
 def _history_scan(root: Path) -> tuple[list[Finding], int]:
     findings: list[Finding] = []
     # One blob may have appeared at multiple paths. Check every historical
@@ -344,7 +374,7 @@ def _history_scan(root: Path) -> tuple[list[Finding], int]:
     ).decode("utf-8", errors="replace")
     for record in metadata.split("\0"):
         if record.strip():
-            findings.extend(_text_findings(record, "history/<commit-metadata>"))
+            findings.extend(_commit_metadata_findings(record))
     references = _git(
         root, "for-each-ref", "--format=%(refname)"
     ).decode("utf-8", errors="replace")

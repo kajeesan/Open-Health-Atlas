@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% if desktop_mode %}<script src="/desktop/preferences.js"></script>{% endif %}
   <title>{% block title %}OpenHealthAtlas{% endblock %} · OpenHealthAtlas</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/panel.css') }}">
 </head>
@@ -47,6 +48,10 @@
         {% endfor %}
       </nav>
       <div class="sidebar-foot">
+        {% if desktop_mode %}
+        <a class="ghost-btn" href="/desktop/help">Desktop help &amp; AI connection</a>
+        <a class="ghost-btn" href="/desktop/?setup=1">Switch workspace</a>
+        {% endif %}
         <button id="settings-btn" class="ghost-btn" type="button" title="Theme & settings">
           <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
         </button>
@@ -62,6 +67,9 @@
     </aside>
 
     <main class="content">
+      {% if desktop_mode and desktop_workspace and desktop_workspace.kind == 'demo' %}
+      <p role="status">Fictional sample · These records are invented. <a href="/desktop/?setup=1">Open your own workspace</a></p>
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
 
@@ -83,6 +91,10 @@
           <svg class="icon"><use href="#i-{{ icon }}"/></svg><span>{{ label }}</span>
         </a>
         {% endfor %}
+        {% if desktop_mode %}
+        <a class="sheet-link" href="/desktop/help">Desktop help &amp; AI connection</a>
+        <a class="sheet-link" href="/desktop/?setup=1">Switch workspace</a>
+        {% endif %}
         <button id="settings-btn-mobile" class="sheet-link as-button" type="button">
           <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
         </button>
