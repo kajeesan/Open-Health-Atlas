@@ -56,6 +56,10 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
         "PANEL_COOKIE_SECURE": False,
         "SESSION_COOKIE_SECURE": False,
         "SESSION_COOKIE_NAME": "oha_desktop_csrf",
+        # Native sessions have a fixed lifetime; an idle form should not fail
+        # earlier while that same session remains authorized. This does not
+        # extend or refresh authentication and leaves the web deployment alone.
+        "WTF_CSRF_TIME_LIMIT": auth.SESSION_TTL_SECONDS,
         "MAX_CONTENT_LENGTH": 131072,
         "HERMES_DISPLAY_NAME": "Fictional sample" if workspace and workspace.kind == "demo" else "Your workspace",
         "HERMES_TIMEZONE": workspace.timezone if workspace else "UTC",
@@ -72,16 +76,23 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
     pending = {"token": launch_token, "expires": time.monotonic() + 120}
     mutation_lock = threading.Lock()
 
+    def session_ended():
+        if request.accept_mimetypes.best == "text/html":
+            return redirect("/desktop/signed-out")
+        return jsonify(error="Your session ended. Quit and reopen Open Health Atlas to continue."), 401
+
     def desktop_gate():
-        if request.endpoint == "desktop.session":
+        if request.endpoint in {"desktop.session", "desktop.signed_out"}:
             return None
         if request.path in ("/login", "/enroll"):
-            return "Open Open Health Atlas from its app icon to sign in.", 401
+            return session_ended()
         if request.path.startswith("/api/auth/"):
             return jsonify(error="Use the app icon to start a desktop session."), 403
         if request.endpoint != "static" and not request.path.startswith("/desktop/static/"):
             if auth.current_session() is None:
-                return jsonify(error="Open the app icon to sign in."), 401
+                if request.path.startswith(("/api/", "/desktop/api/")):
+                    return jsonify(error="Your session ended. Quit and reopen Open Health Atlas to continue."), 401
+                return session_ended()
         if workspace is None and not request.path.startswith("/desktop/"):
             return redirect("/desktop/")
 
@@ -102,13 +113,27 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
         response = auth.set_session_cookie(redirect("/desktop/", code=303), token)
         return response
 
-    # Existing gate must recognize ONLY the new native bootstrap endpoint.
+    # Public recovery UI and static assets contain no workspace data. The
+    # capability-protected bootstrap is the only route that creates a session.
     original_gate = app.before_request_funcs[None][-1]
     def retained_gate():
-        if request.endpoint == "desktop.session":
+        if request.endpoint in {"desktop.session", "desktop.signed_out", "desktop.static"}:
             return None
         return original_gate()
     app.before_request_funcs[None][-1] = retained_gate
+
+    original_logout = app.view_functions["auth.logout"]
+    def desktop_logout():
+        response = original_logout()
+        response.headers["Location"] = "/desktop/signed-out"
+        return response
+    app.view_functions["auth.logout"] = desktop_logout
+
+    @bp.get("/signed-out")
+    def signed_out():
+        if auth.current_session() is not None:
+            return redirect("/desktop/")
+        return render_template("desktop/signed-out.html")
 
     @bp.get("/")
     @bp.get("/setup")

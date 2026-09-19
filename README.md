@@ -34,6 +34,7 @@ public release.
 | I want to… | Start here |
 | --- | --- |
 | See the interface without installing anything | [Open the browser demo](https://kajeesan.com/openhealthatlas-demo/) — a clickable, read-only fictional snapshot, with no backend or AI connected. |
+| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) — Apple silicon; signed public download is still pending. |
 | Run the real panel and try fictional data locally | [Try the local demo](docs/TRY_DEMO.md#run-the-local-panel) — includes the local API and write broker. |
 | Use my preferred AI client with local data | [Connect an MCP client](docs/LOCAL_MCP.md) — copyable setup and a fictional query → analysis → evidence example. |
 | Change code or contribute | [Develop the project](docs/DEVELOPMENT.md) — environment, relevant tests and contribution guidance. |

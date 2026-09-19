@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Kajeesan Jeevendra. MIT License.
+// Copyright (c) 2026 Kajeesan Jeevendra. AGPL-3.0-only.
 import AppKit
 import WebKit
 import UniformTypeIdentifiers
@@ -42,13 +42,23 @@ final class AtlasApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavig
         let menu = NSMenu(); let appItem = NSMenuItem(); menu.addItem(appItem)
         let appMenu = NSMenu(); appItem.submenu = appMenu
         appMenu.addItem(withTitle: "About Open Health Atlas", action: #selector(about), keyEquivalent: "")
+        appMenu.addItem(withTitle: "License and notices…", action: #selector(showLicenses), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Show corresponding source…", action: #selector(showSource), keyEquivalent: "")
         appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Quit Open Health Atlas", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let edit = NSMenuItem(); edit.title = "Edit"; menu.addItem(edit); edit.submenu = NSMenu(title: "Edit")
         for (title, action, key) in [("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Cut", "cut:", "x"), ("Select All", "selectAll:", "a")] { edit.submenu!.addItem(withTitle: title, action: Selector(action), keyEquivalent: key) }
         NSApp.mainMenu = menu
     }
     @objc func about() {
-        NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Open Health Atlas", .credits: NSAttributedString(string: "Created by Kajeesan Jeevendra\nMIT License. Bundled third-party notices are included in the application.\nLocal health records and deterministic evidence.")])
+        NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Open Health Atlas", .credits: NSAttributedString(string: "Created by Kajeesan Jeevendra\nAGPL-3.0-only. License, third-party notices and corresponding source are available from the Open Health Atlas menu.\nLocal health records and deterministic evidence.")])
+    }
+    @objc func showLicenses() {
+        guard let resources = Bundle.main.resourceURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([resources.appendingPathComponent("app/LICENSE"), resources.appendingPathComponent("app/THIRD_PARTY_NOTICES.md"), resources.appendingPathComponent("THIRD_PARTY_RUNTIME.txt")])
+    }
+    @objc func showSource() {
+        guard let resources = Bundle.main.resourceURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([resources.appendingPathComponent("CorrespondingSource.zip")])
     }
     func dataRoot() -> URL {
         // Explicit command-line override supports isolated acceptance workspaces only.
@@ -164,7 +174,12 @@ final class AtlasApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavig
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { let code = error as NSError; if code.code != NSURLErrorCancelled && !(code.domain == "WebKitErrorDomain" && code.code == 102) && retry.isHidden { fail("\(code.domain) \(code.code)") } }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { fail("Window content process stopped") }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, allowed(message.frameInfo.request.url), (message.frameInfo.request.url?.path == "/desktop" || message.frameInfo.request.url?.path.hasPrefix("/desktop/") == true),
+        guard message.frameInfo.isMainFrame, allowed(message.frameInfo.request.url) else { return }
+        if message.frameInfo.request.url?.path == "/desktop/signed-out",
+           let body = message.body as? [String: Any], body["action"] as? String == "reopenWorkspace" {
+            start(); return
+        }
+        guard (message.frameInfo.request.url?.path == "/desktop" || message.frameInfo.request.url?.path.hasPrefix("/desktop/") == true),
               let body = message.body as? [String: Any], body["action"] as? String == "chooseDatabase" else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = ["db", "sqlite", "sqlite3"].compactMap { UTType(filenameExtension: $0) }; panel.message = "Choose an existing Open Health Atlas database. A separate copy will be created."

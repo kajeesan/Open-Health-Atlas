@@ -91,6 +91,10 @@
           <svg class="icon"><use href="#i-{{ icon }}"/></svg><span>{{ label }}</span>
         </a>
         {% endfor %}
+        {% if desktop_mode %}
+        <a class="sheet-link" href="/desktop/help">Desktop help &amp; AI connection</a>
+        <a class="sheet-link" href="/desktop/?setup=1">Switch workspace</a>
+        {% endif %}
         <button id="settings-btn-mobile" class="sheet-link as-button" type="button">
           <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
         </button>

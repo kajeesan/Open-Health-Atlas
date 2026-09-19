@@ -224,6 +224,19 @@ def main():
             diagnostic = json.loads(journey.request("/desktop/api/diagnostics")[1])
             assert set(diagnostic) == {"product", "code_version", "system", "architecture", "workspace_kind", "selected"}
             checks.append("bundled_mcp_config_and_allowlisted_diagnostics")
+            previous_token = journey.token
+            status, page = journey.post("/logout", {})
+            assert status == 200 and 'id="reopen-workspace"' in page
+            assert journey.request("/desktop/api/workspaces")[0] == 401
+            assert journey.request("/desktop/session", method="POST", headers={"X-OHA-Launch-Token": previous_token})[0] == 401
+            status, page = journey.request("/training", headers={"Accept": "text/html"})
+            assert status == 200 and 'id="reopen-workspace"' in page
+            journey.stop()
+            journey.launch()
+            assert journey.token != previous_token
+            journey.login()
+            assert database_rows(journey.selected()[1]) == before
+            checks.append("signout_revokes_session_and_fresh_native_launch_preserves_records")
         finally:
             journey.stop()
     args.output.parent.mkdir(parents=True, exist_ok=True)

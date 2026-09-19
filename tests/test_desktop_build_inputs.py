@@ -121,3 +121,65 @@ def test_named_pipe_is_rejected_without_reading_or_blocking(source):
     with pytest.raises(ValueError, match='not a regular file'):
         build.copy_sources(target)
     assert not target.exists()
+
+
+def test_corresponding_source_contains_build_inputs_and_only_reviewed_bytes(source):
+    import json
+    import zipfile
+    root, files, _ = source
+    for name in build.SOURCE_REQUIRED:
+        if name not in files:
+            files[name] = ('Reviewed build material: ' + name).encode()
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(files[name])
+    write_manifest(root, files)
+    (root / 'unlisted.jsonl').write_text('fictional local record')
+    dependencies = [({'name': name, 'source_filename': name + '.tar.gz',
+                      'source_sha256': hashlib.sha256(name.encode()).hexdigest()}, name.encode())
+                    for name in build.EMBEDDED_SOURCES]
+    archive = root.parent / 'source.zip'
+    receipt = build.create_corresponding_source(archive, 'a' * 40, '0.2.0', dependencies)
+    assert receipt['sha256'] == hashlib.sha256(archive.read_bytes()).hexdigest()
+    assert receipt['commit'] == 'a' * 40
+    with zipfile.ZipFile(archive) as result:
+        assert set(result.namelist()) == {'Open-Health-Atlas/' + name for name in files} | {
+            'Open-Health-Atlas/RELEASE_MANIFEST.tsv', 'DependencySources/certifi.tar.gz',
+            'DependencySources/ordered-set.tar.gz'}
+        assert result.read('Open-Health-Atlas/desktop/macos/App.swift') == files['desktop/macos/App.swift']
+    # Source ZIP creation has exactly the same no-follow/hash boundary as runtime inputs.
+    (root / 'desktop/macos/App.swift').write_bytes(b'unreviewed change')
+    with pytest.raises(ValueError, match='mismatch'):
+        build.create_corresponding_source(root.parent / 'bad.zip', 'a' * 40, '0.2.0', dependencies)
+    assert not (root.parent / 'bad.zip').exists()
+
+
+@pytest.mark.parametrize('status,returncode', [('Accepted', 0), ('Invalid', 0), ('Accepted', 1), ('In Progress', 0)])
+def test_notarization_requires_explicit_acceptance_and_redacts_output(monkeypatch, capsys, status, returncode):
+    import json
+    identifier = '00000000-1111-2222-3333-444444444444'
+    def complete(command, **kwargs):
+        assert kwargs['capture_output'] and kwargs['text']
+        return subprocess.CompletedProcess(command, returncode,
+            json.dumps({'id': identifier, 'status': status, 'account': 'fictional-private-account'}),
+            'fictional-private-error')
+    monkeypatch.setattr(build.subprocess, 'run', complete)
+    if status == 'Accepted' and returncode == 0:
+        assert build.notarize(Path('artifact.zip'), 'opaque-profile', {}) == {
+            'submission_id': identifier, 'status': 'Accepted'}
+    else:
+        with pytest.raises(SystemExit) as error:
+            build.notarize(Path('artifact.zip'), 'opaque-profile', {})
+        assert 'fictional-private' not in str(error.value) and 'opaque-profile' not in str(error.value)
+    assert capsys.readouterr() == ('', '')
+
+
+def test_signing_tools_never_forward_identity_or_raw_failures(monkeypatch, capsys):
+    def failed(command, **kwargs):
+        assert kwargs['capture_output']
+        return subprocess.CompletedProcess(command, 1, 'fictional-account', 'fictional-private-error')
+    monkeypatch.setattr(build.subprocess, 'run', failed)
+    with pytest.raises(SystemExit) as error:
+        build.run_private(['/usr/bin/codesign', '--sign', 'fictional-identity', 'artifact'])
+    assert 'fictional' not in str(error.value)
+    assert capsys.readouterr() == ('', '')

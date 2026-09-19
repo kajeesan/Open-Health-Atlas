@@ -33,6 +33,7 @@ def test_safe_generic_examples_and_public_provenance_are_accepted():
         "http://localhost:5111",
         "https://github.com/apache/echarts",
         "https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution",
+        "https://files.pythonhosted.org/packages/reviewed/package-source.tar.gz",
         "https://fsf.org/",
         "https://www.gnu.org/licenses/",
         "https://api.open-meteo.com/v1/forecast",

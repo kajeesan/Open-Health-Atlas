@@ -16,6 +16,13 @@ on:
       - 'scripts/build_desktop.py'
       - 'scripts/audit_desktop_bundle.py'
       - 'scripts/verify_desktop.py'
+      - 'scripts/verify_desktop_mcp.py'
+      - 'LICENSE'
+      - 'LICENSING.md'
+      - 'NOTICE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/LICENSE-MIT.md'
+      - 'RELEASE_MANIFEST.tsv'
       - 'requirements*.txt'
       - 'requirements-desktop.lock'
       - 'tests/test_desktop*'
@@ -34,6 +41,13 @@ on:
       - 'scripts/build_desktop.py'
       - 'scripts/audit_desktop_bundle.py'
       - 'scripts/verify_desktop.py'
+      - 'scripts/verify_desktop_mcp.py'
+      - 'LICENSE'
+      - 'LICENSING.md'
+      - 'NOTICE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/LICENSE-MIT.md'
+      - 'RELEASE_MANIFEST.tsv'
       - 'requirements*.txt'
       - 'requirements-desktop.lock'
       - 'tests/test_desktop*'
@@ -73,10 +87,10 @@ jobs:
       - name: Test artifact boundary checks
         run: |
           python -m pip install pytest==9.0.3 uv==0.11.25
-          python -m pytest -q --noconftest -p no:cacheprovider tests/test_desktop_bundle_audit.py
+          python -m pytest -q --noconftest -p no:cacheprovider tests/test_desktop_bundle_audit.py tests/test_desktop_build_inputs.py
       - name: Build self-contained evaluation app
         run: |
-          python scripts/build_desktop.py --output-dir "$RUNNER_TEMP/oha-desktop" --version 0.1.0 --arch arm64
+          python scripts/build_desktop.py --output-dir "$RUNNER_TEMP/oha-desktop" --version 0.2.0 --arch arm64
       - name: Inspect packaged app
         run: |
           python scripts/audit_desktop_bundle.py "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --report "$RUNNER_TEMP/oha-desktop/bundle-audit.json"
@@ -99,6 +113,9 @@ jobs:
             ${{ runner.temp }}/oha-desktop/*.zip
             ${{ runner.temp }}/oha-desktop/*SHA256*
             ${{ runner.temp }}/oha-desktop/*checksums*
+            ${{ runner.temp }}/oha-desktop/build-receipt.json
+            ${{ runner.temp }}/oha-desktop/mcp-acceptance.json
+            ${{ runner.temp }}/oha-desktop/bundle-audit-after.json
             ${{ runner.temp }}/oha-desktop/bundle-audit.json
             ${{ runner.temp }}/oha-desktop/acceptance.json
           if-no-files-found: error

@@ -15,12 +15,16 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import plistlib
+import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
+from urllib.parse import urlparse
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_RELEASE = '20260623'
@@ -31,13 +35,21 @@ RUNTIMES = {
 }
 # Reviewed product resources; no deployment installers, secrets, database or devserver.
 DIRECTORIES = ('app', 'toolkit/hermes_insights', 'desktop/static', 'desktop/templates')
-FILES = ('LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'toolkit/health.py',
+FILES = ('LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'docs/LICENSE-MIT.md', 'toolkit/health.py',
          'toolkit/SCHEMA.sql', 'docs/authored-submuscle-map.md', 'deploy/bridge_commands.py', 'deploy/hermes-bridge',
          'scripts/init_hermes.py', 'scripts/make_demo_db.py', 'scripts/openhealthatlas_mcp.py')
 REQUIRED_DESKTOP_FILES = tuple('desktop/' + name + '.py' for name in (
     '__init__', 'broker', 'child', 'launcher', 'mcp', 'mcp_config',
     'preferences', 'server', 'workspaces',
 ))
+SOURCE_REQUIRED = ('LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
+                   'docs/LICENSE-MIT.md', 'docs/DESKTOP_RELEASE.md',
+                   'desktop/macos/App.swift', 'desktop/macos/MCPLauncher.swift',
+                   'desktop/macos/Icon.swift', 'desktop/macos/icon.svg',
+                   'desktop/dependency-sources.json', 'scripts/build_desktop.py',
+                   'scripts/audit_desktop_bundle.py', 'requirements-desktop.lock',
+                   'requirements-desktop.txt', 'requirements-mcp.txt', 'requirements.txt')
+EMBEDDED_SOURCES = {'certifi': 'LICENSE', 'ordered-set': 'MIT-LICENSE'}
 FULL_RUNTIME_HASHES = {
     'arm64': 'ce5a2d552077d869f69dc25d834c2fe4d036f9d78e770fb5d916273db802cabc',
     'x86_64': '3b2ee510354f51b6bda71fec7d5cf70dfad29ed672aa5847d1f5216ee22fc5ef',
@@ -48,6 +60,17 @@ MACHO_MAGICS = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf',
 
 def run(args, **kwargs):
     subprocess.run([str(arg) for arg in args], check=True, **kwargs)
+
+
+def run_private(args, **kwargs):
+    """Signing tools may print account identities even on successful checks."""
+    try:
+        result = subprocess.run([str(arg) for arg in args], capture_output=True, text=True, **kwargs)
+    except OSError:
+        raise SystemExit('A signing verification tool could not start. Review it locally.') from None
+    if result.returncode:
+        raise SystemExit(Path(args[0]).name + ' failed with exit code ' + str(result.returncode)
+                         + '. Review signing credentials or verification locally.') from None
 
 
 def digest(path):
@@ -82,7 +105,7 @@ def _reviewed_bytes(root, relative, expected_size=None):
         os.close(directory)
 
 
-def copy_sources(target):
+def reviewed_manifest():
     manifest, _ = _reviewed_bytes(ROOT, 'RELEASE_MANIFEST.tsv')
     reader = csv.DictReader(io.StringIO(manifest.decode('utf-8')), dialect='excel-tab')
     if reader.fieldnames != ['path', 'sha256', 'bytes', 'kind']:
@@ -102,6 +125,22 @@ def copy_sources(target):
                 or len(checksum) != 64 or any(c not in '0123456789abcdef' for c in checksum)):
             raise ValueError('Release manifest contains invalid source metadata: ' + relative)
         entries[relative] = (int(size), checksum)
+    return manifest, entries
+
+
+def checked_sources(entries, selected):
+    verified = []
+    for relative in sorted(selected):
+        size, checksum = entries[relative]
+        data, mode = _reviewed_bytes(ROOT, relative, size)
+        if hashlib.sha256(data).hexdigest() != checksum:
+            raise ValueError('Reviewed source hash mismatch: ' + relative)
+        verified.append((relative, data, mode))
+    return verified
+
+
+def copy_sources(target):
+    _, entries = reviewed_manifest()
     for required in (*FILES, *REQUIRED_DESKTOP_FILES):
         if required not in entries:
             raise ValueError('Required source is absent from the release manifest: ' + required)
@@ -114,19 +153,109 @@ def copy_sources(target):
                     and PurePosixPath(name).suffix == '.py')]
     # Validate all inputs before creating output; write precisely the checked bytes,
     # not a second path-based read that could pick up a changed local file.
-    verified = []
-    for relative in sorted(selected):
-        size, checksum = entries[relative]
-        data, mode = _reviewed_bytes(ROOT, relative, size)
-        if hashlib.sha256(data).hexdigest() != checksum:
-            raise ValueError('Reviewed source hash mismatch: ' + relative)
-        verified.append((relative, data, mode))
+    verified = checked_sources(entries, selected)
     target.mkdir(parents=True, exist_ok=False)
     for relative, data, mode in verified:
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
         destination.chmod(mode)
+
+
+def locked_packages(data):
+    packages = {}
+    current = None
+    for line in data.decode('utf-8').splitlines():
+        match = re.match(r'^([a-z0-9][a-z0-9_.-]*)==([^\s]+)', line)
+        if match:
+            current = match.group(1)
+            packages[current] = (match.group(2), set())
+        elif current:
+            packages[current][1].update(re.findall(r'--hash=sha256:([0-9a-f]{64})', line))
+    return packages
+
+
+def prepare_dependency_sources(cache, resources):
+    _, entries = reviewed_manifest()
+    checked = {name: data for name, data, _ in checked_sources(entries, (
+        'desktop/dependency-sources.json', 'requirements-desktop.lock'))}
+    inventory = json.loads(checked['desktop/dependency-sources.json'])
+    locked = locked_packages(checked['requirements-desktop.lock'])
+    if len(inventory) != len(locked) or {item['name'] for item in inventory} != set(locked):
+        raise ValueError('Dependency source inventory does not match the lockfile.')
+    sources = []
+    notices = resources / 'SupplementalLicenses'
+    notices.mkdir()
+    for item in inventory:
+        version, hashes = locked[item['name']]
+        url = urlparse(item['source_url'])
+        filename = item['source_filename']
+        if (item['version'] != version or item['source_sha256'] not in hashes
+                or url.scheme != 'https' or url.hostname != 'files.pythonhosted.org'
+                or url.username or url.password or url.query or url.fragment
+                or Path(filename).name != filename or not filename.endswith('.tar.gz')
+                or not url.path.endswith('/' + filename)):
+            raise ValueError('Invalid pinned dependency source: ' + item['name'])
+        if item['name'] not in EMBEDDED_SOURCES:
+            continue
+        archive = cache / filename
+        if not archive.exists():
+            temporary = archive.with_suffix('.download')
+            urllib.request.urlretrieve(item['source_url'], temporary)
+            temporary.rename(archive)
+        if digest(archive) != item['source_sha256']:
+            raise ValueError('Dependency source checksum mismatch: ' + item['name'])
+        with tarfile.open(archive) as tar:
+            member = tar.getmember(filename.removesuffix('.tar.gz') + '/' + EMBEDDED_SOURCES[item['name']])
+            if not member.isfile() or member.size > 1024 * 1024:
+                raise ValueError('Dependency license is not a bounded regular file.')
+            license_text = tar.extractfile(member).read()
+        (notices / (item['name'] + '-LICENSE.txt')).write_bytes(license_text)
+        sources.append((item, archive.read_bytes()))
+    return sources
+
+
+def create_corresponding_source(target, commit, version, dependency_sources):
+    if not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('Invalid corresponding source commit.')
+    manifest, entries = reviewed_manifest()
+    if any(name not in entries for name in SOURCE_REQUIRED):
+        raise ValueError('Corresponding source lacks required build/license materials.')
+    verified = checked_sources(entries, entries)
+    members = [('Open-Health-Atlas/RELEASE_MANIFEST.tsv', manifest, 0o644)]
+    members += [('Open-Health-Atlas/' + name, data, mode) for name, data, mode in verified]
+    for item, data in dependency_sources:
+        if hashlib.sha256(data).hexdigest() != item['source_sha256']:
+            raise ValueError('Corresponding dependency source changed.')
+        members.append(('DependencySources/' + item['source_filename'], data, 0o644))
+    with zipfile.ZipFile(target, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, data, mode in members:
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.external_attr = (stat.S_IFREG | (0o755 if mode & 0o111 else 0o644)) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, data)
+    return {'commit': commit, 'sha256': digest(target),
+            'filename': f'openhealthatlas-{version}-source-{commit}.zip',
+            'bundle_path': 'Contents/Resources/CorrespondingSource.zip',
+            'manifest_sha256': hashlib.sha256(manifest).hexdigest()}
+
+
+def notarize(path, profile, env):
+    # Never forward raw tool output: failures can contain account or path details.
+    result = subprocess.run(['/usr/bin/xcrun', 'notarytool', 'submit', str(path),
+                             '--keychain-profile', profile, '--wait', '--output-format', 'json'],
+                            env=env, capture_output=True, text=True)
+    try:
+        response = json.loads(result.stdout)
+        submission = response['id']
+        if not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', submission):
+            raise ValueError('Invalid submission identity')
+        accepted = response.get('status') == 'Accepted'
+    except (KeyError, TypeError, ValueError):
+        raise SystemExit('Notarization returned no valid acceptance receipt. Check the Keychain profile locally.') from None
+    if result.returncode or not accepted:
+        raise SystemExit('Notarization was not accepted. Review submission ' + submission + ' locally.')
+    return {'submission_id': submission, 'status': 'Accepted'}
 
 
 def prepare_runtime(cache, runtime):
@@ -203,12 +332,14 @@ def native_files(bundle):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, required=True)
-    parser.add_argument('--version', default='0.1.0')
+    parser.add_argument('--version', required=True, help='New explicit release version, for example 0.2.0')
     parser.add_argument('--arch', choices=tuple(RUNTIMES), default=platform.machine())
     parser.add_argument('--identity', help='Existing Developer ID Application signing identity')
     parser.add_argument('--notary-profile', help='Existing notarytool Keychain profile')
     parser.add_argument('--skip-archive', action='store_true', help='Build .app only for local acceptance')
     args = parser.parse_args()
+    if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,2}', args.version):
+        parser.error('--version must contain one to three numeric components')
     if platform.system() != 'Darwin' or args.arch != platform.machine():
         parser.error('Build natively on the target macOS CPU architecture; cross-builds are not validated.')
     if args.notary_profile and not args.identity:
@@ -218,6 +349,16 @@ def main():
     output = args.output_dir.expanduser().resolve()
     if output == ROOT or ROOT in output.parents:
         parser.error('Build output must be outside the source checkout')
+    clt = Path('/Library/Developer/CommandLineTools')
+    git = str(clt / 'usr/bin/git') if (clt / 'usr/bin/git').exists() else shutil.which('git')
+    if not git: raise SystemExit('Git is required on the build machine to identify the packaged source.')
+    code_version = subprocess.check_output([git, '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    if subprocess.check_output([git, '-C', str(ROOT), 'status', '--porcelain'], text=True).strip():
+        raise SystemExit('A corresponding-source distribution requires a clean reviewed source commit.')
+    gate_env = dict(os.environ, PATH=str(Path(git).parent) + os.pathsep + os.environ.get('PATH', ''),
+                    PYTHONDONTWRITEBYTECODE='1')
+    run([sys.executable, '-I', '-B', ROOT / 'scripts/release_manifest.py', 'verify'], env=gate_env)
+    run([sys.executable, '-I', '-B', ROOT / 'scripts/release_scan.py', '--history'], env=gate_env, cwd=ROOT)
     output.mkdir(parents=True, exist_ok=True)
     work = output / '.build'; work.mkdir(exist_ok=True)
     cache = work / 'downloads'; cache.mkdir(exist_ok=True)
@@ -231,7 +372,6 @@ def main():
     runtime_hash = prepare_runtime(cache, runtime)
     prepare_runtime_notices(cache, resources)
     python = runtime / 'bin/python3'
-    clt = Path('/Library/Developer/CommandLineTools')
     developer = os.environ.get('DEVELOPER_DIR') or (str(clt) if (clt / 'usr/bin/swiftc').exists() else subprocess.check_output(['/usr/bin/xcode-select', '-p'], text=True).strip())
     env = dict(os.environ, UV_CACHE_DIR=str(work / 'uv-cache'), UV_PYTHON_DOWNLOADS='never',
                PYTHONDONTWRITEBYTECODE='1', DEVELOPER_DIR=developer)
@@ -239,13 +379,21 @@ def main():
     run(['uv', 'pip', 'install', '--python', python, '--require-hashes', '--only-binary', ':all:', '--link-mode', 'copy',
          '-r', ROOT / 'requirements-desktop.lock'], env=env)
     copy_sources(resources / 'app')
-    git = str(clt / 'usr/bin/git') if (clt / 'usr/bin/git').exists() else shutil.which('git')
-    if not git: raise SystemExit('Git is required on the build machine to identify the packaged source.')
-    code_version = subprocess.check_output([git, '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
-    dirty = bool(subprocess.check_output([git, '-C', str(ROOT), 'status', '--porcelain'], text=True).strip())
-    if args.identity and dirty:
-        raise SystemExit('Signed distribution requires a clean reviewed source commit.')
-    (resources / 'app/desktop/build-info.json').write_text(json.dumps({'version': args.version, 'source_commit': code_version, 'source_dirty': dirty, 'runtime_sha256': runtime_hash, 'lock_sha256': digest(ROOT / 'requirements-desktop.lock'), 'architecture': args.arch, 'build_macos': platform.mac_ver()[0]}, indent=2) + '\n')
+    dependency_sources = prepare_dependency_sources(cache, resources)
+    source_archive = resources / 'CorrespondingSource.zip'
+    corresponding_source = create_corresponding_source(source_archive, code_version, args.version, dependency_sources)
+    if (subprocess.check_output([git, '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip() != code_version
+            or subprocess.check_output([git, '-C', str(ROOT), 'status', '--porcelain'], text=True).strip()):
+        raise SystemExit('Source checkout changed while preparing the distribution.')
+    build_receipt = {'version': args.version, 'source_commit': code_version, 'source_dirty': False,
+                     'license': 'AGPL-3.0-only', 'corresponding_source': corresponding_source,
+                     'runtime_sha256': runtime_hash, 'lock_sha256': digest(ROOT / 'requirements-desktop.lock'),
+                     'architecture': args.arch, 'build_macos': platform.mac_ver()[0],
+                     'signing': {'mode': 'Developer ID' if args.identity else 'ad hoc',
+                                 'status': 'signed-not-notarized' if args.identity else 'local-preview',
+                                 'gatekeeper_assessment': 'not-run',
+                                 'clean_customer_install': 'not-evaluated-by-builder'}}
+    (resources / 'app/desktop/build-info.json').write_text(json.dumps(build_receipt, indent=2) + '\n')
     # Remove bytecode build paths, development headers/static libraries and executable
     # console scripts whose absolute build shebangs are unsuitable for relocation.
     for path in list(runtime.rglob('__pycache__')):
@@ -271,7 +419,7 @@ def main():
     notices = resources / 'THIRD_PARTY_RUNTIME.txt'
     inventory = subprocess.check_output([str(python), '-I', '-B', '-c',
         'import importlib.metadata,json; print(json.dumps(sorted([{ "name": d.metadata["Name"], "version": d.version, "license": d.metadata.get("License-Expression") or d.metadata.get("License") or "See bundled dist-info licenses" } for d in importlib.metadata.distributions()], key=lambda d:d["name"].lower()), indent=2))'], env=env, text=True)
-    notices.write_text('Open Health Atlas bundles CPython from python-build-standalone.\nRuntime license texts and exact upstream metadata are in Resources/PythonLicenses; wheel license texts and metadata\nare retained in PythonRuntime/lib/python3.12/site-packages/*.dist-info.\n\n' + inventory)
+    notices.write_text('Open Health Atlas bundles CPython from python-build-standalone.\nRuntime license texts and exact upstream metadata are in Resources/PythonLicenses; wheel license texts and metadata\nare retained in PythonRuntime/lib/python3.12/site-packages/*.dist-info.\nSupplementalLicenses contains the full certifi and ordered-set notices.\nCorrespondingSource.zip includes the exact project source, both dependency source archives,\nand desktop/dependency-sources.json with all locked dependency source URLs and hashes.\nThird-party components retain their own licenses.\n\n' + inventory)
     sdk = subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-path'], env=env, text=True).strip()
     swift = subprocess.check_output(['/usr/bin/xcrun', '--find', 'swiftc'], env=env, text=True).strip()
     common = [swift, '-O', '-sdk', sdk, '-module-cache-path', work / 'swift-cache', '-target', f'{args.arch}-apple-macosx13.0', '-file-prefix-map', f'{ROOT}=/OpenHealthAtlas']
@@ -290,7 +438,7 @@ def main():
             'CFBundleShortVersionString': args.version, 'CFBundleVersion': args.version,
             'CFBundlePackageType': 'APPL', 'CFBundleIconFile': 'AppIcon', 'LSMinimumSystemVersion': '13.0',
             'NSHighResolutionCapable': True, 'NSPrincipalClass': 'NSApplication',
-            'NSHumanReadableCopyright': 'Copyright © 2026 Kajeesan Jeevendra. MIT License.',
+            'NSHumanReadableCopyright': 'Copyright © 2026 Kajeesan Jeevendra. AGPL-3.0-only.',
             'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True,
                 'NSExceptionDomains': {'127.0.0.1': {'NSExceptionAllowsInsecureHTTPLoads': True}}}}
     (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
@@ -303,17 +451,20 @@ def main():
         if binary == macos / 'OpenHealthAtlas': continue  # Outer bundle signs its main executable.
         command = ['/usr/bin/codesign', '--force', '--sign', signing]
         if args.identity: command += ['--options', 'runtime', '--timestamp']
-        run(command + [binary], stdout=subprocess.DEVNULL)
+        run_private(command + [binary])
     command = ['/usr/bin/codesign', '--force', '--sign', signing]
     if args.identity: command += ['--options', 'runtime', '--timestamp']
-    run(command + [bundle])
-    run(['/usr/bin/codesign', '--verify', '--deep', '--strict', bundle])
+    run_private(command + [bundle])
+    run_private(['/usr/bin/codesign', '--verify', '--deep', '--strict', bundle])
     run([python, '-I', '-B', '-c', 'import flask, waitress, mcp, sqlite3, ssl, cryptography; print("Bundled runtime imports passed")'], env=env)
     run([python, '-I', '-B', ROOT / 'scripts/audit_desktop_bundle.py', bundle, '--report', output / 'bundle-audit.json'], env=env)
+    source_output = output / corresponding_source['filename']
+    shutil.copyfile(source_archive, source_output)
+    (output / 'build-receipt.json').write_text(json.dumps(build_receipt, indent=2) + '\n')
     published_app = output / bundle.name
     if published_app.exists(): shutil.rmtree(published_app)
     shutil.copytree(bundle, published_app, symlinks=True, copy_function=shutil.copy)
-    run(['/usr/bin/codesign', '--verify', '--deep', '--strict', published_app])
+    run_private(['/usr/bin/codesign', '--verify', '--deep', '--strict', published_app])
     print(f'Built {bundle.name}: ' + ('Developer ID signed; notarization pending' if args.identity else 'ad hoc local test build; not a public release'))
     if args.skip_archive:
         shutil.rmtree(staging)
@@ -323,13 +474,15 @@ def main():
     if args.notary_profile:
         submission = work / 'notarization.zip'
         run(['/usr/bin/ditto', '-c', '-k', '--keepParent', bundle, submission])
-        run(['/usr/bin/xcrun', 'notarytool', 'submit', submission, '--keychain-profile', args.notary_profile, '--wait'], env=env)
-        run(['/usr/bin/xcrun', 'stapler', 'staple', bundle], env=env)
-        run(['/usr/bin/xcrun', 'stapler', 'validate', bundle], env=env)
-        run(['/usr/sbin/spctl', '--assess', '--type', 'execute', '--verbose=2', bundle])
+        build_receipt['app_notarization'] = notarize(submission, args.notary_profile, env)
+        run_private(['/usr/bin/xcrun', 'stapler', 'staple', bundle], env=env)
+        run_private(['/usr/bin/xcrun', 'stapler', 'validate', bundle], env=env)
+        run_private(['/usr/bin/codesign', '--verify', '--deep', '--strict', bundle])
+        run_private(['/usr/sbin/spctl', '--assess', '--type', 'execute', '--verbose=2', bundle])
         run([python, '-I', '-B', ROOT / 'scripts/audit_desktop_bundle.py', bundle, '--report', output / 'bundle-audit.json'], env=env)
         shutil.rmtree(published_app)
         shutil.copytree(bundle, published_app, symlinks=True, copy_function=shutil.copy)
+        run_private(['/usr/bin/codesign', '--verify', '--deep', '--strict', published_app])
         flavor = 'signed-notarized'
     zipfile = output / f'{base}-{flavor}.zip'
     run(['/usr/bin/ditto', '-c', '-k', '--keepParent', bundle, zipfile])
@@ -337,15 +490,27 @@ def main():
     if volume.exists(): shutil.rmtree(volume)
     volume.mkdir(); shutil.copytree(bundle, volume / bundle.name, symlinks=True, copy_function=shutil.copy)
     (volume / 'Applications').symlink_to('/Applications')
-    (volume / 'Install.txt').write_text('Drag Open Health Atlas into Applications, then open it there.\nYour records remain in your user Library/Application Support/Open Health Atlas.\nRemoving the app does not erase these records.\n' + ('\nLOCAL TEST BUILD: not signed for public distribution.\n' if not args.notary_profile else ''))
-    dmg = output / f'{base}-{flavor}.dmg'
+    (volume / 'Install.txt').write_text('Drag Open Health Atlas into Applications, then open it there.\nYour records remain in your user Library/Application Support/Open Health Atlas.\nRemoving the app does not erase these records.\nOriginal project code is AGPL-3.0-only. Use the app menu to open the license and exact source.\n' + ('\nEVALUATION BUILD: not notarized for ordinary public distribution.\n' if not args.notary_profile else ''))
+    dmg = staging / f'{base}-{flavor}.dmg'
     run(['/usr/bin/hdiutil', 'create', '-volname', 'Open Health Atlas', '-srcfolder', volume, '-ov', '-format', 'UDZO', dmg])
     if args.notary_profile:
-        run(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp', dmg])
-        run(['/usr/bin/xcrun', 'notarytool', 'submit', dmg, '--keychain-profile', args.notary_profile, '--wait'], env=env)
-        run(['/usr/bin/xcrun', 'stapler', 'staple', dmg], env=env)
-        run(['/usr/bin/xcrun', 'stapler', 'validate', dmg], env=env)
-    (output / f'{base}-{flavor}-SHA256SUMS.txt').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in (zipfile, dmg)))
+        run_private(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp', dmg])
+        build_receipt['dmg_notarization'] = notarize(dmg, args.notary_profile, env)
+        run_private(['/usr/bin/xcrun', 'stapler', 'staple', dmg], env=env)
+        run_private(['/usr/bin/xcrun', 'stapler', 'validate', dmg], env=env)
+        run_private(['/usr/bin/codesign', '--verify', '--strict', dmg])
+        run_private(['/usr/sbin/spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=2', dmg])
+        build_receipt['signing'].update(status='accepted-and-stapled', gatekeeper_assessment='app-and-dmg-passed')
+    run(['/usr/bin/hdiutil', 'verify', dmg])
+    final_dmg = output / dmg.name
+    shutil.copyfile(dmg, final_dmg)
+    if digest(dmg) != digest(final_dmg):
+        raise SystemExit('Final disk-image copy failed integrity verification.')
+    dmg = final_dmg
+    build_receipt['artifacts'] = {path.name: {'sha256': digest(path), 'bytes': path.stat().st_size}
+                                 for path in (zipfile, dmg, source_output)}
+    (output / 'build-receipt.json').write_text(json.dumps(build_receipt, indent=2) + '\n')
+    (output / f'{base}-{flavor}-SHA256SUMS.txt').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in (zipfile, dmg, source_output)))
     print(f'Archives: {zipfile.name}, {dmg.name}')
     shutil.rmtree(staging)
 

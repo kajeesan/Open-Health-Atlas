@@ -1,4 +1,4 @@
-// Original Open Health Atlas icon. Copyright (c) 2026 Kajeesan Jeevendra. MIT.
+// Original Open Health Atlas icon. Copyright (c) 2026 Kajeesan Jeevendra. AGPL-3.0-only.
 import AppKit
 let destination = CommandLine.arguments[1]
 let image = NSImage(size: NSSize(width: 1024, height: 1024))

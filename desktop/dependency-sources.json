@@ -1,0 +1,418 @@
+[
+  {
+    "name": "annotated-types",
+    "version": "0.8.0",
+    "source_url": "https://files.pythonhosted.org/packages/5f/56/a8120250d128bed162cd73c76d45f6ef9991f3e068f62a8ee060afa3104a/annotated_types-0.8.0.tar.gz",
+    "source_sha256": "13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7",
+    "source_filename": "annotated_types-0.8.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "anyio",
+    "version": "4.15.1",
+    "source_url": "https://files.pythonhosted.org/packages/a9/d2/f4d173e22df740bc37b1db102b386ba719b66e95b0f0d751f556b387e6d2/anyio-4.15.1.tar.gz",
+    "source_sha256": "9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94",
+    "source_filename": "anyio-4.15.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "attrs",
+    "version": "26.1.0",
+    "source_url": "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz",
+    "source_sha256": "d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32",
+    "source_filename": "attrs-26.1.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "blinker",
+    "version": "1.9.0",
+    "source_url": "https://files.pythonhosted.org/packages/21/28/9b3f50ce0e048515135495f198351908d99540d69bfdc8c1d15b73dc55ce/blinker-1.9.0.tar.gz",
+    "source_sha256": "b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf",
+    "source_filename": "blinker-1.9.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "cbor2",
+    "version": "6.1.4",
+    "source_url": "https://files.pythonhosted.org/packages/c6/14/b02446bacfe44351b1689c04937ade007588f44570431880a6937e525e6c/cbor2-6.1.4.tar.gz",
+    "source_sha256": "01ecc79a28f33d17331943ce508fc1e21f4b06553c73f874f4c77120d72b2ef9",
+    "source_filename": "cbor2-6.1.4.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "certifi",
+    "version": "2026.7.22",
+    "source_url": "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz",
+    "source_sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55",
+    "source_filename": "certifi-2026.7.22.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1",
+    "source_url": "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz",
+    "source_sha256": "dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be",
+    "source_filename": "cffi-2.1.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "click",
+    "version": "8.5.0",
+    "source_url": "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz",
+    "source_sha256": "ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34",
+    "source_filename": "click-8.5.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.1",
+    "source_url": "https://files.pythonhosted.org/packages/bb/ad/5d6702db60b1e40b41ef513b6967ff5848f307d50f8449baf1634f5908f1/cryptography-50.0.1.tar.gz",
+    "source_sha256": "5dd9bda1c12b4162f6ff568eeb5e0ff956c28d14406e875cfe8a63a2d414ff20",
+    "source_filename": "cryptography-50.0.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "deprecated",
+    "version": "1.3.1",
+    "source_url": "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz",
+    "source_sha256": "b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223",
+    "source_filename": "deprecated-1.3.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "et-xmlfile",
+    "version": "2.0.0",
+    "source_url": "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz",
+    "source_sha256": "dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54",
+    "source_filename": "et_xmlfile-2.0.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "flask",
+    "version": "3.1.3",
+    "source_url": "https://files.pythonhosted.org/packages/26/00/35d85dcce6c57fdc871f3867d465d780f302a175ea360f62533f12b27e2b/flask-3.1.3.tar.gz",
+    "source_sha256": "0ef0e52b8a9cd932855379197dd8f94047b359ca0a78695144304cb45f87c9eb",
+    "source_filename": "flask-3.1.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "flask-limiter",
+    "version": "4.1.1",
+    "source_url": "https://files.pythonhosted.org/packages/4e/98/71780be5d1afb941219c4b48d241d4e246e3062b017caa4e79c4dc71314c/flask_limiter-4.1.1.tar.gz",
+    "source_sha256": "ca11608fc7eec43dcea606964ca07c3bd4ec1ae89043a0f67f717899a4f48106",
+    "source_filename": "flask_limiter-4.1.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "flask-wtf",
+    "version": "1.3.0",
+    "source_url": "https://files.pythonhosted.org/packages/91/f1/605a56d4ea217b307f3e6f4d663e0351253d85d841edc93ba559f0648e19/flask_wtf-1.3.0.tar.gz",
+    "source_sha256": "61d5dabc50c3df885c297dcbd80810443a5d632106c8a69cab8ce740f0cdd7cc",
+    "source_filename": "flask_wtf-1.3.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "gunicorn",
+    "version": "23.0.0",
+    "source_url": "https://files.pythonhosted.org/packages/34/72/9614c465dc206155d93eff0ca20d42e1e35afc533971379482de953521a4/gunicorn-23.0.0.tar.gz",
+    "source_sha256": "f014447a0101dc57e294f6c18ca6b40227a4c90e9bdb586042628030cba004ec",
+    "source_filename": "gunicorn-23.0.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0",
+    "source_url": "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz",
+    "source_sha256": "4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1",
+    "source_filename": "h11-0.16.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9",
+    "source_url": "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz",
+    "source_sha256": "6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8",
+    "source_filename": "httpcore-1.0.9.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1",
+    "source_url": "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz",
+    "source_sha256": "75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc",
+    "source_filename": "httpx-0.28.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "httpx-sse",
+    "version": "0.4.3",
+    "source_url": "https://files.pythonhosted.org/packages/0f/4c/751061ffa58615a32c31b2d82e8482be8dd4a89154f003147acee90f2be9/httpx_sse-0.4.3.tar.gz",
+    "source_sha256": "9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d",
+    "source_filename": "httpx_sse-0.4.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "idna",
+    "version": "3.19",
+    "source_url": "https://files.pythonhosted.org/packages/5f/f7/abb373e5757eaec4b922b92f97ec8d6d7e057cf06778247604fbc4e7c3f3/idna-3.19.tar.gz",
+    "source_sha256": "5e0811a4383b21dc5838069f801c4fb62113b7447663d2530d2bd6e77b49bf15",
+    "source_filename": "idna-3.19.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "itsdangerous",
+    "version": "2.2.0",
+    "source_url": "https://files.pythonhosted.org/packages/9c/cb/8ac0172223afbccb63986cc25049b154ecfb5e85932587206f42317be31d/itsdangerous-2.2.0.tar.gz",
+    "source_sha256": "e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173",
+    "source_filename": "itsdangerous-2.2.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "jinja2",
+    "version": "3.1.6",
+    "source_url": "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz",
+    "source_sha256": "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d",
+    "source_filename": "jinja2-3.1.6.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "jsonschema",
+    "version": "4.26.0",
+    "source_url": "https://files.pythonhosted.org/packages/b3/fc/e067678238fa451312d4c62bf6e6cf5ec56375422aee02f9cb5f909b3047/jsonschema-4.26.0.tar.gz",
+    "source_sha256": "0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326",
+    "source_filename": "jsonschema-4.26.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "jsonschema-specifications",
+    "version": "2025.9.1",
+    "source_url": "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz",
+    "source_sha256": "b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d",
+    "source_filename": "jsonschema_specifications-2025.9.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "limits",
+    "version": "5.8.0",
+    "source_url": "https://files.pythonhosted.org/packages/71/69/826a5d1f45426c68d8f6539f8d275c0e4fcaa57f0c017ec3100986558a41/limits-5.8.0.tar.gz",
+    "source_sha256": "c9e0d74aed837e8f6f50d1fcebcf5fd8130957287206bc3799adaee5092655da",
+    "source_filename": "limits-5.8.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "markupsafe",
+    "version": "3.0.3",
+    "source_url": "https://files.pythonhosted.org/packages/7e/99/7690b6d4034fffd95959cbe0c02de8deb3098cc577c67bb6a24fe5d7caa7/markupsafe-3.0.3.tar.gz",
+    "source_sha256": "722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698",
+    "source_filename": "markupsafe-3.0.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "mcp",
+    "version": "1.30.0",
+    "source_url": "https://files.pythonhosted.org/packages/ba/93/0142dc84a666daf8ad51a34268f34c12fd6fda4f3810c4be2504eecc8212/mcp-1.30.0.tar.gz",
+    "source_sha256": "445414625fce5c295faa505bb11bacece661ab6f4028d57c935db57820b7a3e4",
+    "source_filename": "mcp-1.30.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "openpyxl",
+    "version": "3.1.5",
+    "source_url": "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz",
+    "source_sha256": "cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050",
+    "source_filename": "openpyxl-3.1.5.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "ordered-set",
+    "version": "4.1.0",
+    "source_url": "https://files.pythonhosted.org/packages/4c/ca/bfac8bc689799bcca4157e0e0ced07e70ce125193fc2e166d2e685b7e2fe/ordered-set-4.1.0.tar.gz",
+    "source_sha256": "694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8",
+    "source_filename": "ordered-set-4.1.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "packaging",
+    "version": "26.3",
+    "source_url": "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz",
+    "source_sha256": "94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79",
+    "source_filename": "packaging-26.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pyasn1",
+    "version": "0.6.4",
+    "source_url": "https://files.pythonhosted.org/packages/a4/9a/23310166d960def5897e91fe20e5b724601b02a22e84ba1f94232c0b7f67/pyasn1-0.6.4.tar.gz",
+    "source_sha256": "9c447d8431c947fe4c8febc4ed9e760bc29011a5b01e5c74b67025bd9fb8ce81",
+    "source_filename": "pyasn1-0.6.4.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pyasn1-modules",
+    "version": "0.4.2",
+    "source_url": "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz",
+    "source_sha256": "677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6",
+    "source_filename": "pyasn1_modules-0.4.2.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pycparser",
+    "version": "3.0",
+    "source_url": "https://files.pythonhosted.org/packages/1b/7d/92392ff7815c21062bea51aa7b87d45576f649f16458d78b7cf94b9ab2e6/pycparser-3.0.tar.gz",
+    "source_sha256": "600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29",
+    "source_filename": "pycparser-3.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pydantic",
+    "version": "2.13.5",
+    "source_url": "https://files.pythonhosted.org/packages/53/ef/fc4f868f4e2cee79f863883abffceff107875f569b848507319842d2a681/pydantic-2.13.5.tar.gz",
+    "source_sha256": "51a9c5f7b2f8e636f04c6cada605d9b6a3bf1348fdf945a3d8869b19bba0ee08",
+    "source_filename": "pydantic-2.13.5.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pydantic-core",
+    "version": "2.46.5",
+    "source_url": "https://files.pythonhosted.org/packages/af/f9/8a06bea35ef8daf588f707784c973a7046e0034c8d8cfb08828eeffb8b75/pydantic_core-2.46.5.tar.gz",
+    "source_sha256": "10416c15b8839ecc4ef4d0885da76da6fd0f67333a0eb8aff6d93c4b8f2910fc",
+    "source_filename": "pydantic_core-2.46.5.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pydantic-settings",
+    "version": "2.15.0",
+    "source_url": "https://files.pythonhosted.org/packages/68/ca/31c57507b13119d7d3cfa1576dad2911a4861e3be07b579395f4e9d393f9/pydantic_settings-2.15.0.tar.gz",
+    "source_sha256": "694b793e84f766ba76a90ebdefc01d0a9a045dab0382bee70393da93712ad117",
+    "source_filename": "pydantic_settings-2.15.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pyjwt",
+    "version": "2.14.0",
+    "source_url": "https://files.pythonhosted.org/packages/af/c3/8a3b59c25070cc61dc517fbdfa5dc0904670c96f605cc69759dc09166b99/pyjwt-2.14.0.tar.gz",
+    "source_sha256": "77283c83fb56ecf566a886c757a714bc83668e38156de2cce8263302f42e0b86",
+    "source_filename": "pyjwt-2.14.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "pyopenssl",
+    "version": "26.4.0",
+    "source_url": "https://files.pythonhosted.org/packages/3f/e8/7325d258199b159eb2c03fe32107533e2832e70e63f4fb88a6aa00023201/pyopenssl-26.4.0.tar.gz",
+    "source_sha256": "28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7",
+    "source_filename": "pyopenssl-26.4.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "python-dotenv",
+    "version": "1.2.3",
+    "source_url": "https://files.pythonhosted.org/packages/6a/53/ed9d74092561d4b01a2ef1349d52cdbc135e526c245f366b089cfca6de49/python_dotenv-1.2.3.tar.gz",
+    "source_sha256": "a20a594dabeaa385725aa239d5244871c143ecb356add8a20fcf23773a6c3a35",
+    "source_filename": "python_dotenv-1.2.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "python-multipart",
+    "version": "0.0.32",
+    "source_url": "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz",
+    "source_sha256": "be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e",
+    "source_filename": "python_multipart-0.0.32.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "referencing",
+    "version": "0.37.0",
+    "source_url": "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz",
+    "source_sha256": "44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8",
+    "source_filename": "referencing-0.37.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "rpds-py",
+    "version": "2026.6.3",
+    "source_url": "https://files.pythonhosted.org/packages/aa/2a/9618a122aeb2a169a28b03889a2995fe297588964333d4a7d67bdf46e147/rpds_py-2026.6.3.tar.gz",
+    "source_sha256": "1cebd1337c242e4ec2293e541f712b2da849b29f48f0c293684b71c0632625d4",
+    "source_filename": "rpds_py-2026.6.3.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "sse-starlette",
+    "version": "3.4.11",
+    "source_url": "https://files.pythonhosted.org/packages/2b/54/6767bb789b2f2fed6e0f953df949cd39dc263a384c1b65a95232598621d6/sse_starlette-3.4.11.tar.gz",
+    "source_sha256": "1bae716c02f3e6f294be41ff333220692dae7c3cbab077c900f159676719dade",
+    "source_filename": "sse_starlette-3.4.11.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "starlette",
+    "version": "1.6.0",
+    "source_url": "https://files.pythonhosted.org/packages/b5/b4/205b0d5241d934e8add0c38aa924c4f9fb7330834ff11e5444db964ec3f9/starlette-1.6.0.tar.gz",
+    "source_sha256": "d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b",
+    "source_filename": "starlette-1.6.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "typing-extensions",
+    "version": "4.16.0",
+    "source_url": "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz",
+    "source_sha256": "dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5",
+    "source_filename": "typing_extensions-4.16.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4",
+    "source_url": "https://files.pythonhosted.org/packages/a3/26/b09b8010994eccc3c09092e6b34058f36a460eea2d4c3e8b910c695975a0/typing_inspection-0.4.4.tar.gz",
+    "source_sha256": "547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47",
+    "source_filename": "typing_inspection-0.4.4.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.53.0",
+    "source_url": "https://files.pythonhosted.org/packages/5d/ad/04bbb797c84fc1f26cb171f7394716f4865ffb8d8c5e1eef42565c2dfa6b/uvicorn-0.53.0.tar.gz",
+    "source_sha256": "a9356f0cb89b3b8621529c5d5eebd69bfe154f4c3f68b4cf2de47e45fa855c2e",
+    "source_filename": "uvicorn-0.53.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "waitress",
+    "version": "3.0.2",
+    "source_url": "https://files.pythonhosted.org/packages/bf/cb/04ddb054f45faa306a230769e868c28b8065ea196891f09004ebace5b184/waitress-3.0.2.tar.gz",
+    "source_sha256": "682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f",
+    "source_filename": "waitress-3.0.2.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "webauthn",
+    "version": "3.0.0",
+    "source_url": "https://files.pythonhosted.org/packages/72/22/b19c91e850c4578b7d6cdb53453c5fe2f2e99d0c56e322c65c3caf1b3051/webauthn-3.0.0.tar.gz",
+    "source_sha256": "324e54e1f6eeef486623b5d90df6fcd74ae04ff0c137d2b818a8f709b6ca3ab8",
+    "source_filename": "webauthn-3.0.0.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "werkzeug",
+    "version": "3.1.8",
+    "source_url": "https://files.pythonhosted.org/packages/dd/b2/381be8cfdee792dd117872481b6e378f85c957dd7c5bca38897b08f765fd/werkzeug-3.1.8.tar.gz",
+    "source_sha256": "9bad61a4268dac112f1c5cd4630a56ede601b6ed420300677a869083d70a4c44",
+    "source_filename": "werkzeug-3.1.8.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "wrapt",
+    "version": "2.4.1",
+    "source_url": "https://files.pythonhosted.org/packages/42/a6/6375d56c44d590ef24acf0f8f5bf7ed768ff7a510b959306ec412611e90f/wrapt-2.4.1.tar.gz",
+    "source_sha256": "fd6390aab9e8aa40c52eff3c180f098e8d9f5894b1fd4c4fd2c207067b33ed16",
+    "source_filename": "wrapt-2.4.1.tar.gz",
+    "hash_in_lock": true
+  },
+  {
+    "name": "wtforms",
+    "version": "3.2.2",
+    "source_url": "https://files.pythonhosted.org/packages/e9/91/ed9b517da898e3fb747566aa3c12a734bd64ea7449a0d25ec74ce8f8b8eb/wtforms-3.2.2.tar.gz",
+    "source_sha256": "7b00c73f8670f35d4edb0293dcd81b980528bee72fd662b182aaba27ae570b93",
+    "source_filename": "wtforms-3.2.2.tar.gz",
+    "hash_in_lock": true
+  }
+]

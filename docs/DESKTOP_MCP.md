@@ -27,8 +27,10 @@ The command points to the installed app's stable
 there is no Python installation, source checkout, Terminal command or model
 installation for the person connecting it. Its arguments select the persistent
 workspace and calendar timezone explicitly. Each new connection resolves that
-workspace's current database generation, so an app upgrade does not leave the
-client reading an old copy. Keep the app in its installed location. If you move the app or change workspaces or timezone,
+workspace's current database generation. After an app update, open that
+workspace successfully in the updated app before reconnecting the client, so
+it selects the prepared database. Keep the app in its installed location. If
+you move the app or want the client to use a different workspace or timezone,
 export the configuration again and reconnect the client. An existing client
 connection stays attached to the workspace named in its configuration, even
 when a different workspace is selected in the dashboard.
@@ -36,6 +38,9 @@ when a different workspace is selected in the dashboard.
 The client starts this server independently of the dashboard window. Closing
 the dashboard does not end an AI client's connection; disconnect it in the
 client. Quit/disconnect AI clients before replacing the app during an upgrade.
+Then open the updated app and the workspace you want to connect. Wait until
+that workspace opens successfully before reconnecting the client. The MCP
+connection does not prepare or migrate workspaces itself.
 
 ## What is shared
 
@@ -77,8 +82,9 @@ installed demonstration may use a different date range.
 
 - **The client cannot find the server:** confirm the app is installed where it
   was when you exported the configuration. Export again after moving it.
-- **The connection fails after changing workspace:** reconnect using a fresh
-  configuration. The server never guesses or silently changes its database.
+- **The client still shows the previous workspace:** switching the dashboard
+  does not change the client's selection. Open the workspace you want, export
+  its connection settings and reconnect the client with those settings.
 - **No tools appear:** confirm the client supports local stdio servers. A box
   that accepts only an HTTPS URL is a different transport.
 - **Analysis says insufficient data:** this is a valid result for short,
@@ -86,9 +92,11 @@ installed demonstration may use a different date range.
   as a finding.
 - **The server is busy:** check the existing task first. One heavy analysis or
   evidence task runs at a time.
-- **The app was just upgraded:** fully disconnect and reconnect the client so
-  it starts the current bundled runtime and current workspace generation. An
-  unchanged workspace and app location do not need a new configuration.
+- **The app was just upgraded:** disconnect the client, then open the updated
+  app and the workspace you want to connect. Once it opens successfully,
+  reconnect the client. If you already reconnected before opening the updated
+  app, reconnect once more. An unchanged workspace, timezone and app location
+  do not need a new configuration.
 
 ## Packaged protocol verification
 
@@ -106,9 +114,10 @@ This developer-side verification needs `requirements-mcp.txt` in its test
 environment. The installed server uses only its bundled runtime. The verifier
 checks discovery, query, successful analysis with findings, evidence replay,
 task polling, an unchanged canonical database, reconnection after a workspace
-generation upgrade and cleanup on client
-disconnect, including a real running worker. Its JSON summary contains no
-records or private paths. Release evidence must name the artifact actually
+generation change and cleanup on client disconnect, including a real running
+worker. This protocol check advances the workspace selection directly; the
+app's migration and recovery journey is verified separately. The protocol
+verifier's JSON summary contains no records or private paths. Release evidence must name the artifact actually
 exercised; source-level tests do not prove packaged compatibility. No named
 consumer AI client's interface or model interpretation is certified by this
 SDK verification.

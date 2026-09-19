@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Kajeesan Jeevendra. MIT License.
+// Copyright (c) 2026 Kajeesan Jeevendra. AGPL-3.0-only.
 import Foundation
 import Darwin
 let ownURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()

@@ -7,11 +7,15 @@ private data, and must not be used as a substitute for a clean build input.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import io
 import json
 from pathlib import Path, PurePosixPath
 import re
+import shutil
+import stat
+import subprocess
 import zipfile
 
 _PRIVATE_HOME = re.compile(rb"/(?:Users|home)/[A-Za-z0-9._-]+(?:/|\b)")
@@ -24,6 +28,8 @@ _FORBIDDEN_SUFFIXES = {'.db', '.sqlite', '.sqlite3', '.p12', '.pfx', '.key', '.l
 _FORBIDDEN_NAMES = {'.git', '.env', '.DS_Store', 'devserver.py'}
 _MAX_MEMBER = 256 * 1024 * 1024
 _MAX_ARCHIVE_EXPANDED = 1024 * 1024 * 1024
+_SOURCE_ARCHIVE = 'Contents/Resources/CorrespondingSource.zip'
+_SOURCE_PREFIX = 'Open-Health-Atlas/'
 
 # Reviewed public upstream examples/build paths, scoped to exact bundle file
 # and exact full matched path multiset (including repetitions). These values
@@ -97,12 +103,116 @@ def audit_bytes(data: bytes, relative: str, findings: set[tuple[str, str]], dept
             findings.add(('unreadable_archive', relative))
 
 
-def audit_bundle(bundle: Path) -> dict:
+def audit_corresponding_source(data, receipt, source_root, runtime_root):
+    """Only this exact source ZIP has source (rather than executable) policy.
+
+    Bind every member to the immutable Git commit's reviewed manifest; never
+    trust an embedded manifest or archive hash as its own authority. Build-time
+    source/privacy/history gates remain mandatory and separate from this audit.
+    """
+    commit = receipt['source_commit']
+    source = receipt['corresponding_source']
+    if (not re.fullmatch('[0-9a-f]{40}', commit) or receipt['source_dirty'] is not False
+            or receipt['license'] != 'AGPL-3.0-only' or source['commit'] != commit
+            or source['bundle_path'] != _SOURCE_ARCHIVE
+            or source['sha256'] != hashlib.sha256(data).hexdigest()):
+        raise ValueError('Corresponding source receipt mismatch')
+    clt = Path('/Library/Developer/CommandLineTools/usr/bin/git')
+    git = str(clt) if clt.exists() else shutil.which('git')
+    if not git:
+        raise ValueError('Source verification requires Git')
+    def git_bytes(*args):
+        return subprocess.check_output([git, '-C', str(source_root), *args], stderr=subprocess.DEVNULL)
+    manifest = git_bytes('show', commit + ':RELEASE_MANIFEST.tsv')
+    if hashlib.sha256(manifest).hexdigest() != source['manifest_sha256']:
+        raise ValueError('Reviewed manifest identity mismatch')
+    reader = csv.DictReader(io.StringIO(manifest.decode()), dialect='excel-tab')
+    if reader.fieldnames != ['path', 'sha256', 'bytes', 'kind']:
+        raise ValueError('Reviewed source manifest header mismatch')
+    expected = {}
+    for row in reader:
+        name = row['path']
+        if (name in expected or not PurePosixPath(name).parts or PurePosixPath(name).is_absolute()
+                or PurePosixPath(name).as_posix() != name or '..' in PurePosixPath(name).parts
+                or '\\' in name or '\x00' in name):
+            raise ValueError('Invalid reviewed source path')
+        expected[name] = (row['sha256'], int(row['bytes']))
+    tree = {}
+    for record in git_bytes('ls-tree', '-r', '-z', commit).decode().split('\x00'):
+        if not record:
+            continue
+        metadata, name = record.split('\t', 1)
+        mode, kind, object_id = metadata.split()
+        if kind != 'blob' or mode not in {'100644', '100755'}:
+            raise ValueError('Git source tree includes a nonregular entry')
+        tree[name] = object_id
+    if set(tree) != set(expected) | {'RELEASE_MANIFEST.tsv'}:
+        raise ValueError('Reviewed source manifest is incomplete')
+    # Verify the same immutable source tree's inventory, not mutable working files.
+    inventory_bytes = git_bytes('show', commit + ':desktop/dependency-sources.json')
+    inventory = json.loads(inventory_bytes)
+    dependency_members = {}
+    for item in inventory:
+        if item['name'] in {'certifi', 'ordered-set'}:
+            name = item['source_filename']
+            if PurePosixPath(name).name != name or not name.endswith('.tar.gz'):
+                raise ValueError('Invalid dependency source path')
+            dependency_members['DependencySources/' + name] = item['source_sha256']
+    if len(dependency_members) != 2:
+        raise ValueError('Required dependency sources missing')
+    required = {'LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'docs/LICENSE-MIT.md',
+                'desktop/macos/App.swift', 'desktop/macos/MCPLauncher.swift', 'desktop/macos/Icon.swift',
+                'desktop/macos/icon.svg', 'scripts/build_desktop.py', 'scripts/audit_desktop_bundle.py',
+                'docs/DESKTOP_RELEASE.md', 'requirements-desktop.lock'}
+    if not required <= set(expected):
+        raise ValueError('Corresponding source build materials missing')
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        members = archive.infolist()
+        expected_names = {_SOURCE_PREFIX + name for name in expected} | {
+            _SOURCE_PREFIX + 'RELEASE_MANIFEST.tsv'} | set(dependency_members)
+        if len(members) != len(expected_names) or {item.filename for item in members} != expected_names:
+            raise ValueError('Unreviewed or missing corresponding source member')
+        if sum(item.file_size for item in members) > _MAX_ARCHIVE_EXPANDED:
+            raise ValueError('Source archive size limit')
+        for item in members:
+            mode = item.external_attr >> 16
+            if (item.is_dir() or stat.S_ISLNK(mode) or (stat.S_IFMT(mode) not in (0, stat.S_IFREG))
+                    or item.file_size > _MAX_MEMBER):
+                raise ValueError('Source member is not a bounded regular file')
+            content = archive.read(item)
+            if item.filename.startswith(_SOURCE_PREFIX):
+                name = item.filename[len(_SOURCE_PREFIX):]
+                blob = b'blob ' + str(len(content)).encode('ascii') + b'\x00' + content
+                if hashlib.sha1(blob).hexdigest() != tree[name]:
+                    raise ValueError('Source differs from the exact Git commit blob')
+            if item.filename in dependency_members:
+                if hashlib.sha256(content).hexdigest() != dependency_members[item.filename]:
+                    raise ValueError('Dependency source hash mismatch')
+            elif item.filename == _SOURCE_PREFIX + 'RELEASE_MANIFEST.tsv':
+                if content != manifest:
+                    raise ValueError('Embedded manifest mismatch')
+            else:
+                name = item.filename[len(_SOURCE_PREFIX):]
+                expected_hash, expected_size = expected[name]
+                if len(content) != expected_size or hashlib.sha256(content).hexdigest() != expected_hash:
+                    raise ValueError('Corresponding source bytes mismatch')
+                runtime = runtime_root / name
+                if runtime.exists() and (runtime.is_symlink() or not runtime.is_file()
+                                         or hashlib.sha256(runtime.read_bytes()).hexdigest() != expected_hash):
+                    raise ValueError('Runtime source differs from corresponding source')
+    return {'source_commit': commit, 'project_files': len(expected) + 1,
+            'dependency_sources': len(dependency_members), 'sha256': source['sha256']}
+
+
+def audit_bundle(bundle: Path, source_root: Path | None = None) -> dict:
     bundle = bundle.resolve()
     if not bundle.is_dir() or bundle.suffix != '.app':
         raise ValueError('Expected an existing macOS .app directory')
     findings: set[tuple[str, str]] = set()
     hashes = {}
+    source_verification = None
+    if source_root is None:
+        source_root = Path(__file__).resolve().parents[1]
     for path in sorted(bundle.rglob('*')):
         relative = path.relative_to(bundle).as_posix()
         if path.is_symlink():
@@ -118,14 +228,28 @@ def audit_bundle(bundle: Path) -> dict:
             continue
         data = path.read_bytes()
         hashes[relative] = hashlib.sha256(data).hexdigest()
-        audit_bytes(data, relative, findings)
+        if relative == _SOURCE_ARCHIVE:
+            try:
+                receipt = json.loads((bundle / 'Contents/Resources/app/desktop/build-info.json').read_text())
+                source_verification = audit_corresponding_source(
+                    data, receipt, source_root, bundle / 'Contents/Resources/app')
+            except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError,
+                    zipfile.BadZipFile, RuntimeError, NotImplementedError):
+                findings.add(('invalid_corresponding_source', relative))
+        else:
+            audit_bytes(data, relative, findings)
     for required in ('Contents/Info.plist', 'Contents/MacOS', 'Contents/Resources'):
         if not (bundle / required).exists():
             findings.add(('missing_app_structure', required))
-    for notice in ('LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md'):
-        if not any(path.name == notice for path in bundle.rglob(notice)):
+    for notice in ('LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'docs/LICENSE-MIT.md'):
+        if not (bundle / 'Contents/Resources/app' / notice).is_file():
             findings.add(('missing_project_notice', notice))
+    if (bundle / _SOURCE_ARCHIVE).is_symlink() or not (bundle / _SOURCE_ARCHIVE).is_file():
+        findings.add(('missing_corresponding_source', _SOURCE_ARCHIVE))
+    elif source_verification is None:
+        findings.add(('invalid_corresponding_source', _SOURCE_ARCHIVE))
     return {'schema_version': 1, 'files_checked': len(hashes),
+            'corresponding_source': source_verification,
             'findings': [{'category': category, 'path': path} for category, path in sorted(findings)],
             'file_sha256': hashes,
             'limits': ['Pattern-based audit, not exhaustive privacy certification',
@@ -137,8 +261,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('bundle', type=Path)
     parser.add_argument('--report', type=Path, help='Write full inventory outside the source checkout')
+    parser.add_argument('--source-root', type=Path, default=Path(__file__).resolve().parents[1],
+                        help='Public Git checkout containing the receipt commit; may be on a newer revision')
     args = parser.parse_args()
-    report = audit_bundle(args.bundle)
+    report = audit_bundle(args.bundle, args.source_root)
     if args.report:
         args.report.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({key: report[key] for key in ('schema_version', 'files_checked', 'findings', 'limits')}, indent=2))

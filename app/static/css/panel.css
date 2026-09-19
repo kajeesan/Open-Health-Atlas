@@ -585,6 +585,8 @@ a.save-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet-panel {
   position: absolute; left: 0; right: 0;
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  max-height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - 20px);
+  overflow-y: auto;
   margin: 0 10px 10px;
   background: var(--sheet-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
