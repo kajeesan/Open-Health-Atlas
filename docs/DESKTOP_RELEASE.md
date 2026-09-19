@@ -17,7 +17,7 @@ credentials and deployment data must never enter it.
 
 Use a clean, reviewed checkout of the public repository, on an Apple silicon
 Mac with a working Command Line Tools/Swift installation, Python 3.11 or newer,
-and `uv` 0.11.25 available. Build dependency downloads require internet access;
+and `uv` 0.11.25 and `zstd` available. Build dependency downloads require internet access;
 the finished local application does not download its runtime on first use.
 Do not accept legal agreements or install paid facilities on another person's
 behalf. If full Xcode is unavailable, the procedure uses the already installed
@@ -64,6 +64,7 @@ test "$(uname -m)" = arm64
 test -f scripts/build_desktop.py
 test -z "$(git status --porcelain)"
 command -v uv >/dev/null
+command -v zstd >/dev/null
 "$oha_build_python" -B scripts/release_manifest.py verify
 "$oha_build_python" -B scripts/release_scan.py --history
 

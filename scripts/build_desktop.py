@@ -418,7 +418,7 @@ def main():
     # Required wheel metadata/license directories deliberately remain in site-packages.
     notices = resources / 'THIRD_PARTY_RUNTIME.txt'
     inventory = subprocess.check_output([str(python), '-I', '-B', '-c',
-        'import importlib.metadata,json; print(json.dumps(sorted([{ "name": d.metadata["Name"], "version": d.version, "license": d.metadata.get("License-Expression") or d.metadata.get("License") or "See bundled dist-info licenses" } for d in importlib.metadata.distributions()], key=lambda d:d["name"].lower()), indent=2))'], env=env, text=True)
+        'import importlib.metadata,json; print(json.dumps(sorted([{ "name": d.metadata["Name"], "version": d.version, "license": d.metadata.get("License-Expression") or d.metadata.get("License") or "See bundled third-party notices" } for d in importlib.metadata.distributions()], key=lambda d:d["name"].lower()), indent=2))'], env=env, text=True)
     notices.write_text('Open Health Atlas bundles CPython from python-build-standalone.\nRuntime license texts and exact upstream metadata are in Resources/PythonLicenses; wheel license texts and metadata\nare retained in PythonRuntime/lib/python3.12/site-packages/*.dist-info.\nSupplementalLicenses contains the full certifi and ordered-set notices.\nCorrespondingSource.zip includes the exact project source, both dependency source archives,\nand desktop/dependency-sources.json with all locked dependency source URLs and hashes.\nThird-party components retain their own licenses.\n\n' + inventory)
     sdk = subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-path'], env=env, text=True).strip()
     swift = subprocess.check_output(['/usr/bin/xcrun', '--find', 'swiftc'], env=env, text=True).strip()
