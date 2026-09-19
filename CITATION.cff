@@ -10,7 +10,7 @@ authors:
     family-names: Jeevendra
 repository-code: https://github.com/kajeesan/Open-Health-Atlas
 url: https://github.com/kajeesan/Open-Health-Atlas
-license: MIT
+license: AGPL-3.0-only
 abstract: >-
   A local-first, provenance-aware system for connecting physical health,
   mental wellbeing, behaviour, and clinical data into traceable,

@@ -2,6 +2,10 @@
 
 Review date: 16 September 2026.
 
+This is the historical review of the initial MIT release. It is not an
+independent review of the later AGPL transition; see [LICENSING.md](LICENSING.md)
+and the latest checkpoint in [docs/REFACTORING.md](docs/REFACTORING.md).
+
 ## Verdict
 
 Accepted for the initial developer source release. Publication is conditional

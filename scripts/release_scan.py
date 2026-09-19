@@ -46,10 +46,12 @@ ALLOWED_URL_HOSTS = {
     "api.telegram.org",
     "cdn.jsdelivr.net",
     "creativecommons.org",
+    "developer.apple.com",
     "docs.github.com",
     "developer.apple.com",
     "doi.org",
     "example.invalid",
+    "fsf.org",
     "github.com",
     "health.googleapis.com",
     "localhost",
@@ -62,6 +64,7 @@ ALLOWED_URL_HOSTS = {
     "repository.up.ac.za",
     "www.contributor-covenant.org",
     "www.googleapis.com",
+    "www.gnu.org",
     "www.w3.org",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}

@@ -17,7 +17,7 @@
 - Keep intentional public author attribution in the README, NOTICE and citation material.
 - Exclude personal health data, credentials, private home paths, device identifiers and real deployment details from the public source and its history.
 - Use existing fictional fixtures and temporary databases for verification. Never use the owner's private health directory or live Telegram installation for tests.
-- Project code uses the MIT License; preserve Kajeesan Jeevendra's copyright and creator credit and all third-party licenses/notices.
+- Project code uses the GNU Affero General Public License, version 3 only (AGPL-3.0-only); preserve Kajeesan Jeevendra's copyright and creator credit and all third-party licenses/notices.
 - The initial clean public release is owner-authorized. Future publication actions still require task-specific authorization; never import or publish the private development history or infer live-service activation from source publication.
 
 ## Context and progress

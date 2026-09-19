@@ -2,7 +2,10 @@
 
 Open Health Atlas welcomes carefully scoped contributions. By intentionally
 submitting a contribution for inclusion, you agree that it is provided under
-the project's MIT License. Preserve the licenses and notices of third-party
+the project's GNU Affero General Public License, version 3 only
+(`AGPL-3.0-only`). You retain copyright in your contributions; submitting them
+does not assign ownership to the maintainer. See [LICENSE](LICENSE) and
+[licensing](LICENSING.md). Preserve the licenses and notices of third-party
 material. Security reports must use the private process in
 [SECURITY.md](SECURITY.md), not a public issue.
 

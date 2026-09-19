@@ -420,3 +420,15 @@ product files match the verified cancellation-fixed app byte-for-byte.
 Combined scanner/build-input regression tests: 22 passed. Independent review
 found no blocking issue. No app runtime or numerical engine changed in this
 batch; the evaluated app remains source `5d18014`.
+
+## AGPL license transition, 17 September 2026
+
+- Recovery point: `1dc2fcb889e5ecdaacdd05afbc109c041929d948` from public `main`. The owner requested AGPL to permit commercial use while keeping covered distributed and network-served improvements available under its source-sharing conditions. Selected standard AGPL version 3 only (`AGPL-3.0-only`), with no custom upstream-contribution requirement.
+- Replaced the original-code license with the unmodified GNU license text and aligned README, NOTICE, citation, contribution and working instructions. Added `LICENSING.md` and preserved the preceding MIT notice in `docs/LICENSE-MIT.md`; earlier permissions and historical release records remain intact.
+- Third-party license terms, vendor assets, application/toolkit code, application tests, dependencies and live services are unchanged. The release scanner now recognizes the official FSF and GNU license hosts, covered by its existing safe-provenance test. Public history records only the owner's authorship; that is provenance evidence, not a legal ownership audit. No copyright assignment is introduced for future contributions.
+- Verification: exact comparison with the official GNU license text and the preceding MIT notice passed; runtime/vendor/dependency byte comparison, local documentation links and diff whitespace passed. All seven release-scanner tests passed. The current-tree privacy scan passed, and the public-main ancestry passed in a single-branch copy (439 historical blobs). The all-remote-refs scan separately reported an existing unreviewed Apple-documentation host in the unrelated desktop branch; no unrelated history or scanner allowance was changed for it. The release manifest was regenerated. No new full runtime-suite or independent-review claim is made. The new license is prepared locally and has not yet been published.
+
+### Publication check follow-up
+
+- The owner explicitly authorized publication. PR #8 encountered the same all-remote-refs finding in the existing desktop branch. Reviewed its two public Apple developer documentation URLs for packaging and notarization; registered `developer.apple.com` as an allowed official documentation host and covered it in the existing safe-provenance test. Desktop branch contents, history and branch protections remain unchanged.
+- Verification passed: seven scanner tests, the 409-entry release inventory, diff whitespace, and complete available public history (531 blobs, no findings). This is a publication-check correction, not a desktop feature change or a waiver of privacy verification.

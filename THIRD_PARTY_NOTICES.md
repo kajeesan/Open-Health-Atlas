@@ -1,6 +1,7 @@
 # Third-party notices
 
-Open Health Atlas project code is licensed under the MIT License. The
+Open Health Atlas original project code in this revision is licensed under
+the GNU Affero General Public License, version 3 only (AGPL-3.0-only). The
 components below retain their own copyright, license, notice, and attribution
 requirements.
 
@@ -53,18 +54,19 @@ by the ordinary panel/runtime requirements, and no SDK source is vendored here.
 `CODE_OF_CONDUCT.md` adapts Contributor Covenant 2.0, licensed under
 Creative Commons Attribution 4.0 International. Its source attribution,
 license link and description of the reporting-section adaptation are retained
-in that document. This documentation license does not change the MIT license
-for original project code.
-
+in that document. This documentation license does not change the
+AGPL-3.0-only license for original project code.
 
 ## Optional macOS desktop distribution
 
-The desktop builder uses SHA-256-pinned python-build-standalone archives and
-fully hash-pinned Python wheels (`requirements-desktop.lock`). Waitress 3.0.2
-(Zope Public License 2.1) serves the loopback application. CPython and its
-bundled native libraries keep their upstream license texts and build metadata
+The desktop builder includes a pinned CPython runtime from
+`python-build-standalone` and the exact packages in
+`requirements-desktop.lock`. It retains the upstream Python and bundled-native
+library license texts and the upstream `PYTHON.json` build metadata
 in `Contents/Resources/PythonLicenses`; wheel license texts and metadata remain
 with `PythonRuntime/lib/python3.12/site-packages/*.dist-info`. The generated
 `THIRD_PARTY_RUNTIME.txt` inventories exact package names and versions. Existing
-browser vendor notices and original MIT creator attribution are included.
-The app icon and native host are original MIT-licensed project assets.
+browser vendor notices and original creator attribution are included.
+The app icon and native host are original project assets covered by the current
+AGPL-3.0-only project license. Earlier MIT permissions remain described in
+`LICENSING.md`; they are not an alternative license for subsequent additions.

@@ -9,9 +9,10 @@ AI-assisted development process.
 
 Public repository: https://github.com/kajeesan/Open-Health-Atlas
 
-Original project code is distributed under the MIT License. See LICENSE for
-the copyright notice, permission notice and terms. This creator statement
-does not add a separate licensing condition.
+Original project code in this revision is licensed under the GNU Affero
+General Public License, version 3 only (AGPL-3.0-only). See LICENSE for the
+complete terms and LICENSING.md for the treatment of earlier MIT releases.
+This creator statement does not add a separate licensing condition.
 
 This product includes third-party software. Its attribution and retained
 notices are documented in THIRD_PARTY_NOTICES.md and under

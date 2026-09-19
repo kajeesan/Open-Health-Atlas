@@ -2,7 +2,7 @@
 
 **Explore your health records together—and check the evidence behind the patterns.**
 
-Created by **[Kajeesan Jeevendra](https://github.com/kajeesan)** · [MIT licensed](LICENSE)
+Created by **[Kajeesan Jeevendra](https://github.com/kajeesan)** · [AGPL-3.0 licensed](LICENSE)
 
 [![Repository checks](https://github.com/kajeesan/Open-Health-Atlas/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/kajeesan/Open-Health-Atlas/actions/workflows/checks.yml)
 
@@ -116,8 +116,11 @@ Open Health Atlas was created by **Kajeesan Jeevendra**. Its product
 architecture, data/evidence boundaries and user experience were developed and
 assembled through an AI-assisted development process.
 
-Original project code uses the [MIT License](LICENSE). Retain its copyright
-and permission notices in copies or substantial portions of the software.
+Original project code uses the [GNU Affero General Public License, version 3
+only](LICENSE) (`AGPL-3.0-only`). Commercial use is allowed subject to its
+terms, including applicable source-sharing requirements. See
+[licensing and earlier MIT releases](LICENSING.md) for details. Preserve
+applicable copyright and license notices.
 Third-party components retain their own licenses and credits; see
 [NOTICE](NOTICE), [third-party notices](THIRD_PARTY_NOTICES.md) and
 [research references](REFERENCES.md). Use [CITATION.cff](CITATION.cff) for citation.
