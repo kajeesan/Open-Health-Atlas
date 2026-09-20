@@ -4,7 +4,8 @@ from pathlib import Path
 application = Path(defines['app'])
 files = [str(application)]
 symlinks = {'Applications': '/Applications'}
-hide_extensions = [application.name]
+# Do not set hidden-extension FinderInfo on the already signed app.
+# Finder normally hides the app suffix; signing metadata must stay untouched.
 icon = str(application / 'Contents/Resources/AppIcon.icns')
 background = defines['background']
 format = 'UDZO'

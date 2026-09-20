@@ -505,6 +505,20 @@ def main():
     dmg = staging / f'{base}-{flavor}.dmg'
     run([build_tools / 'bin/dmgbuild', '-s', ROOT / 'desktop/macos/dmg-settings.py',
          '-D', f'app={bundle}', '-D', f'background={retina_background}', 'Open Health Atlas', dmg], env=env)
+    # Verify the payload after the packaging tool has copied it and written metadata.
+    mounted = staging / 'verify-volume'
+    mounted.mkdir()
+    run(['/usr/bin/hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', mounted, dmg],
+        stdout=subprocess.DEVNULL)
+    try:
+        run_private(['/usr/bin/codesign', '--verify', '--deep', '--strict', mounted / bundle.name])
+        if (mounted / 'Applications').readlink() != Path('/Applications'):
+            raise SystemExit('Installer Applications shortcut does not match its destination.')
+        visible = sorted(path.name for path in mounted.iterdir() if not path.name.startswith('.'))
+        if visible != ['Applications', bundle.name]:
+            raise SystemExit('Installer contains unexpected visible items.')
+    finally:
+        run(['/usr/bin/hdiutil', 'detach', mounted], stdout=subprocess.DEVNULL)
     build_receipt['installer_layout'] = {
         'window_points': [640, 400], 'visible_items': ['Open Health Atlas.app', 'Applications'],
         'app_position': [160, 200], 'applications_position': [480, 200],
