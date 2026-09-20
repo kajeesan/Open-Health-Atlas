@@ -45,8 +45,10 @@ ALLOWED_URL_HOSTS = {
     "api.open-meteo.com",
     "api.telegram.org",
     "cdn.jsdelivr.net",
+    "core.telegram.org",
     "creativecommons.org",
     "developer.apple.com",
+    "developers.google.com",
     "docs.github.com",
     "doi.org",
     "example.invalid",
@@ -54,6 +56,8 @@ ALLOWED_URL_HOSTS = {
     "fsf.org",
     "github.com",
     "health.googleapis.com",
+    "hermes-agent.nousresearch.com",
+    "hevy.com",
     "localhost",
     "kajeesan.com",
     "myaccount.google.com",
@@ -65,6 +69,7 @@ ALLOWED_URL_HOSTS = {
     "www.contributor-covenant.org",
     "www.googleapis.com",
     "www.gnu.org",
+    "www.hostinger.com",
     "www.w3.org",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}

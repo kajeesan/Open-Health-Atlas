@@ -1,5 +1,9 @@
 # Connect a local AI client
 
+For a walkthrough with copy-paste setup-agent prompts, use
+[Start here](GETTING_STARTED.md#2-connect-your-preferred-ai). This page owns
+the desktop connection details and troubleshooting.
+
 Open Health Atlas works without an AI account, subscription or API key. The
 optional connection lets a compatible AI client read your selected workspace
 and request deterministic calculations and supporting evidence. Your client

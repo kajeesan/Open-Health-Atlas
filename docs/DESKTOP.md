@@ -5,20 +5,24 @@ into a Mac app. Created by Kajeesan Jeevendra, the current project is licensed
 under **AGPL-3.0-only**, with third-party notices preserved. See the
 [licensing policy](../LICENSING.md) and [license](../LICENSE).
 
-**A signed, notarized public Mac release has not yet qualified.** Files marked
-`local-unsigned` are engineering previews. The existing `v0.1.0` GitHub release
-contains source code, not a Mac installer. The next desktop candidate is
-`0.2.0`; its [acceptance record](DESKTOP_ACCEPTANCE.md) distinguishes earlier
-verification from the new candidate. Do not disable Gatekeeper to install a
-preview.
+**Start with the [plain-language setup guide](GETTING_STARTED.md)** for installation,
+connecting your preferred AI and copy-paste instructions for a setup agent.
+[Optional integrations](OPTIONAL.md) have a separate page.
 
 ## Download and install
 
-A qualified Mac installer will appear on
-[GitHub Releases](https://github.com/kajeesan/Open-Health-Atlas/releases), with
-its tested macOS versions and architecture stated beside the download. Choose
-the **macOS Apple silicon** disk image (`macos-arm64`). Intel Macs and
-Windows/Linux desktop installers are not yet supported.
+The [0.2.4 Mac preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.4)
+is prepared for publication on 20 September 2026. Check its release notes
+for the published artifact and verification results. Choose the **signed-notarized macOS Apple
+silicon DMG**, not a source archive or an older `local-unsigned` build.
+It is Developer ID signed, notarized and stapled. The release notes report
+native verification on macOS 26.6.2; clean-Mac installation and the minimum
+supported macOS remain unverified. Keep normal Gatekeeper protection enabled.
+Intel Macs and Windows/Linux desktop installers are not supported in this release.
+
+The [release notes and attached receipts](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.4)
+identify the exact downloadable artifact. The [acceptance record](DESKTOP_ACCEPTANCE.md)
+retains earlier candidate evidence and the separate stable-release gates.
 
 1. Open the downloaded disk image.
 2. Drag **Open Health Atlas** to **Applications**.

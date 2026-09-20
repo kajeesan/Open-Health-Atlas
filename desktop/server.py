@@ -146,7 +146,9 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
 
     @bp.get("/help")
     def help_page():
+        from desktop.preferences import read
         return render_template("desktop/help.html", workspace=workspace,
+                               help_theme=read().get("panel-theme", "paper"),
                                code_version=code_version)
 
     @bp.get("/api/workspaces")
