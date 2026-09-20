@@ -11,20 +11,12 @@ provides the model and conversation.
 
 ## Connect from the installed macOS app
 
-1. Install Open Health Atlas in Applications and complete its workspace setup.
-   Start with the clearly labelled fictional workspace to try the connection.
-2. Open the app's help and local AI connection page. Copy or download the
-   connection configuration for the current workspace.
-3. In an AI client that supports **local stdio MCP servers**, add the exported
-   server configuration using that client's instructions, then restart or
-   reconnect the client if required.
-4. Check that the client lists `health_catalog`, `health_query`,
-   `health_analyze`, `health_evidence` and `health_task_status`.
+1. Install Open Health Atlas and open its fictional workspace.
+2. Open **Desktop help & AI connection → Connect AI** and choose **Copy setup instructions**. The copied text combines the task for your setup agent with the selected workspace's actual connection JSON.
+3. Paste into a setup agent such as Codex. It should verify local stdio support, adapt the configuration to your preferred AI client, preserve unrelated settings and reconnect that client.
+4. Verify that `health_catalog`, `health_query`, `health_analyze`, `health_evidence` and `health_task_status` are available and a fictional query and evidence check succeed.
 
-The exported JSON uses the common `mcpServers` format. Some clients need the
-command and arguments entered separately. This format alone does not certify
-any particular client's support. Remote-only clients cannot launch this local
-executable; no remote transport or universal ChatGPT compatibility is claimed.
+**View connection settings** reveals exactly what the button copies. The underlying configuration endpoint remains available for existing clients and packaged verification, but the help page uses one copy action. The common `mcpServers` JSON may need conversion to the chosen client's configuration format. Remote-only clients cannot use this local executable directly.
 
 The command points to the installed app's stable
 `Contents/MacOS/openhealthatlas-mcp` executable. It includes its own runtime;
@@ -35,7 +27,7 @@ workspace's current database generation. After an app update, open that
 workspace successfully in the updated app before reconnecting the client, so
 it selects the prepared database. Keep the app in its installed location. If
 you move the app or want the client to use a different workspace or timezone,
-export the configuration again and reconnect the client. An existing client
+copy the setup instructions again and reconnect the client. An existing client
 connection stays attached to the workspace named in its configuration, even
 when a different workspace is selected in the dashboard.
 
@@ -85,10 +77,10 @@ installed demonstration may use a different date range.
 ## Troubleshooting
 
 - **The client cannot find the server:** confirm the app is installed where it
-  was when you exported the configuration. Export again after moving it.
+  was when you copied the instructions. Copy fresh instructions after moving it.
 - **The client still shows the previous workspace:** switching the dashboard
-  does not change the client's selection. Open the workspace you want, export
-  its connection settings and reconnect the client with those settings.
+  does not change the client's selection. Open the workspace you want, copy
+  its setup instructions and reconnect the client with those settings.
 - **No tools appear:** confirm the client supports local stdio servers. A box
   that accepts only an HTTPS URL is a different transport.
 - **Analysis says insufficient data:** this is a valid result for short,

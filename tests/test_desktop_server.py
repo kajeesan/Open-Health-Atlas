@@ -1,5 +1,7 @@
 """Distinct desktop origin/bootstrap boundary; existing app tests own its routes."""
 import threading
+
+import pytest
 import time
 from pathlib import Path
 
@@ -146,3 +148,32 @@ def test_owned_setup_child_finishes_with_parent_pipe_still_open(tmp_path):
         if process.poll() is None:
             process.kill()
         process.wait()
+
+
+@pytest.mark.parametrize("route", ["/desktop/help", "/desktop/help?section=full", "/desktop/setup"])
+def test_help_and_workspace_back_links_only_target_local_app_pages(tmp_path, route):
+    manager = WorkspaceManager(tmp_path, Path(__file__).resolve().parents[1], "a" * 40)
+    workspace = manager.create("personal", "UTC")
+    app = build_app(manager, workspace, tmp_path / "socket", "navigation-launch",
+                    threading.Event(), "a" * 40)
+    app.config["RATELIMIT_ENABLED"] = False
+    client = app.test_client()
+    client.post("/desktop/session", headers={"X-OHA-Launch-Token": "navigation-launch"})
+    separator = "&" if "?" in route else "?"
+    page = client.get(route + separator + "return_to=/training").text
+    assert 'class="desktop-back" href="/training"' in page
+    refused = client.get(route + separator + "return_to=//outside.invalid").text
+    assert 'class="desktop-back" href="/"' in refused
+    assert "outside.invalid" not in refused
+
+
+def test_first_run_help_returns_to_setup_without_an_unopened_dashboard(tmp_path):
+    manager = WorkspaceManager(tmp_path, Path(__file__).resolve().parents[1], "a" * 40)
+    app = build_app(manager, None, tmp_path / "socket", "setup-launch",
+                    threading.Event(), "a" * 40)
+    app.config["RATELIMIT_ENABLED"] = False
+    client = app.test_client()
+    client.post("/desktop/session", headers={"X-OHA-Launch-Token": "setup-launch"})
+    page = client.get("/desktop/help?return_to=/training").text
+    assert 'class="desktop-back" href="/desktop/setup"' in page
+    assert 'class="desktop-back"' not in client.get("/desktop/setup").text

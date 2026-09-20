@@ -2,7 +2,7 @@
 
 Install Open Health Atlas, connect your preferred AI, and try a question with fictional records. You can do this without Telegram, Hermes, Google Health, Hevy or a rented server.
 
-This guide covers the **0.2.4 Mac preview**, checked on 20 September 2026. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
+This guide covers the **0.2.5 Mac preview**, checked on 20 September 2026. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
 
 **Your route:** Install → Try fictional data → Connect your AI → Ask your first question.
 
@@ -24,8 +24,8 @@ You still handle account sign-in, purchases, private credential entry and decisi
 
 ## 1. Install Open Health Atlas
 
-1. Open the [0.2.4 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.4).
-2. Under **Assets**, download `openhealthatlas-0.2.4-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
+1. Open the [0.2.5 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5).
+2. Under **Assets**, download `openhealthatlas-0.2.5-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
 3. Open the downloaded file. Drag the **Open Health Atlas** icon onto **Applications**. If replacing an older version, first [back up your workspaces](DESKTOP.md#update-back-up-or-remove-the-app), quit the app and disconnect its AI clients.
 4. Eject the installer, then open **Open Health Atlas** from Applications.
 5. Select **Try fictional data**, check the timezone, and choose **Continue**. Wait for the dashboard to open.
@@ -38,7 +38,7 @@ You do not need to install Python, use Terminal or buy a model subscription for 
 
 ```text
 Help me install Open Health Atlas's Mac preview and open fictional data.
-Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.4 and
+Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5 and
 its matching documentation. Check my OS and Apple silicon compatibility.
 For this release, use the signed-notarized macos-arm64 DMG, verify it
 against the published checksum, and preserve normal Gatekeeper checks.
@@ -56,51 +56,36 @@ before doing anything else. Finish with how to open and quit the app.
 
 Do this while the **fictional workspace** is selected.
 
-1. Choose **Desktop help & AI connection** in Open Health Atlas. In a narrow window, find it under **More**. During initial setup, the link is called **Help**.
-2. Find **Connect an AI client**. Check the workspace named there.
-3. Choose **Download settings** to save a local connection file. **Copy connection settings** also works if your AI app accepts pasted configuration.
-4. In your AI app, add a **local MCP server** using that file. If it asks for a command and arguments separately, let your setup agent translate the file into those fields.
-5. Reconnect or restart the AI app if it requests it. Choose your model in that app.
+1. Open **Desktop help & AI connection**. In a narrow window, find it under **More**.
+2. Select the **Connect AI** tab and check the workspace shown.
+3. Choose **Copy setup instructions**. This copies one complete instruction, including the connection settings for that workspace.
+4. Paste it into Codex or another setup agent that can work with local apps and files. It will configure and test the connection in your preferred AI app.
 
-Keep the downloaded settings file private: it contains local file paths. There are no API keys to enter in Open Health Atlas. Any model credentials belong in the AI app's own settings.
+**View connection settings** shows the exact instruction before you copy it. There is no separate settings download or second copy step in this flow. The copied text includes local file paths, but no health records or passwords. Keep it private.
 
-**Finished when:** the AI app discovers these tools from the Open Health Atlas connection:
+The agent should check that your AI app supports **local stdio MCP**. A remote-URL-only client cannot launch the bundled local connection. Model credentials belong in your AI app's secure settings, never in this instruction.
 
-| Tool name | What it does |
-| --- | --- |
-| `health_catalog` | Finds the measurements you can ask about. |
-| `health_query` | Reads values, summaries and comparisons. |
-| `health_analyze` | Calculates patterns across selected measurements. |
-| `health_task_status` | Checks whether a calculation has finished. |
-| `health_evidence` | Checks the evidence behind a result. |
-
-The connection reads health records; it cannot add or edit them. Use the app's entry forms and supported imports for that. Tool names may have a client-added prefix.
+**Finished when:** the AI app can actually call `health_catalog`, `health_query`, `health_analyze`, `health_evidence` and `health_task_status`, and a fictional query and evidence check succeed. Saving settings alone is not a completed connection.
 
 ### Copy to your setup agent
 
 ```text
-Connect my preferred AI app to Open Health Atlas using local stdio MCP.
-Ask which AI app I want if I have not named it. Check that exact app/version's
-official local-MCP instructions. If it only supports remote URLs, explain
-that this release's local connection will not work directly; do not invent
-an endpoint, expose a port or upload my database as a workaround.
+Help me connect my preferred AI app to Open Health Atlas. Ask which app only
+if it is not clear from our conversation. Check its official local stdio MCP
+setup instructions. If it only supports remote URLs, explain that limitation;
+do not expose a server or upload my database as a workaround.
 
-Use the fictional workspace in my installed Open Health Atlas app. Help me
-open Help > Connect an AI client > Download settings. Read the local settings
-file I select; do not ask me to paste it into an online chat. Preserve the
-exported command, --workspace and --timezone arguments. Back up the AI
-client's existing configuration locally and merge only the openhealthatlas
-server entry, adapting its format if required. Preserve other connections.
-Use the bundled executable; do not install another Python or edit the app.
+Help me open a fictional workspace, then Desktop help & AI connection >
+Connect AI > Copy setup instructions. Use the connection JSON included in
+that copied instruction. If I have not supplied it, guide me to copy it; do
+not guess paths. Preserve the command, workspace and timezone. Back up and
+merge the client's configuration without changing unrelated connections.
+Use the installed app's bundled executable and leave the signed app intact.
 
-Keep any provider credentials in the AI client's own secure settings.
-Explain whether my chosen model processes tool results locally or in a
-cloud before connecting personal data. Configure fictional data only now.
-Reconnect the client and verify discovery of health_catalog, health_query,
-health_analyze, health_evidence and health_task_status. Test a fictional
-query through the actual client, not just a settings-file check. If you
-cannot access that client, give me the exact final steps and mark the
-connection unverified. Tell me how to disconnect and restore the backup.
+Keep provider credentials in the AI client's secure settings. Explain where
+its model processes tool results before connecting personal records. Verify
+real tool discovery, a fictional query and evidence verification in the actual
+client. Mark anything you could not test, and explain how to disconnect.
 ```
 
 ## 3. Ask your first question
@@ -129,7 +114,7 @@ Create an empty personal workspace or import a **copy of a compatible Open Healt
 
 Before connecting personal records, decide which AI provider may receive them. If you want processing to stay on your computer, your client and model must both support and use local processing; the words “local MCP” alone do not establish this.
 
-Open your personal workspace, export its connection settings, and reconnect the client with those settings. **Changing the dashboard's workspace does not switch an existing AI connection.** Confirm the selected workspace before asking a health question.
+Open your personal workspace, copy its setup instructions again, and ask your agent to update the connection. **Changing the dashboard's workspace does not switch an existing AI connection.** Confirm the selected workspace before asking a health question.
 
 ### Copy to your setup agent
 
@@ -143,8 +128,7 @@ Use the app's empty-workspace or compatible-copy import flow. Preserve the
 original database and keep fictional records separate. For other formats,
 check the supported importer instead of assuming a PDF or spreadsheet works.
 Do not write directly to SQLite or repoint collectors at a guessed path.
-After the selected workspace opens successfully, export its connection
-settings and reconnect my AI client. Verify the selected workspace without
+After the selected workspace opens successfully, copy its setup instructions and update my AI connection. Verify the selected workspace without
 printing health contents or private paths into chat. Explain backup and
 restore steps and how to disconnect the client. Mark anything untested.
 ```
@@ -154,15 +138,15 @@ restore steps and how to disconnect the client. Mark anything untested.
 | What you see | What to do |
 | --- | --- |
 | The AI app asks only for a URL | Ask the agent to check for local stdio support. Do not paste the dashboard address. |
-| No Open Health Atlas tools appear | Check the exported app location, reconnect the client, and confirm local-server support. |
+| No Open Health Atlas tools appear | Check the copied app location, reconnect the client, and confirm local-server support. |
 | Tools appear but the answer has no records | Try a date range present in the selected workspace; an empty workspace has no health history. |
-| The AI still sees fictional records | Export the personal workspace's settings and replace that connection explicitly. |
+| The AI still sees fictional records | Copy the personal workspace's setup instructions and ask your agent to update that connection. |
 | A calculation is busy | Wait on its existing task; do not repeatedly submit the same question. |
-| A connection breaks after an update | Disconnect it, open the updated app and workspace successfully, then reconnect. Export again if the app location, workspace or timezone changed. |
+| A connection breaks after an update | Disconnect it, open the updated app and workspace successfully, then reconnect. Copy fresh instructions if the app location, workspace or timezone changed. |
 | You want to stop access | Disconnect or remove Open Health Atlas in the AI client's MCP settings. Closing the dashboard alone does not disconnect the client. |
 
 For technical detail, see [desktop MCP troubleshooting](DESKTOP_MCP.md#troubleshooting). Share only redacted diagnostics, never a database, connection file or API key.
 
 ## Optional next steps
 
-You have completed the main setup once your chosen AI can answer a fictional question using the tools. Continue to **[Optional](OPTIONAL.md)** only for the extras you want: Hermes, Telegram, Google Health, Hevy or an always-on Hostinger VPS.
+You have completed the main setup once your chosen AI can answer a fictional question using the tools. Open **Full experience setup** in the app, or read **[Optional](OPTIONAL.md)**, for the extras you want: Hevy, Google Health and Cronometer, followed by advanced Hostinger, Hermes and Telegram setup.

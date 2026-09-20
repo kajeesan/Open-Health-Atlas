@@ -37,7 +37,7 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">⚕</span>
+        {% include "_brand_mark.html" %}
         <span class="brand-name">OpenHealthAtlas</span>
       </div>
       <nav class="side-nav" aria-label="Main">
@@ -49,8 +49,8 @@
       </nav>
       <div class="sidebar-foot">
         {% if desktop_mode %}
-        <a class="ghost-btn" href="/desktop/help">Desktop help &amp; AI connection</a>
-        <a class="ghost-btn" href="/desktop/?setup=1">Switch workspace</a>
+        <a class="ghost-btn" href="{{ url_for('desktop.help_page', return_to=request.path) }}">Desktop help &amp; AI connection</a>
+        <a class="ghost-btn" href="{{ url_for('desktop.setup', return_to=request.path) }}">Switch workspace</a>
         {% endif %}
         <button id="settings-btn" class="ghost-btn" type="button" title="Theme & settings">
           <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
@@ -68,7 +68,7 @@
 
     <main class="content">
       {% if desktop_mode and desktop_workspace and desktop_workspace.kind == 'demo' %}
-      <p role="status">Fictional sample · These records are invented. <a href="/desktop/?setup=1">Open your own workspace</a></p>
+      <p role="status">Fictional sample · These records are invented. <a href="{{ url_for('desktop.setup', return_to=request.path) }}">Open your own workspace</a></p>
       {% endif %}
       {% block content %}{% endblock %}
     </main>
@@ -92,8 +92,8 @@
         </a>
         {% endfor %}
         {% if desktop_mode %}
-        <a class="sheet-link" href="/desktop/help">Desktop help &amp; AI connection</a>
-        <a class="sheet-link" href="/desktop/?setup=1">Switch workspace</a>
+        <a class="sheet-link" href="{{ url_for('desktop.help_page', return_to=request.path) }}">Desktop help &amp; AI connection</a>
+        <a class="sheet-link" href="{{ url_for('desktop.setup', return_to=request.path) }}">Switch workspace</a>
         {% endif %}
         <button id="settings-btn-mobile" class="sheet-link as-button" type="button">
           <svg class="icon"><use href="#i-theme"/></svg><span>Settings</span>
@@ -125,16 +125,12 @@
         {% for key, name in [
           ("paper",   "Paper"),
           ("ember",   "Ember"),
-          ("alpine",  "Frost · Alpine"),
-          ("verdant", "Frost · Verdant"),
-          ("sunbeam", "Frost · Sunbeam"),
-          ("ridge",   "Frost · Ridge"),
-          ("grove",   "Frost · Grove"),
-          ("timber",  "Frost · Timber"),
-          ("glacier", "Frost · Glacier"),
-          ("canyon",  "Frost · Canyon"),
-          ("cyber",   "Cyber"),
-          ("cosmos",  "Cosmos"),
+          ("verdant", "Forest Verdant"),
+          ("tidal-peaks", "Black Beach"),
+          ("blue-glacier", "Blue Glacier"),
+          ("canyon",  "Canyon Creek"),
+          ("el-capitan", "El Capitan"),
+          ("cyber",   "Cyberpunk"),
         ] %}
         <button class="tsw" type="button" data-theme-btn="{{ key }}">
           <span class="pv pv-{{ key }}"></span>

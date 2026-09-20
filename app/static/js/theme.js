@@ -1,10 +1,10 @@
-/* Theme picker: 12 Hermes Hi-Fi themes via [data-theme] on <html>, choice
+/* Theme picker: 8 Hermes Hi-Fi themes via [data-theme] on <html>, choice
    persisted in localStorage. Fires a "themechange" event so charts re-render
    with the new palette. Also owns the settings drawer + mobile "More" sheet. */
 (function () {
   const root = document.documentElement;
-  const THEMES = ["paper", "ember", "alpine", "verdant", "sunbeam", "ridge",
-                  "grove", "timber", "glacier", "canyon", "cyber", "cosmos"];
+  const THEMES = ["paper", "ember", "verdant", "tidal-peaks", "blue-glacier",
+                  "canyon", "el-capitan", "cyber"];
 
   /* migrate pre-redesign stored values ("dark"/"light") to the new default */
   const stored = localStorage.getItem("panel-theme");

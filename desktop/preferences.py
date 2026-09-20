@@ -2,8 +2,10 @@
 import json
 import re
 
-THEMES = {"paper", "ember", "alpine", "verdant", "sunbeam", "ridge",
-          "grove", "timber", "glacier", "canyon", "cyber", "cosmos"}
+THEMES = {"paper", "ember", "verdant", "tidal-peaks", "blue-glacier",
+          "canyon", "el-capitan", "cyber"}
+RETIRED_THEMES = {"alpine", "sunbeam", "ridge", "grove", "timber", "glacier", "cosmos"}
+
 KEYS = {"panel-theme", "hermes.dashboard.analysis-job", "hermes.insight.analysis-job",
         # The retained report workspace has exactly the pain/mobility lenses.
         "hermes.insight.conversation", "hermes.pain.conversation",
@@ -19,7 +21,7 @@ def valid(key, value):
     if not isinstance(value, str):
         return False
     if key == "panel-theme":
-        return value in THEMES
+        return value in THEMES or value in RETIRED_THEMES
     if key.endswith("analysis-job"):
         return re.fullmatch(r"[0-9a-f]{32}", value) is not None
     return re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value) is not None
@@ -31,7 +33,7 @@ def read():
     for row in get_db().execute("SELECT key,value FROM settings WHERE key LIKE ?", (PREFIX + "%",)):
         key = row["key"][len(PREFIX):]
         if valid(key, row["value"]):
-            values[key] = row["value"]
+            values[key] = "paper" if key == "panel-theme" and row["value"] in RETIRED_THEMES else row["value"]
     return values
 
 
@@ -39,6 +41,8 @@ def write(key, value):
     from app.panel_db import get_db
     if not valid(key, value):
         raise ValueError("Unsupported display preference")
+    if key == "panel-theme" and value in RETIRED_THEMES:
+        value = "paper"
     db = get_db()
     if value is None:
         db.execute("DELETE FROM settings WHERE key=?", (PREFIX + key,))

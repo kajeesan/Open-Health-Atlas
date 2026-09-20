@@ -25,7 +25,7 @@ CSS = (Path(__file__).resolve().parent.parent / "app" / "static" / "css" / "pane
 # Same theme-block shape test_bridge.py relies on for LOGGABLE/ALLOWED:
 # find each selector's declaration block and pull out the vars we need.
 THEME_BLOCK_RE = re.compile(
-    r"(:root(?:,\s*\[data-theme=\"(\w+)\"\])?|\[data-theme=\"(\w+)\"\])\s*\{([^}]*)\}", re.S
+    r"(:root(?:,\s*\[data-theme=\"([\w-]+)\"\])?|\[data-theme=\"([\w-]+)\"\])\s*\{([^}]*)\}", re.S
 )
 VAR_RE = re.compile(r"--(accent|good|warn|bad):\s*(#[0-9a-fA-F]{6})")
 DARK_RE = re.compile(r"color-scheme:\s*dark")
@@ -73,8 +73,8 @@ def test_panel_css_theme_parse_sanity():
     # sanity check on the regex itself, mirroring test_labs_read's
     # "the block parse actually found tables" check
     names = {name for name, _, _ in THEMES}
-    assert {"paper", "ember", "canyon", "alpine", "cyber"} <= names
-    assert len(THEMES) >= 12
+    assert {"paper", "ember", "canyon", "blue-glacier", "cyber"} <= names
+    assert len(THEMES) == 8
 
 
 @pytest.mark.parametrize("name,colors,is_dark", THEMES, ids=[t[0] for t in THEMES])

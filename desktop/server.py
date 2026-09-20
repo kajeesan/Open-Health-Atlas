@@ -135,6 +135,15 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
             return redirect("/desktop/")
         return render_template("desktop/signed-out.html")
 
+    def return_path():
+        allowed = {"/", "/training", "/consistency", "/mind", "/nutrition",
+                   "/recovery", "/care", "/labs", "/data", "/insights",
+                   "/models", "/export", "/vault-notes", "/desktop/setup"}
+        candidate = request.args.get("return_to", "/")
+        if not workspace:
+            return "/desktop/setup"
+        return candidate if candidate in allowed else "/"
+
     @bp.get("/")
     @bp.get("/setup")
     def setup():
@@ -142,13 +151,16 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
             return redirect("/")
         from desktop.preferences import read
         return render_template("desktop/setup.html", setup_theme=read().get("panel-theme", "paper"), workspace=workspace,
-                               workspaces=manager.list_workspaces(), startup_message=startup_message)
+                               workspaces=manager.list_workspaces(), startup_message=startup_message,
+                               return_path=return_path())
 
     @bp.get("/help")
     def help_page():
         from desktop.preferences import read
         return render_template("desktop/help.html", workspace=workspace,
                                help_theme=read().get("panel-theme", "paper"),
+                               help_section="full" if request.args.get("section") == "full" else "ai",
+                               return_path=return_path(),
                                code_version=code_version)
 
     @bp.get("/api/workspaces")

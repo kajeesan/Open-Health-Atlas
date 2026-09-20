@@ -10,7 +10,13 @@
   <script src="/desktop/static/setup.js" defer></script>
 </head>
 <body class="desktop-page desktop-setup">
-  <header class="desktop-header setup-header"><a href="/desktop/setup">Open Health Atlas</a><a class="setup-help" href="/desktop/help">Help</a></header>
+  <header class="desktop-header setup-header">
+    <a class="desktop-brand" href="{{ '/' if workspace else '/desktop/setup' }}">{% include "_brand_mark.html" %}<span>Open Health Atlas</span></a>
+    <nav class="setup-navigation" aria-label="Workspace navigation">
+      {% if workspace %}<a class="desktop-back" href="{{ return_path }}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m11 5-7 7 7 7M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</a>{% endif %}
+      <a class="setup-help" href="{{ url_for('desktop.help_page', return_to='/desktop/setup') }}">Help</a>
+    </nav>
+  </header>
   <main class="setup-scroll">
     <div class="setup-layout">
       <section class="setup-welcome" aria-labelledby="welcome-title">

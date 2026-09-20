@@ -71,6 +71,9 @@ ALLOWED_URL_HOSTS = {
     "www.gnu.org",
     "www.hostinger.com",
     "www.w3.org",
+    "unsplash.com",
+    "support.cronometer.com",
+    "forums.cronometer.com",
 }
 ALLOWED_EMAIL_LITERALS = {"git@github.com"}
 # Exact public identities verified against the current PR merge and owner public
@@ -81,9 +84,22 @@ REVIEWED_GITHUB_COMMIT_EMAILS = frozenset((
     "@".join(("249340830+kajeesan", "users.noreply.github.com")),
     "@".join(("noreply", "github.com")),
 ))
-# Visually reviewed fictional documentation assets only. Replacement bytes or
+# Visually reviewed public documentation and theme artwork. Replacement bytes or
 # another path require a fresh review; this is not a general binary allowance.
 REVIEWED_BINARY_ASSETS: dict[str, str] = {
+    "app/static/img/themes/forest-verdant-desktop-4x3.jpg": "5a1b916298597ed59c9d15f7030fb4446eca21a5d6347281d76add25b0e5544a",
+    "app/static/img/themes/forest-verdant-mobile.jpg": "413e8d1c27ad4777c99e95a86b063d643f5ee3085284a107e9a9923675f1ee5b",
+    "app/static/img/themes/forest-canyon-desktop-4x3.jpg": "f25a2d9fa56f0649e5b5ba76afd253c9361d3304f226367a4deef4ed3ff96482",
+    "app/static/img/themes/forest-canyon-mobile.jpg": "708ba0f25fc171770c829ed73e3126e3efb07958996b1c8f95e84333fa69b5aa",
+    "app/static/img/themes/cyber-desktop-4x3.jpg": "0da2b57834953c341873d3a768accdd3b969fa9453778733db0d2c5d4c86ff4b",
+    "app/static/img/themes/cyber-mobile.jpg": "c98fce16dddf6fc54a68608b51cd8ea6ce7a1afd788b8b05671d870ae8c31c74",
+    "app/static/img/themes/el-capitan-desktop-4x3.jpg": "df5985c6d2ce0bf7f86db61b71e9e0eefb0226024483cf908a2257bb88d0e0f1",
+    "app/static/img/themes/el-capitan-mobile.jpg": "85024316a6a760024480893bba8667f5484caad5ae9c2c60a51536b9cd46db4a",
+    "app/static/img/themes/tidal-peaks-desktop-4x3.jpg": "551e16c2b959cdc3d8475b7ff746f28acf24d3f71051079a4de3990593108a36",
+    "app/static/img/themes/tidal-peaks-mobile.jpg": "2ff7bb89bd2288bfbd0d963df11f0ffd463df8910632d1dd924a358d82a1df40",
+    "app/static/img/themes/blue-glacier-desktop-4x3.jpg": "a204e1be0194c6e4ebc6bbc2a06d9d552fd4093fcb858238e46b33d17774b40e",
+    "app/static/img/themes/blue-glacier-mobile.jpg": "e126c0e7f4b03f4a61398b88443bc3367d6030d3ca4142c2bbdc748446a91b1c",
+
     "docs/assets/fictional-dashboard.png":
         "3f396a93f70120e599004c981a73aa52f35a3bd11c4a29a272990aa4638b7d0f",
     "docs/assets/fictional-demo-overview-v2.png":

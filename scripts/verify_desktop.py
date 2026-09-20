@@ -130,7 +130,7 @@ def main():
             with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
                 assert connection.execute("SELECT weight_kg FROM body_metrics ORDER BY id DESC LIMIT 1").fetchone()[0] == 73.25
             before = database_rows(database)
-            assert journey.post("/desktop/api/preferences", {"key": "panel-theme", "value": "alpine"})[0] == 200
+            assert journey.post("/desktop/api/preferences", {"key": "panel-theme", "value": "blue-glacier"})[0] == 200
             checks.append("empty_workspace_and_real_panel_broker_toolkit_write")
             for path in ("/", "/training", "/nutrition", "/recovery", "/labs", "/desktop/help"):
                 assert journey.request(path)[0] == 200, "Retained page failed: " + path
@@ -139,7 +139,7 @@ def main():
             journey.launch()
             journey.login()
             assert database_rows(journey.selected()[1]) == before
-            assert '"panel-theme": "alpine"' in journey.request("/desktop/preferences.js")[1]
+            assert '"panel-theme": "blue-glacier"' in journey.request("/desktop/preferences.js")[1]
             checks.append("quit_reopen_exact_record_preservation")
             duplicate = Journey(args.app.resolve(), root)
             try:
@@ -204,7 +204,7 @@ def main():
             assert database_rows(backup / "health.db") == before
             assert (backup / "panel.db").is_file()
             checks.append("simulated_code_upgrade_verified_backups_exact_record_preservation")
-            assert '"panel-theme": "alpine"' in journey.request("/desktop/preferences.js")[1]
+            assert '"panel-theme": "blue-glacier"' in journey.request("/desktop/preferences.js")[1]
             checks.append("workspace_preferences_survive_restart_and_upgrade")
             journey.stop(abrupt=True)
             time.sleep(1)

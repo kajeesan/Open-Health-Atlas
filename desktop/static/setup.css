@@ -121,3 +121,9 @@
   .setup-choice-hint { margin-bottom: 12px; }
   .desktop-setup .desktop-intro { margin-bottom: 22px; }
 }
+
+.desktop-brand, .desktop-back, .setup-navigation { display: inline-flex; align-items: center; gap: 12px; }
+.desktop-back { min-height: 44px; text-decoration: none; font-size: 14px; }
+.desktop-back:hover { text-decoration: underline; }
+.setup-navigation { gap: 24px; }
+@media (max-width: 560px) { .desktop-brand .brand-mark { width: 26px; height: 26px; } .setup-navigation { gap: 14px; } }

@@ -36,6 +36,22 @@ The package's `LICENSE` and `NOTICE` are included alongside the bundle.
 OpenHealthAtlas uses its exported SVG path data through
 `app/static/js/muscle-figure.js`.
 
+## Theme backgrounds
+
+The Forest Verdant, Canyon Creek, Cyberpunk, Black Beach and Blue Glacier
+backgrounds are AI-assisted visual assets prepared from owner-supplied references
+for this project. The selected desktop and mobile images contain only image
+size and colour-space metadata; no location, identity or account metadata is
+included. The release scanner binds the reviewed images to their exact paths
+and SHA-256 values.
+
+El Capitan uses AI-assisted outpainted derivatives of
+[Intricate Explorer's El Capitan photograph](https://unsplash.com/photos/a-canyon-with-a-mountain-in-the-background-s43NuyQTEII),
+used under the [Unsplash License](https://unsplash.com/license). These photo
+terms are separate from the original project's software license.
+The included versions are `app/static/img/themes/el-capitan-desktop-4x3.jpg`
+and `app/static/img/themes/el-capitan-mobile.jpg`.
+
 ## Python dependencies
 
 Python packages listed in `requirements.txt`, `requirements-dev.txt` and the

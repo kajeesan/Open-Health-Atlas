@@ -1,18 +1,19 @@
-# Optional
+# Full experience setup
 
 [← Back to the main setup](GETTING_STARTED.md)
 
-You do not need anything on this page to use Open Health Atlas with a compatible local AI client. Add one connection at a time and check it before adding another.
+You do not need anything on this page to use Open Health Atlas with a compatible local AI client. Start with Hevy, then Google Health, then Cronometer if you use those apps. Add one connection at a time and check it before adding another. Hostinger, Hermes and Telegram are advanced options for hosting and messaging.
 
-| I want to… | Optional section | What it needs |
+| I want to… | Setup | What it needs |
 | --- | --- | --- |
-| Use Hermes as my AI assistant | [Hermes](#hermes) | Hermes and a model configured in it. |
-| Talk to that assistant from my phone | [Telegram](#telegram) | A working Hermes connection and your own Telegram bot. |
-| Import supported wearable measurements | [Google Health](#google-health) | Google account/API access and a separately configured collector. |
-| Import workouts | [Hevy](#hevy) | Hevy API access and a separately configured collector. |
-| Keep services running when my laptop is off | [Hostinger VPS](#hostinger-vps) | A Hostinger KVM VPS, upkeep and a separate server installation. |
+| Import workouts | [Hevy](#hevy) | API access and a compatible Linux collector. |
+| Import wearable measurements | [Google Health](#google-health) | Google permission and a compatible Linux collector. |
+| Import nutrition totals | [Cronometer](#cronometer) | A Daily Nutrition CSV and the supported importer. |
+| Keep services running while my Mac is off | [Hostinger VPS](#hostinger-vps) | A separately maintained Linux installation. |
+| Add an agent for automation | [Hermes](#hermes) | A separately configured model and agent. |
+| Chat from my phone | [Telegram](#telegram) | A working Hermes connection and a private bot. |
 
-Each section has a complete prompt you can copy into a setup agent. You handle sign-in, private credential entry and purchases. The prompts ask the agent to verify the result and explain how to stop the connection.
+Each section has a complete prompt for a setup agent. You handle sign-in, private credentials and purchases.
 
 ## Before adding collectors or hosting
 
@@ -22,99 +23,51 @@ The supplied Hevy and Google Health collectors target Linux services. They are n
 
 For a local Hermes connection, finish [Connect your preferred AI](GETTING_STARTED.md#2-connect-your-preferred-ai) on the same computer first. For a server installation, use the [Hostinger VPS section](#hostinger-vps) before adding its collectors or Telegram gateway. Do not set up an empty server and assume it already contains your Mac records.
 
-## Hermes
+## Hevy
 
-**Choose this if:** you want Hermes to be your AI assistant, or you plan to add its Telegram gateway later. Hermes is an external agent product; Open Health Atlas does not install it.
+**Choose this if:** you log workouts in Hevy and want them in Open Health Atlas.
 
 ### What you do
 
-1. Follow the [official Hermes installation guidance](https://hermes-agent.nousresearch.com/docs/getting-started/installation/), with your setup agent's help.
-2. Choose and configure a model in Hermes. Sign in or enter its credential through the local setup flow.
-3. On the same Mac, export your fictional Open Health Atlas workspace's connection settings.
-4. Ask the agent to add that local MCP connection to Hermes and verify a fictional question.
+1. Have your agent confirm the Linux collector setup and destination database.
+2. Sign in to [Hevy's developer settings](https://hevy.com/settings?developer). Check whether your account can create an API key and what current access terms apply.
+3. Enter the key into the agent-prepared private credential file, not into chat.
+4. Approve one import and compare a known workout's date, exercises, sets and units.
+5. Choose whether to enable scheduled imports after that check passes.
 
-Hermes uses `mcp_servers` in its configuration, while the app exports `mcpServers` JSON. Your agent can translate the structure while keeping the command and arguments unchanged. See the [official Hermes MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/).
+The [Hevy API documentation](https://api.hevyapp.com/docs/) describes provider access. Open Health Atlas's collector imports workouts, routines and exercise templates. Its separate Hevy MCP gateway is not the main Open Health Atlas AI connection, and is not needed simply to import workouts.
 
-**Finished when:** Hermes actually calls Open Health Atlas's tools and answers from the fictional workspace. This simple connection is read-only. It does not enable check-ins, record editing, reminders or the separate protected Hermes workflow adapters.
+**Finished when:** the selected database contains the expected workout with correct units, and repeating the import does not duplicate it.
 
 ### Copy to your setup agent
 
 ```text
-Set up optional Hermes as my Open Health Atlas AI client on this computer.
-Use the official NousResearch/hermes-agent project and its current docs:
-https://hermes-agent.nousresearch.com/docs/getting-started/installation/
-https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/
-Check for an existing installation first and preserve its settings.
-Help me select a model and enter credentials privately, without printing
-secrets or putting them in source control. Explain any subscription/API cost
-and where model requests are processed. Do not purchase anything for me.
+Connect optional Hevy workout imports to my selected Open Health Atlas
+installation. Confirm my host and intended database first. Read the matching
+source release's config/hevy.env.example, deploy/hevy-collector,
+deploy/install-hevy-sync.sh and hermes-hevy-sync service/timer files.
+These require a compatible Linux service setup; do not run them as Mac
+installer steps or guess the desktop workspace's active database path.
 
-Use my installed Mac app's fictional workspace and locally exported
-connection settings. Translate mcpServers JSON into Hermes's supported
-mcp_servers structure, retaining the exact command and arguments. Back up
-and merge configuration without replacing unrelated settings. Restrict this
-connection to the five Open Health Atlas health tools. Do not enable Telegram,
-schedules, broad filesystem access or record-writing tools as part of this.
+Check https://api.hevyapp.com/docs/ and help me open my Hevy developer settings
+at https://hevy.com/settings?developer. Verify account eligibility without
+buying a plan. Let me enter my API key privately into the external credential
+file. Preserve root:root 0600 protection required by the collector; never
+print the key or give it to the model, panel or unprivileged data account.
 
-Verify tool discovery, a fictional query, and evidence verification in the
-actual Hermes session. Preserve dates, units and missing-data limitations.
-If Hermes runs on another host, stop the local-path setup and explain the
-separate source installation it needs; do not upload my Mac workspace.
-Do not substitute deploy/hermes-openhealthatlas-mcp for the portable server:
-that is a separate protected adapter with its own fictional/governance rules.
-Report verified and unverified steps and how to remove only this connection.
+Review interpreter/toolkit paths, timezone, sudo environment handling and
+the actual database selected by the import user. Preserve existing services
+and back up existing records consistently. Test with fictional data first,
+then perform the import I approve through the validated CLI. Compare a known
+workout's timestamp, exercises, sets and units. Run again and check for
+unwanted duplicates. Check failure reporting without exposing raw records.
+Leave the sync timer disabled until I approve its schedule. Explain how to
+view the destination data, stop the timer and revoke the key. Do not promise
+Mac/server synchronization. Do not add the separate Hevy MCP gateway,
+modify workouts in Hevy or enable quarterly routine automation for this task.
 ```
 
-**To stop:** remove or disable this MCP entry in Hermes and reconnect its session. If you later use other Hermes features, stop their services separately.
-
-## Telegram
-
-**Choose this if:** you want to message your Hermes assistant from your phone. Telegram is the messaging channel; Hermes still needs to run on a reachable computer or server.
-
-### What you do
-
-1. Complete the Hermes connection above and test it before adding messaging.
-2. Open Telegram's official [@BotFather](https://core.telegram.org/bots/features#creating-a-new-bot). Send `/newbot` and follow its prompts to choose a bot name and username.
-3. Store the bot token privately when BotFather supplies it. Do not paste it into an AI conversation or a public support report.
-4. Open your new bot and press **Start**. Let the setup agent help identify your own numeric Telegram user ID and that private chat using the gateway's supported setup.
-5. Configure Hermes's Telegram connection, restricted to your user ID. Send a simple test message yourself, followed by a question about fictional records.
-
-Telegram messages and replies pass through Telegram and your configured Hermes/model setup. Decide what you are comfortable sharing before using personal health information. The [Hermes Telegram guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram/) covers its gateway configuration.
-
-**Finished when:** your bot replies in the intended private chat and answers a fictional question using the tools. Check-ins, reaction buttons, recording health entries and scheduled reminders are additional workflows; a working chat alone does not prove those are configured.
-
-### Copy to your setup agent
-
-```text
-Connect my already-working Hermes/Open Health Atlas fictional setup to my
-own private Telegram bot. Follow the current official Hermes Telegram guide:
-https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram/
-First confirm which machine runs Hermes and that it can query the fictional
-database. Help me create a bot through the official @BotFather if needed,
-then let me enter its token privately in the local credential flow.
-Never echo the token or include it in a command transcript or shared file.
-
-Verify my own numeric user ID and the intended private chat. Set an explicit
-user allowlist, never a wildcard or public group permission. Preserve any
-existing bot configuration; do not start a second poller for the same token.
-Explain the Telegram and model-provider data destinations before activation.
-Ask me to send the test messages. Verify that the gateway replies and that
-a fictional health answer includes a successful Open Health Atlas tool call.
-Verify unauthorized-user rejection with a local synthetic test where possible;
-do not claim it passed if it was only a configuration inspection.
-
-Do not enable schedules, unsolicited health messages or record writes.
-If I separately request Open Health Atlas action buttons/check-ins, inspect
-config/telegram.env.example, deploy/hermes-telegram-integration.md,
-deploy/hermes_telegram_gateway_extension.py and deploy/install-telegram-actions.sh
-from the matching source release. These are separate from ordinary Hermes
-chat: verify gateway compatibility and fictional callbacks before activation,
-and preserve all existing real-data governance restrictions.
-Finish with verified results, remaining gaps, and how to stop the gateway or
-revoke this bot token through BotFather.
-```
-
-**If the bot is silent:** check that Hermes and its gateway are running, your own chat was started, and your user ID is allowed. Do not open the bot to everyone to troubleshoot it.
+**If nothing imports:** check API access, the selected account, collector status and destination database before retrying. An empty workout history is different from failed authentication.
 
 ## Google Health
 
@@ -173,51 +126,58 @@ timer and revoking Google access, and mark any unavailable API/data category.
 
 **If syncing stops:** check credential expiry, revoked permission and per-category errors. Never replace missing measurements with zero to make a chart appear complete.
 
-## Hevy
+## Cronometer
 
-**Choose this if:** you log workouts in Hevy and want them in Open Health Atlas.
+**Choose this if:** you track food in Cronometer and want daily nutrition totals in Open Health Atlas. This is a CSV file import, not a live API connection.
 
 ### What you do
 
-1. Have your agent confirm the Linux collector setup and destination database.
-2. Sign in to [Hevy's developer settings](https://hevy.com/settings?developer). Check whether your account can create an API key and what current access terms apply.
-3. Enter the key into the agent-prepared private credential file, not into chat.
-4. Approve one import and compare a known workout's date, exercises, sets and units.
-5. Choose whether to enable scheduled imports after that check passes.
+1. Sign in to Cronometer on its website. Find **Export Data** in your account settings and choose **Daily Nutrition** for the dates you want.
+2. Export daily totals only, with one row per date. Turn off any option to include diary-group or meal rows. A servings or food-entry export is a different format.
+3. Save the CSV privately and let your setup agent inspect the format locally. The supported importer expects a Date column and nutrient columns with units.
+4. Approve the destination workspace and import. Compare a known day's values afterward. Repeat the export and import when you want to bring in newer records.
 
-The [Hevy API documentation](https://api.hevyapp.com/docs/) describes provider access. Open Health Atlas's collector imports workouts, routines and exercise templates. Its separate Hevy MCP gateway is not the main Open Health Atlas AI connection, and is not needed simply to import workouts.
+Cronometer describes [Daily Nutrition exports](https://forums.cronometer.com/discussion/4619/can-i-search-only-for-days-i-inserted-information-in-the-app) on its official forum. Account menus and export formats may change; the agent must check the actual file rather than assume compatibility.
 
-**Finished when:** the selected database contains the expected workout with correct units, and repeating the import does not duplicate it.
+**Finished when:** the intended workspace contains the expected daily values, unmatched columns are explained, and repeating the same import does not duplicate those values.
 
 ### Copy to your setup agent
 
 ```text
-Connect optional Hevy workout imports to my selected Open Health Atlas
-installation. Confirm my host and intended database first. Read the matching
-source release's config/hevy.env.example, deploy/hevy-collector,
-deploy/install-hevy-sync.sh and hermes-hevy-sync service/timer files.
-These require a compatible Linux service setup; do not run them as Mac
-installer steps or guess the desktop workspace's active database path.
+Help me import Cronometer daily nutrition into my selected Open Health Atlas
+workspace. This is a local CSV import, not a live API connection. Do not ask
+for my Cronometer password or create an unofficial API/scraping integration.
+Help me use Cronometer's website Export Data > Daily Nutrition for the dates
+I choose, with diary-group/meal breakdown disabled: one daily-total row per
+date. Let me sign in and save the file privately. Do not upload the CSV or
+print personal rows into an online conversation.
 
-Check https://api.hevyapp.com/docs/ and help me open my Hevy developer settings
-at https://hevy.com/settings?developer. Verify account eligibility without
-buying a plan. Let me enter my API key privately into the external credential
-file. Preserve root:root 0600 protection required by the collector; never
-print the key or give it to the model, panel or unprivileged data account.
+Use the matching reviewed Open Health Atlas release. Read toolkit/health.py's
+import_cronometer implementation and the import-cronometer CLI help. Check
+UTF-8 encoding, the Date column, unique daily rows and supported nutrient/unit
+headers on a local copy. Do not use a Food & Recipe Entries or Servings export.
+If the format differs, explain the mismatch before importing; never guess
+columns, convert missing values to zero or treat partial imports as complete.
 
-Review interpreter/toolkit paths, timezone, sudo environment handling and
-the actual database selected by the import user. Preserve existing services
-and back up existing records consistently. Test with fictional data first,
-then perform the import I approve through the validated CLI. Compare a known
-workout's timestamp, exercises, sets and units. Run again and check for
-unwanted duplicates. Check failure reporting without exposing raw records.
-Leave the sync timer disabled until I approve its schedule. Explain how to
-view the destination data, stop the timer and revoke the key. Do not promise
-Mac/server synchronization. Do not add the separate Hevy MCP gateway,
-modify workouts in Hevy or enable quarterly routine automation for this task.
+Ask which workspace should receive the data and get approval for that import.
+For the Mac app, resolve the selected workspace's current database generation
+through the supported workspace metadata/resolver; do not guess a database
+path or modify the signed app. Quit the app and disconnect AI clients before
+making a consistent backup and using the matching validated toolkit importer.
+Use an explicit HEALTH_DB destination and preserve the original CSV and backup.
+Never write directly to SQLite. If a supported importer/runtime is unavailable,
+explain the required source setup instead of claiming the file was imported.
+
+Verify a known day's dates, calories and nutrient units, report skipped rows
+and unmatched columns, and repeat the same import to check idempotency. Reopen
+the workspace and confirm the nutrition data is visible. Do not invent nutrient
+targets or promise automatic syncing. Explain how to repeat the import and
+recover from the verified backup without overwriting the only good copy.
 ```
 
-**If nothing imports:** check API access, the selected account, collector status and destination database before retrying. An empty workout history is different from failed authentication.
+## Advanced setup
+
+Hostinger, Hermes and Telegram are optional hosting and messaging choices. A VPS is not needed for the local AI connection.
 
 ## Hostinger VPS
 
@@ -301,6 +261,99 @@ Explain how to manage renewal/cancellation in Hostinger. Do not assume that
 stopping a server or service cancels its subscription. Do not install a local
 LLM on the VPS unless I request it and its resource requirements are checked.
 ```
+
+## Hermes
+
+**Choose this if:** you want Hermes to be your AI assistant, or you plan to add its Telegram gateway later. Hermes is an external agent product; Open Health Atlas does not install it.
+
+### What you do
+
+1. Follow the [official Hermes installation guidance](https://hermes-agent.nousresearch.com/docs/getting-started/installation/), with your setup agent's help.
+2. Choose and configure a model in Hermes. Sign in or enter its credential through the local setup flow.
+3. On the same Mac, copy your fictional workspace's setup instructions from the Connect AI tab.
+4. Ask the agent to add that local MCP connection to Hermes and verify a fictional question.
+
+Hermes uses `mcp_servers` in its configuration, while the app exports `mcpServers` JSON. Your agent can translate the structure while keeping the command and arguments unchanged. See the [official Hermes MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/).
+
+**Finished when:** Hermes actually calls Open Health Atlas's tools and answers from the fictional workspace. This simple connection is read-only. It does not enable check-ins, record editing, reminders or the separate protected Hermes workflow adapters.
+
+### Copy to your setup agent
+
+```text
+Set up optional Hermes as my Open Health Atlas AI client on this computer.
+Use the official NousResearch/hermes-agent project and its current docs:
+https://hermes-agent.nousresearch.com/docs/getting-started/installation/
+https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/
+Check for an existing installation first and preserve its settings.
+Help me select a model and enter credentials privately, without printing
+secrets or putting them in source control. Explain any subscription/API cost
+and where model requests are processed. Do not purchase anything for me.
+
+Use my installed Mac app's fictional workspace and copied connection settings. Translate mcpServers JSON into Hermes's supported
+mcp_servers structure, retaining the exact command and arguments. Back up
+and merge configuration without replacing unrelated settings. Restrict this
+connection to the five Open Health Atlas health tools. Do not enable Telegram,
+schedules, broad filesystem access or record-writing tools as part of this.
+
+Verify tool discovery, a fictional query, and evidence verification in the
+actual Hermes session. Preserve dates, units and missing-data limitations.
+If Hermes runs on another host, stop the local-path setup and explain the
+separate source installation it needs; do not upload my Mac workspace.
+Do not substitute deploy/hermes-openhealthatlas-mcp for the portable server:
+that is a separate protected adapter with its own fictional/governance rules.
+Report verified and unverified steps and how to remove only this connection.
+```
+
+**To stop:** remove or disable this MCP entry in Hermes and reconnect its session. If you later use other Hermes features, stop their services separately.
+
+## Telegram
+
+**Choose this if:** you want to message your Hermes assistant from your phone. Telegram is the messaging channel; Hermes still needs to run on a reachable computer or server.
+
+### What you do
+
+1. Complete the Hermes connection above and test it before adding messaging.
+2. Open Telegram's official [@BotFather](https://core.telegram.org/bots/features#creating-a-new-bot). Send `/newbot` and follow its prompts to choose a bot name and username.
+3. Store the bot token privately when BotFather supplies it. Do not paste it into an AI conversation or a public support report.
+4. Open your new bot and press **Start**. Let the setup agent help identify your own numeric Telegram user ID and that private chat using the gateway's supported setup.
+5. Configure Hermes's Telegram connection, restricted to your user ID. Send a simple test message yourself, followed by a question about fictional records.
+
+Telegram messages and replies pass through Telegram and your configured Hermes/model setup. Decide what you are comfortable sharing before using personal health information. The [Hermes Telegram guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram/) covers its gateway configuration.
+
+**Finished when:** your bot replies in the intended private chat and answers a fictional question using the tools. Check-ins, reaction buttons, recording health entries and scheduled reminders are additional workflows; a working chat alone does not prove those are configured.
+
+### Copy to your setup agent
+
+```text
+Connect my already-working Hermes/Open Health Atlas fictional setup to my
+own private Telegram bot. Follow the current official Hermes Telegram guide:
+https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram/
+First confirm which machine runs Hermes and that it can query the fictional
+database. Help me create a bot through the official @BotFather if needed,
+then let me enter its token privately in the local credential flow.
+Never echo the token or include it in a command transcript or shared file.
+
+Verify my own numeric user ID and the intended private chat. Set an explicit
+user allowlist, never a wildcard or public group permission. Preserve any
+existing bot configuration; do not start a second poller for the same token.
+Explain the Telegram and model-provider data destinations before activation.
+Ask me to send the test messages. Verify that the gateway replies and that
+a fictional health answer includes a successful Open Health Atlas tool call.
+Verify unauthorized-user rejection with a local synthetic test where possible;
+do not claim it passed if it was only a configuration inspection.
+
+Do not enable schedules, unsolicited health messages or record writes.
+If I separately request Open Health Atlas action buttons/check-ins, inspect
+config/telegram.env.example, deploy/hermes-telegram-integration.md,
+deploy/hermes_telegram_gateway_extension.py and deploy/install-telegram-actions.sh
+from the matching source release. These are separate from ordinary Hermes
+chat: verify gateway compatibility and fictional callbacks before activation,
+and preserve all existing real-data governance restrictions.
+Finish with verified results, remaining gaps, and how to stop the gateway or
+revoke this bot token through BotFather.
+```
+
+**If the bot is silent:** check that Hermes and its gateway are running, your own chat was started, and your user ID is allowed. Do not open the bot to everyone to troubleshoot it.
 
 ## Check one connection at a time
 
