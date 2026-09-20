@@ -68,7 +68,7 @@ command -v zstd >/dev/null
 "$oha_build_python" -B scripts/release_manifest.py verify
 "$oha_build_python" -B scripts/release_scan.py --history
 
-oha_version=0.2.2
+oha_version=0.2.3
 oha_commit=$(git rev-parse HEAD)
 oha_output=$(mktemp -d /private/tmp/oha-release-0.2.2.XXXXXX)
 oha_mode=${OHA_BUILD_MODE:-preview}
@@ -251,3 +251,15 @@ Link to [the user guide](DESKTOP.md), [local AI connection](DESKTOP_MCP.md) and
 unsupported until their own artifacts pass. Publish only through the authorized
 release workflow after reviewing these concrete files; this runbook does not
 publish or make a tag.
+
+### Installer presentation
+
+The disk image contains one visible app and the Applications shortcut. Finder
+opens a 640-by-400-point icon view with a paper-theme instruction and arrow.
+`desktop/macos/InstallerBackground.swift` renders standard and Retina artwork;
+`desktop/macos/dmg-settings.py` fixes the two icon positions. The hash-pinned
+`requirements-desktop-build.lock` installs isolated packaging tools only on the
+build host, never into the shipped app. License, exact source and notices remain
+available from the app menus. Verify the final mounted image in Finder and the
+Applications link destination before publishing; a background alone is not
+evidence that the icons are correctly positioned.

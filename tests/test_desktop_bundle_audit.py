@@ -82,7 +82,8 @@ def test_exact_source_archive_binds_git_manifest_members_and_runtime(tmp_path, m
     import stat
     required = ['LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'docs/LICENSE-MIT.md',
                 'desktop/macos/App.swift', 'desktop/macos/MCPLauncher.swift', 'desktop/macos/Icon.swift',
-                'desktop/macos/icon.svg', 'scripts/build_desktop.py', 'scripts/audit_desktop_bundle.py',
+                'desktop/macos/icon.svg', 'desktop/macos/InstallerBackground.swift',
+                'desktop/macos/dmg-settings.py', 'requirements-desktop-build.lock', 'scripts/build_desktop.py', 'scripts/audit_desktop_bundle.py',
                 'docs/DESKTOP_RELEASE.md', 'requirements-desktop.lock', 'scripts/devserver.py', '.env.example']
     files = {name: ('Reviewed fictional source: ' + name).encode() for name in required}
     dependencies = {'certifi.tar.gz': b'fictional certifi source', 'ordered-set.tar.gz': b'fictional ordered-set source'}

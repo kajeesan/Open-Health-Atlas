@@ -162,7 +162,8 @@ def audit_corresponding_source(data, receipt, source_root, runtime_root):
         raise ValueError('Required dependency sources missing')
     required = {'LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'docs/LICENSE-MIT.md',
                 'desktop/macos/App.swift', 'desktop/macos/MCPLauncher.swift', 'desktop/macos/Icon.swift',
-                'desktop/macos/icon.svg', 'scripts/build_desktop.py', 'scripts/audit_desktop_bundle.py',
+                'desktop/macos/icon.svg', 'desktop/macos/InstallerBackground.swift',
+                'desktop/macos/dmg-settings.py', 'requirements-desktop-build.lock', 'scripts/build_desktop.py', 'scripts/audit_desktop_bundle.py',
                 'docs/DESKTOP_RELEASE.md', 'requirements-desktop.lock'}
     if not required <= set(expected):
         raise ValueError('Corresponding source build materials missing')

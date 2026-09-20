@@ -46,6 +46,8 @@ SOURCE_REQUIRED = ('LICENSE', 'LICENSING.md', 'NOTICE', 'THIRD_PARTY_NOTICES.md'
                    'docs/LICENSE-MIT.md', 'docs/DESKTOP_RELEASE.md',
                    'desktop/macos/App.swift', 'desktop/macos/MCPLauncher.swift',
                    'desktop/macos/Icon.swift', 'desktop/macos/icon.svg',
+                   'desktop/macos/InstallerBackground.swift', 'desktop/macos/dmg-settings.py',
+                   'requirements-desktop-build.lock',
                    'desktop/dependency-sources.json', 'scripts/build_desktop.py',
                    'scripts/audit_desktop_bundle.py', 'requirements-desktop.lock',
                    'requirements-desktop.txt', 'requirements-mcp.txt', 'requirements.txt')
@@ -486,13 +488,30 @@ def main():
         flavor = 'signed-notarized'
     zipfile = output / f'{base}-{flavor}.zip'
     run(['/usr/bin/ditto', '-c', '-k', '--keepParent', bundle, zipfile])
-    volume = staging / 'volume'
-    if volume.exists(): shutil.rmtree(volume)
-    volume.mkdir(); shutil.copytree(bundle, volume / bundle.name, symlinks=True, copy_function=shutil.copy)
-    (volume / 'Applications').symlink_to('/Applications')
-    (volume / 'Install.txt').write_text('Drag Open Health Atlas into Applications, then open it there.\nYour records remain in your user Library/Application Support/Open Health Atlas.\nRemoving the app does not erase these records.\nOriginal project code is AGPL-3.0-only. Use the app menu to open the license and exact source.\n' + ('\nEVALUATION BUILD: not notarized for ordinary public distribution.\n' if not args.notary_profile else ''))
+    # Build-only tools stay outside both the runtime and corresponding product code.
+    # Their exact lock and Finder settings are included in corresponding source.
+    build_tools = work / 'dmg-tools'
+    run(['uv', 'venv', '--python', sys.executable, build_tools], env=env)
+    run(['uv', 'pip', 'install', '--python', build_tools / 'bin/python',
+         '--require-hashes', '--only-binary', ':all:', '-r', ROOT / 'requirements-desktop-build.lock'], env=env)
+    run(common + [ROOT / 'desktop/macos/InstallerBackground.swift', '-o', work / 'render-installer',
+                  '-framework', 'AppKit'], env=env)
+    background = work / 'installer.png'
+    run([work / 'render-installer', background, '1'], env=env)
+    run([work / 'render-installer', work / 'installer-retina.png', '2'], env=env)
+    retina_background = work / 'installer.tiff'
+    run(['/usr/bin/tiffutil', '-cathidpicheck', background, work / 'installer-retina.png',
+         '-out', retina_background], env=env)
     dmg = staging / f'{base}-{flavor}.dmg'
-    run(['/usr/bin/hdiutil', 'create', '-volname', 'Open Health Atlas', '-srcfolder', volume, '-ov', '-format', 'UDZO', dmg])
+    run([build_tools / 'bin/dmgbuild', '-s', ROOT / 'desktop/macos/dmg-settings.py',
+         '-D', f'app={bundle}', '-D', f'background={retina_background}', 'Open Health Atlas', dmg], env=env)
+    build_receipt['installer_layout'] = {
+        'window_points': [640, 400], 'visible_items': ['Open Health Atlas.app', 'Applications'],
+        'app_position': [160, 200], 'applications_position': [480, 200],
+        'build_tools_lock_sha256': digest(ROOT / 'requirements-desktop-build.lock'),
+        'background_1x_sha256': digest(background),
+        'background_2x_sha256': digest(work / 'installer-retina.png'),
+    }
     if args.notary_profile:
         run_private(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp', dmg])
         build_receipt['dmg_notarization'] = notarize(dmg, args.notary_profile, env)
