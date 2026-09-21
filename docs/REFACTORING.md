@@ -6,10 +6,11 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-Milestone 1 is complete at `cbeaf164256ef16f3b4dfef6b55fb5edd0e59efd`, with
-corrected runtime/replay baseline `c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
-Milestone 2 scope: shared CLI plumbing and the Hevy CSV importer. Continue on
-`codex/health-toolkit-modularization`; retain the accumulated local commits.
+Milestone 2 is complete, with production commit
+`2d460ca1b006d23be37ef295689037cda8e4da5a` and the [extraction evidence](#cli-and-hevy-csv-extraction-22-september-2026)
+below. The next Milestone 3 family covers remaining Hevy imports, Cronometer,
+Google Health, recipes and catalogs. Continue on `codex/health-toolkit-modularization`
+and retain the accumulated local commits.
 
 On 22 September 2026, the owner authorized fresh-main continuation after each
 milestone's verification and independent-review gates, replacing routine approval
@@ -17,15 +18,15 @@ before starting the next milestone. Push, merge, release, private-data, credenti
 and live-integration boundaries remain unchanged. No merge is needed to continue
 authorized local work.
 
-Milestone 2 ownership transfers through the fresh-main handoff. Exact checkout,
+Ownership of the next family transfers through the fresh-main handoff. Exact checkout,
 active task ownership, acceptance receipts and local evidence paths stay in the
 external handoff package. The successor must verify and explicitly accept the
 checkpoint before editing, then update this section at its milestone boundary.
 
 The [corrected baseline record](#corrected-toolkit-baseline-22-september-2026)
 contains the evidence and inherited resampling/finding-ID tie-break caveat.
-Carry that caveat forward; the 2,067 passing tests do not imply that every
-prepared evidence-selection slot is invariant under engine identity changes.
+Carry that caveat forward. Passing tests do not imply that every prepared
+evidence-selection slot is invariant under engine identity changes.
 
 ## Agreed requirements
 
@@ -624,3 +625,83 @@ local milestone review package outside source. Release inventory and privacy
 checks remain required at the final review head. The branch remains local;
 hosted GitHub checks and owner review are required before merge. Milestone 2
 has not begun.
+
+## CLI and Hevy CSV extraction, 22 September 2026
+
+Milestone 2 is complete locally. Production commit `2d460ca1b006d23be37ef295689037cda8e4da5a`
+contains the extraction. Independent source review and the complete test partitions
+used immutable Git tree `7e1c743556ea13fba5c64ebb52b94fa5bcac8c53` before that commit.
+The commit resolves to that exact tree. No source changed during verification.
+
+The CLI now has explicit registration, parsing, dispatch and error formatting.
+Hevy CSV parsing and its transaction coordinator have separate owners. The stable
+executable and unconverted handlers remain in the compatibility facade. See
+[Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries) for owners
+and dependency contracts. Other importer formats remain for Milestone 3.
+
+Six added import cases characterize metric distance conversion, missing values,
+empty history and failed imports. All six also passed against unchanged baseline
+production. An existing isolated allowlist test failed because its import path
+depended on other collected tests. A scoped path setup fixed it without changing
+assertions. Registry tests now refer to the CLI module that owns their contract.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,053 | 0/0/0 | 531.46 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 198.15 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.48 s |
+
+The disjoint total is 2,073 tests. Focused checks and external comparison probes
+are not added to that count. Tests used the declared environment, native library,
+Node, fictional records and the configured civil timezone.
+
+Baseline and candidate retained all 269 CLI exit codes and standard outputs.
+Five legacy error traces changed file/function locations while retaining their
+terminal exception types and messages. The other standard-error outputs matched.
+All 52 database snapshot pairs preserved schema, records, identifiers and sequences
+apart from generated ingestion timestamps. Each changed timestamp was validated
+against its originating command's execution interval. Four real broker requests
+preserved allowed writes, bulk-import rejection and read-only query protection.
+
+Paired timings used one first launch and five repeated fresh processes per workload.
+Filesystem caches were not forcibly cleared, and native acceleration was disabled.
+Hevy used a fresh identical database for each timed import.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Hevy CSV, five sets | 132.87 ms | 135.54 ms |
+| Schema status | 148.84 ms | 149.66 ms |
+| Readiness | 139.81 ms | 137.26 ms |
+| Nutrition targets | 130.18 ms | 130.24 ms |
+| Statistics, 120 observations | 288.31 ms | 289.76 ms |
+
+All timed outputs matched, and the shared read-only database bytes were unchanged.
+No material unexplained slowdown appeared in these representative workloads.
+
+The isolated ad hoc macOS app built from `2d460ca` passed 14 lifecycle checks,
+nine bundled MCP checks, 269 packaged CLI cases and four actual broker requests.
+All extracted modules loaded exclusively from the bundle and matched committed
+source. The 3,086-file audit and strict signature verification passed after
+execution, with bundle file hashes unchanged.
+
+Packaged outputs and database effects matched the source baseline, with documented
+traceback movement and one Python-version-specific argument-error rendering change.
+That argument-error output matched the previous actual package exactly. The build
+used cached dependencies offline. Sandbox restrictions and two external probe
+configuration mistakes were resolved by unchanged-source retries. All attempts
+remain in the evidence. This is local package verification, without native GUI,
+minimum-OS, notarization or clean-customer-install qualification.
+
+The explicit Hermes inventory includes the extracted files. Recursive cache
+identity remains active, and the numerical provenance hash and replay pins are
+unchanged. All existing end-to-end traces replayed exactly. The earlier
+[resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains relevant to future numerical engine changes.
+
+Independent source and evidence review found no remaining blocker. Local release
+inventory, vendor/license and source/history privacy checks passed. Exact commands,
+revisions, comparisons and package limits remain in the local evidence package.
+Nothing was pushed, merged, published or connected to a live service.
+
+The next bounded family is remaining Hevy imports, Cronometer, Google Health,
+recipes and catalogs, following the [approved milestone order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
