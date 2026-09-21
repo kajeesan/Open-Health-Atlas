@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="{{ help_theme|default('paper') }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Setup &amp; help · Open Health Atlas</title>
+  <link rel="stylesheet" href="/static/css/panel.css">
+  <link rel="stylesheet" href="/desktop/static/setup.css">
+  <link rel="stylesheet" href="/desktop/static/help.css">
+  <script src="/desktop/static/help.js" defer></script>
+</head>
+<body class="desktop-page help-page">
+  <main class="desktop-main desktop-help">
+    <header class="desktop-header">
+      <a class="desktop-brand" href="{{ '/' if workspace else '/desktop/setup' }}">{% include "_brand_mark.html" %}<span>Open Health Atlas</span></a>
+      <a class="desktop-back" href="{{ return_path }}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m11 5-7 7 7 7M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ 'Back' if workspace else 'Back to setup' }}</a>
+    </header>
+    <nav class="help-tabs" aria-label="Setup options">
+      <a href="{{ url_for('desktop.help_page', return_to=return_path) }}" {% if help_section == 'ai' %}aria-current="page"{% endif %}>Connect AI</a>
+      <a href="{{ url_for('desktop.help_page', section='full', return_to=return_path) }}" {% if help_section == 'full' %}aria-current="page"{% endif %}>Full experience setup</a>
+    </nav>
+    {% if help_section == 'ai' %}
+    <section class="help-connection" id="ai-connection" aria-labelledby="connect-title">
+      <h1 id="connect-title">Let your agent set it up.</h1>
+      <p class="desktop-intro">Copy the instructions below and paste them into Codex or another setup agent. It will connect your preferred AI app and check that it works.</p>
+      <div class="help-selection">
+        <p id="connection-workspace" role="status">Checking your workspace…</p>
+        <a href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a>
+      </div>
+      <p class="help-note">Try fictional records first. Your agent will need permission to change your AI app’s connection settings.</p>
+      <div class="help-actions"><button class="help-primary" id="copy-setup" type="button" disabled>Copy setup instructions</button></div>
+      <p id="connection-status" class="help-feedback" role="status" aria-live="polite"></p>
+      <details id="connection-details" class="help-inline-details">
+        <summary>View connection settings</summary>
+        <p class="help-note">This is the complete instruction your agent will receive, including the connection settings for this workspace.</p>
+        <pre id="connection-instructions" class="help-prompt">Choose a workspace to prepare your instructions.</pre>
+      </details>
+      <p class="help-privacy">Copies connection details and local folder paths, not health records or passwords. Your AI may send the records it later reads to its model provider. Review that choice before using personal data.</p>
+      <p class="help-note">Your dashboard works without AI. This connection can read records and calculate patterns; it cannot edit your health records.</p>
+    </section>
+    <section class="help-further" aria-labelledby="more-help-title">
+      <h2 id="more-help-title">When you need a little more help</h2>
+      <details class="help-topic">
+        <summary>My AI won’t connect</summary>
+        <div class="help-topic-content">
+          <ul>
+            <li><strong>No tools appear?</strong> Confirm your AI app supports local MCP, add the settings, then reconnect it.</li>
+            <li><strong>The app moved?</strong> Copy fresh instructions from its new location.</li>
+            <li><strong>No records appear?</strong> Check the workspace and dates. A new, empty workspace has no health history.</li>
+            <li><strong>An analysis is taking time?</strong> Ask your AI to check the existing task. Some calculations take several minutes.</li>
+          </ul>
+          <p>For your setup agent: the required connection type is <strong>local stdio MCP</strong>. The tools are <code>health_catalog</code>, <code>health_query</code>, <code>health_analyze</code>, <code>health_evidence</code> and <code>health_task_status</code>.</p>
+        </div>
+      </details>
+      <details class="help-topic">
+        <summary>Switch records, update the app or disconnect</summary>
+        <div class="help-topic-content">
+          <p><strong>To switch records:</strong> open the workspace you want, copy its setup instructions again and ask your agent to update the connection. Switching the dashboard alone does not switch your AI’s records.</p>
+          <p><strong>Before an update:</strong> back up your records, disconnect your AI and quit Open Health Atlas. After updating, open your workspace successfully, then reconnect the AI.</p>
+          <p><strong>To stop access:</strong> disconnect or remove Open Health Atlas in your AI app. Closing the dashboard alone does not stop the connection.</p>
+          <p>Copy fresh instructions if you change the workspace, timezone or app location.</p>
+        </div>
+      </details>
+      <details class="help-topic">
+        <summary>My records and backups</summary>
+        <div class="help-topic-content">
+          <p>Use an empty personal workspace to start your own records. Importing an existing Open Health Atlas database creates a copy; it does not change the original or keep the two in sync. Other databases, PDFs and spreadsheets need a supported import tool.</p>
+          <p>Your records stay on this Mac when you update or remove the app. Find them in your user Library under <strong>Application Support → Open Health Atlas</strong>.</p>
+          <p>For a full backup, quit the app and disconnect AI clients. Copy that whole folder to a private backup location. Keep the original when testing a restore.</p>
+          <p>The app checks recovery copies before a database upgrade. Keep those copies if an update fails. Importing a database from another installation does not include its separate notes, attachments or connection settings.</p>
+        </div>
+      </details>
+      <details class="help-topic">
+        <summary>The app is stuck, or I need support</summary>
+        <div class="help-topic-content">
+          <p>First launch and upgrades can take a little longer. If the app stays stuck, quit and reopen it. Your saved records and workspace selection remain.</p>
+          <p>If an import is rejected, choose a compatible Open Health Atlas database or a healthy backup. If an update repeatedly fails, reopen the previous app version and keep your data folder intact.</p>
+          <p>For support, share your app version and what you were trying to do. Review the app information below first. Never share health records, database files, connection settings or provider keys in a public report.</p>
+          <details id="diagnostics" class="help-inline-details"><summary>View app information for support</summary><pre id="diagnostic-report" class="connection-config">Loading app information…</pre></details>
+        </div>
+      </details>
+    </section>
+    {% else %}
+    <section class="help-full" aria-labelledby="full-title">
+      <h1 id="full-title">Bring your health together.</h1>
+      <p class="desktop-intro">Start with the apps you use, in the order below. Each setup is optional. Open one, copy its instructions, and let your agent help.</p>
+      {% include "desktop/help_optional.html" %}
+    </section>
+    {% endif %}
+    <footer class="desktop-footnote">Open Health Atlas · Created by Kajeesan Jeevendra · AGPL-3.0-only</footer>
+  </main>
+</body>
+</html>

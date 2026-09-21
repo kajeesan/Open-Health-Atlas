@@ -1,0 +1,126 @@
+name: Desktop build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'desktop/**'
+      - 'app/**'
+      - 'toolkit/**'
+      - 'deploy/hermes-bridge'
+      - 'scripts/init_hermes.py'
+      - 'scripts/make_demo_db.py'
+      - 'scripts/openhealthatlas_mcp.py'
+      - 'docs/authored-submuscle-map.md'
+      - 'scripts/build_desktop.py'
+      - 'scripts/audit_desktop_bundle.py'
+      - 'scripts/verify_desktop.py'
+      - 'scripts/verify_desktop_mcp.py'
+      - 'LICENSE'
+      - 'LICENSING.md'
+      - 'NOTICE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/LICENSE-MIT.md'
+      - 'RELEASE_MANIFEST.tsv'
+      - 'requirements*.txt'
+      - 'requirements-desktop.lock'
+      - 'requirements-desktop-build.lock'
+      - 'tests/test_desktop*'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'desktop/**'
+      - 'app/**'
+      - 'toolkit/**'
+      - 'deploy/hermes-bridge'
+      - 'scripts/init_hermes.py'
+      - 'scripts/make_demo_db.py'
+      - 'scripts/openhealthatlas_mcp.py'
+      - 'docs/authored-submuscle-map.md'
+      - 'scripts/build_desktop.py'
+      - 'scripts/audit_desktop_bundle.py'
+      - 'scripts/verify_desktop.py'
+      - 'scripts/verify_desktop_mcp.py'
+      - 'LICENSE'
+      - 'LICENSING.md'
+      - 'NOTICE'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/LICENSE-MIT.md'
+      - 'RELEASE_MANIFEST.tsv'
+      - 'requirements*.txt'
+      - 'requirements-desktop.lock'
+      - 'requirements-desktop-build.lock'
+      - 'tests/test_desktop*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  TZ: UTC
+  HERMES_TIMEZONE: UTC
+
+jobs:
+  build:
+    name: macOS arm64 evaluation artifact
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source and build host
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          python scripts/release_manifest.py verify
+          python scripts/release_scan.py --history
+      - name: Test artifact boundary checks
+        run: |
+          python -m pip install pytest==9.0.3 uv==0.11.25
+          python -m pytest -q --noconftest -p no:cacheprovider tests/test_desktop_bundle_audit.py tests/test_desktop_build_inputs.py
+      - name: Build self-contained evaluation app
+        run: |
+          python scripts/build_desktop.py --output-dir "$RUNNER_TEMP/oha-desktop" --version 0.2.5 --arch arm64
+      - name: Inspect packaged app
+        run: |
+          python scripts/audit_desktop_bundle.py "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --report "$RUNNER_TEMP/oha-desktop/bundle-audit.json"
+          codesign --verify --deep --strict "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app"
+      - name: Verify packaged lifecycle and data paths
+        run: |
+          python scripts/verify_desktop.py --app "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --output "$RUNNER_TEMP/oha-desktop/acceptance.json"
+      - name: Verify bundled real MCP protocol
+        run: |
+          python -m pip install -r requirements-mcp.txt
+          python scripts/verify_desktop_mcp.py --executable "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app/Contents/MacOS/openhealthatlas-mcp" --desktop-workspace > "$RUNNER_TEMP/oha-desktop/mcp-acceptance.json"
+          codesign --verify --deep --strict "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app"
+          python scripts/audit_desktop_bundle.py "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --report "$RUNNER_TEMP/oha-desktop/bundle-audit-after.json"
+      - name: Archive reviewed evaluation outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: openhealthatlas-macos-arm64-local-unsigned
+          path: |
+            ${{ runner.temp }}/oha-desktop/*.dmg
+            ${{ runner.temp }}/oha-desktop/*.zip
+            ${{ runner.temp }}/oha-desktop/*SHA256*
+            ${{ runner.temp }}/oha-desktop/*checksums*
+            ${{ runner.temp }}/oha-desktop/build-receipt.json
+            ${{ runner.temp }}/oha-desktop/mcp-acceptance.json
+            ${{ runner.temp }}/oha-desktop/bundle-audit-after.json
+            ${{ runner.temp }}/oha-desktop/bundle-audit.json
+            ${{ runner.temp }}/oha-desktop/acceptance.json
+          if-no-files-found: error
+          retention-days: 14
+# No production release or signing credentials are available to pull requests.
+# A passing build is packaging evidence, not a completed interactive install test.

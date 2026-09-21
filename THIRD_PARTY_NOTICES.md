@@ -36,6 +36,22 @@ The package's `LICENSE` and `NOTICE` are included alongside the bundle.
 OpenHealthAtlas uses its exported SVG path data through
 `app/static/js/muscle-figure.js`.
 
+## Theme backgrounds
+
+The Forest Verdant, Canyon Creek, Cyberpunk, Black Beach and Blue Glacier
+backgrounds are AI-assisted visual assets prepared from owner-supplied references
+for this project. The selected desktop and mobile images contain only image
+size and colour-space metadata; no location, identity or account metadata is
+included. The release scanner binds the reviewed images to their exact paths
+and SHA-256 values.
+
+El Capitan uses AI-assisted outpainted derivatives of
+[Intricate Explorer's El Capitan photograph](https://unsplash.com/photos/a-canyon-with-a-mountain-in-the-background-s43NuyQTEII),
+used under the [Unsplash License](https://unsplash.com/license). These photo
+terms are separate from the original project's software license.
+The included versions are `app/static/img/themes/el-capitan-desktop-4x3.jpg`
+and `app/static/img/themes/el-capitan-mobile.jpg`.
+
 ## Python dependencies
 
 Python packages listed in `requirements.txt`, `requirements-dev.txt` and the
@@ -56,3 +72,22 @@ Creative Commons Attribution 4.0 International. Its source attribution,
 license link and description of the reporting-section adaptation are retained
 in that document. This documentation license does not change the
 AGPL-3.0-only license for original project code.
+
+## Optional macOS desktop distribution
+
+The desktop builder includes a pinned CPython runtime from
+`python-build-standalone` and the exact packages in
+`requirements-desktop.lock`. It retains the upstream Python and bundled-native
+library license texts and the upstream `PYTHON.json` build metadata
+in `Contents/Resources/PythonLicenses`; wheel license texts and metadata remain
+with `PythonRuntime/lib/python3.12/site-packages/*.dist-info`. The generated
+`THIRD_PARTY_RUNTIME.txt` inventories exact package names and versions. Existing
+browser vendor notices and original creator attribution are included.
+The app icon and native host are original project assets covered by the current
+AGPL-3.0-only project license. Earlier MIT permissions remain described in
+`LICENSING.md`; they are not an alternative license for subsequent additions.
+
+The official Open Health Atlas logo is the Personal Contour Mark. Its canonical
+vector is `desktop/macos/icon.svg`; `desktop/macos/Icon.swift` renders the same
+geometry and colours for the native icon family. It is original project artwork
+covered by the project license and creator credit above.

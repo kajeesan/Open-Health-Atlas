@@ -1,0 +1,227 @@
+<ol class="integration-list" aria-label="Suggested setup order">
+  <li>
+    <div class="integration-heading"><span class="integration-number" aria-hidden="true">1</span><h2>Hevy</h2></div>
+    <p class="integration-description">Bring in your workouts. Uses Hevy API access and a separately configured Linux collector.</p>
+    <details><summary>Set up Hevy</summary>
+      <pre id="optional-hevy" class="help-prompt">Connect optional Hevy workout imports to my selected Open Health Atlas
+installation. Confirm my host and intended database first. Read the matching
+source release&#x27;s config/hevy.env.example, deploy/hevy-collector,
+deploy/install-hevy-sync.sh and hermes-hevy-sync service/timer files.
+These require a compatible Linux service setup; do not run them as Mac
+installer steps or guess the desktop workspace&#x27;s active database path.
+
+Check https://api.hevyapp.com/docs/ and help me open my Hevy developer settings
+at https://hevy.com/settings?developer. Verify account eligibility without
+buying a plan. Let me enter my API key privately into the external credential
+file. Preserve root:root 0600 protection required by the collector; never
+print the key or give it to the model, panel or unprivileged data account.
+
+Review interpreter/toolkit paths, timezone, sudo environment handling and
+the actual database selected by the import user. Preserve existing services
+and back up existing records consistently. Test with fictional data first,
+then perform the import I approve through the validated CLI. Compare a known
+workout&#x27;s timestamp, exercises, sets and units. Run again and check for
+unwanted duplicates. Check failure reporting without exposing raw records.
+Leave the sync timer disabled until I approve its schedule. Explain how to
+view the destination data, stop the timer and revoke the key. Do not promise
+Mac/server synchronization. Do not add the separate Hevy MCP gateway,
+modify workouts in Hevy or enable quarterly routine automation for this task.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-hevy">Copy Hevy instructions</button><span class="help-feedback" role="status"></span></div>
+    </details>
+  </li>
+  <li>
+    <div class="integration-heading"><span class="integration-number" aria-hidden="true">2</span><h2>Google Health</h2></div>
+    <p class="integration-description">Bring in supported sleep and activity records. Requires Google permission and a separate Linux collector.</p>
+    <details><summary>Set up Google Health</summary>
+      <pre id="optional-google-health" class="help-prompt">Set up the optional Google Health importer for Open Health Atlas.
+First confirm my host, data source, selected database and permission to import.
+Use the matching Open Health Atlas source release and read docs/DEPLOYMENT.md,
+deploy/ghealth-auth, deploy/ghealth-sync, deploy/install-ghealth-sync.sh and
+its service/timer files. These are Linux deployment tools, not Mac app setup.
+If I only have the Mac app, explain that limitation before proposing a server;
+do not point a Linux collector at a guessed desktop database generation.
+
+Check https://developers.google.com/health/setup and Google&#x27;s current OAuth
+rules. Guide me through project/API enablement and a Web application OAuth
+client. Match the helper&#x27;s exact redirect http://localhost:8385 (or its
+explicitly chosen port). For a headless server, use a reviewed SSH local
+forward so the callback stays loopback-only. Request only the three scopes
+used by this collector: googlehealth.sleep.readonly,
+googlehealth.activity_and_fitness.readonly, and
+googlehealth.health_metrics_and_measurements.readonly under the
+https://www.googleapis.com/auth/ prefix. Verify current availability.
+
+Let me enter the client secret privately and perform Google consent myself.
+Check Testing-mode refresh-token expiry and actual publishing/verification
+requirements; do not blindly promise permanent access or bypass warnings.
+Keep OAuth configuration outside source with the helper&#x27;s required root
+ownership and 0600 permissions. Never print tokens or raw health payloads.
+
+Review the service sandbox, credential loading, executable paths, interpreter,
+timezone and effective health database under the actual collector and import
+users. Confirm sudo&#x27;s environment handling and writable data/cache paths.
+Back up existing data consistently. Test the adapter with fictional input,
+then run only the import I authorize through the validated health.py path.
+Verify imported dates, source labels, partial-failure reporting and a repeat
+run without duplicates. Leave the timer disabled until I approve a specific
+schedule. State where the records now live and how I can view them; server
+imports do not automatically synchronize the Mac app. Explain disabling the
+timer and revoking Google access, and mark any unavailable API/data category.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-google-health">Copy Google Health instructions</button><span class="help-feedback" role="status"></span></div>
+    </details>
+  </li>
+  <li>
+    <div class="integration-heading"><span class="integration-number" aria-hidden="true">3</span><h2>Cronometer</h2></div>
+    <p class="integration-description">Bring in daily nutrition totals from a CSV file. Repeat the import when you want newer records.</p>
+    <details><summary>Set up Cronometer</summary>
+      <pre id="optional-cronometer" class="help-prompt">Help me import Cronometer daily nutrition into my selected Open Health Atlas
+workspace. This is a local CSV import, not a live API connection. Do not ask
+for my Cronometer password or create an unofficial API/scraping integration.
+Help me use Cronometer&#x27;s website Export Data &gt; Daily Nutrition for the dates
+I choose, with diary-group/meal breakdown disabled: one daily-total row per
+date. Let me sign in and save the file privately. Do not upload the CSV or
+print personal rows into an online conversation.
+
+Use the matching reviewed Open Health Atlas release. Read toolkit/health.py&#x27;s
+import_cronometer implementation and the import-cronometer CLI help. Check
+UTF-8 encoding, the Date column, unique daily rows and supported nutrient/unit
+headers on a local copy. Do not use a Food &amp; Recipe Entries or Servings export.
+If the format differs, explain the mismatch before importing; never guess
+columns, convert missing values to zero or treat partial imports as complete.
+
+Ask which workspace should receive the data and get approval for that import.
+For the Mac app, resolve the selected workspace&#x27;s current database generation
+through the supported workspace metadata/resolver; do not guess a database
+path or modify the signed app. Quit the app and disconnect AI clients before
+making a consistent backup and using the matching validated toolkit importer.
+Use an explicit HEALTH_DB destination and preserve the original CSV and backup.
+Never write directly to SQLite. If a supported importer/runtime is unavailable,
+explain the required source setup instead of claiming the file was imported.
+
+Verify a known day&#x27;s dates, calories and nutrient units, report skipped rows
+and unmatched columns, and repeat the same import to check idempotency. Reopen
+the workspace and confirm the nutrition data is visible. Do not invent nutrient
+targets or promise automatic syncing. Explain how to repeat the import and
+recover from the verified backup without overwriting the only good copy.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-cronometer">Copy Cronometer instructions</button><span class="help-feedback" role="status"></span></div>
+    </details>
+  </li>
+</ol>
+<section class="help-advanced" aria-labelledby="advanced-title">
+  <h2 id="advanced-title">Advanced setup</h2>
+  <p>For an always-on assistant, hosting or chatting from your phone. Start only with the parts you need.</p>
+  <details class="help-optional"><summary>Hostinger VPS</summary><p>Keep services running when your Mac is off. A rented server has its own costs and records; it does not automatically sync with this Mac.</p>
+    <pre id="optional-hostinger" class="help-prompt">Set up optional Open Health Atlas hosting on a Hostinger KVM VPS.
+Ask whether I already have a Hostinger VPS, my preferred region and budget,
+and which integrations I want. Check current Hostinger plan resources,
+initial and renewal costs, billing term and backup charges before proposing
+a plan. Let me handle sign-in and purchasing. Do not choose shared website
+hosting, buy add-ons or transfer personal health data without my approval.
+
+For a new VPS, use Hostinger&#x27;s available Plain OS Ubuntu 24.04 LTS template
+if compatible with the chosen release. Reuse an existing server only after
+checking its OS, data and other workloads. Never reinstall its OS, reset it
+or restore a whole-server snapshot as a routine setup step.
+
+Follow the current official Hostinger VPS documentation:
+https://www.hostinger.com/support/5726606-how-to-use-the-vps-dashboard-in-hostinger/
+Use hPanel &gt; VPS to locate the server and its real SSH connection details.
+Help me set up SSH keys locally; never request my private key or password
+in chat. Verify an administrative login and hPanel&#x27;s browser-terminal
+recovery route before restricting access. Use a separate unprivileged
+service account. Review both Hostinger&#x27;s VPS firewall and the OS firewall;
+allow only the administration/private-access traffic this setup needs.
+Check hPanel&#x27;s Snapshots &amp; Backups options and agree on the schedule/cost.
+Keep a consistent, private application-data backup as well, and test restore
+to a separate path without overwriting current records.
+
+Use the reviewed matching public source release
+from https://github.com/kajeesan/Open-Health-Atlas. Read docs/DEPLOYMENT.md,
+docs/PRIVACY.md, docs/LOCAL_MCP.md and the selected deploy/ templates.
+Prepare a separate fictional installation first. Review every hardcoded path,
+service user, Python environment, timezone, database and writable cache path.
+Keep credentials and data outside source with restricted permissions.
+Restrict administration and dashboard access through an authenticated private
+connection. Preserve passkeys/CSRF for a web deployment. Do not expose the
+Flask development server, dev-login, database or unauthenticated MCP publicly.
+
+For Hermes on this server, use a supported source-based local stdio MCP
+process on the same host with an explicitly selected fictional database.
+Do not use the Mac app executable or its local paths. Do not weaken the
+separate protected Hermes adapters&#x27; fictional-data/governance gates.
+Do not create remote-MCP exposure just to accommodate a remote-only client.
+
+Verify actual tool discovery, a fictional query/analysis/evidence round trip,
+service restart and backup restoration to a separate location. If I select
+Google Health, Hevy or Telegram, follow its separate guide and confirm which
+database/chat it targets. The server and Mac app are separate installations;
+no automatic two-way database synchronization is provided. Propose a concrete
+supported viewing/import approach instead of inventing one.
+
+Leave timers disabled until I approve their schedules. Before any personal
+data transfer, identify the selected data, Hostinger server/region, any model
+provider, access
+and backup arrangement and ask for approval. Finish with a plain-language
+record of enabled services, Hostinger renewal and backup costs, any model
+fees, maintenance tasks, verified
+results, gaps, and exact stop/restart/backup/recovery steps for my installation.
+Explain how to manage renewal/cancellation in Hostinger. Do not assume that
+stopping a server or service cancels its subscription. Do not install a local
+LLM on the VPS unless I request it and its resource requirements are checked.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-hostinger">Copy Hostinger VPS instructions</button><span class="help-feedback" role="status"></span></div>
+  </details>
+  <details class="help-optional"><summary>Hermes agent</summary><p>Use Hermes as your AI assistant. It can run locally; a VPS is only needed if you choose always-on hosting.</p>
+    <pre id="optional-hermes" class="help-prompt">Set up optional Hermes as my Open Health Atlas AI client on this computer.
+Use the official NousResearch/hermes-agent project and its current docs:
+https://hermes-agent.nousresearch.com/docs/getting-started/installation/
+https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/
+Check for an existing installation first and preserve its settings.
+Help me select a model and enter credentials privately, without printing
+secrets or putting them in source control. Explain any subscription/API cost
+and where model requests are processed. Do not purchase anything for me.
+
+Use my installed Mac app&#x27;s fictional workspace and copied connection settings. Translate mcpServers JSON into Hermes&#x27;s supported
+mcp_servers structure, retaining the exact command and arguments. Back up
+and merge configuration without replacing unrelated settings. Restrict this
+connection to the five Open Health Atlas health tools. Do not enable Telegram,
+schedules, broad filesystem access or record-writing tools as part of this.
+
+Verify tool discovery, a fictional query, and evidence verification in the
+actual Hermes session. Preserve dates, units and missing-data limitations.
+If Hermes runs on another host, stop the local-path setup and explain the
+separate source installation it needs; do not upload my Mac workspace.
+Do not substitute deploy/hermes-openhealthatlas-mcp for the portable server:
+that is a separate protected adapter with its own fictional/governance rules.
+Report verified and unverified steps and how to remove only this connection.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-hermes">Copy Hermes agent instructions</button><span class="help-feedback" role="status"></span></div>
+  </details>
+  <details class="help-optional"><summary>Telegram</summary><p>Chat with Hermes through a private bot on your phone. Hermes must be running; messages pass through Telegram.</p>
+    <pre id="optional-telegram" class="help-prompt">Connect my already-working Hermes/Open Health Atlas fictional setup to my
+own private Telegram bot. Follow the current official Hermes Telegram guide:
+https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram/
+First confirm which machine runs Hermes and that it can query the fictional
+database. Help me create a bot through the official @BotFather if needed,
+then let me enter its token privately in the local credential flow.
+Never echo the token or include it in a command transcript or shared file.
+
+Verify my own numeric user ID and the intended private chat. Set an explicit
+user allowlist, never a wildcard or public group permission. Preserve any
+existing bot configuration; do not start a second poller for the same token.
+Explain the Telegram and model-provider data destinations before activation.
+Ask me to send the test messages. Verify that the gateway replies and that
+a fictional health answer includes a successful Open Health Atlas tool call.
+Verify unauthorized-user rejection with a local synthetic test where possible;
+do not claim it passed if it was only a configuration inspection.
+
+Do not enable schedules, unsolicited health messages or record writes.
+If I separately request Open Health Atlas action buttons/check-ins, inspect
+config/telegram.env.example, deploy/hermes-telegram-integration.md,
+deploy/hermes_telegram_gateway_extension.py and deploy/install-telegram-actions.sh
+from the matching source release. These are separate from ordinary Hermes
+chat: verify gateway compatibility and fictional callbacks before activation,
+and preserve all existing real-data governance restrictions.
+Finish with verified results, remaining gaps, and how to stop the gateway or
+revoke this bot token through BotFather.</pre>
+        <div class="help-actions"><button type="button" data-copy="optional-telegram">Copy Telegram instructions</button><span class="help-feedback" role="status"></span></div>
+  </details>
+</section>

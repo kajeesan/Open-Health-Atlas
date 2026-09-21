@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card auth-card">
   <div class="auth-brand">
-    <span class="brand-mark">⚕</span>
+    {% include "_brand_mark.html" %}
     <h1>Enroll this device</h1>
   </div>
   {% if token_ok %}

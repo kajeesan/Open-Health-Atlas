@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" data-theme="{{ setup_theme|default('paper') }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Welcome · Open Health Atlas</title>
+  <link rel="stylesheet" href="/static/css/panel.css">
+  <link rel="stylesheet" href="/desktop/static/setup.css">
+  <script src="/desktop/static/setup.js" defer></script>
+</head>
+<body class="desktop-page desktop-setup">
+  <header class="desktop-header setup-header">
+    <a class="desktop-brand" href="{{ '/' if workspace else '/desktop/setup' }}">{% include "_brand_mark.html" %}<span>Open Health Atlas</span></a>
+    <nav class="setup-navigation" aria-label="Workspace navigation">
+      {% if workspace %}<a class="desktop-back" href="{{ return_path }}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m11 5-7 7 7 7M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</a>{% endif %}
+      <a class="setup-help" href="{{ url_for('desktop.help_page', return_to='/desktop/setup') }}">Help</a>
+    </nav>
+  </header>
+  <main class="setup-scroll">
+    <div class="setup-layout">
+      <section class="setup-welcome" aria-labelledby="welcome-title">
+        <h1 id="welcome-title">Your health, <br>in one place.</h1>
+        <p class="desktop-intro">Bring your records together. Explore patterns, and see the evidence behind them.</p>
+        <p class="setup-local-note">Your dashboard works on this Mac.<br>No AI account needed.</p>
+      </section>
+      <div class="setup-panel">
+        {% if startup_message %}<p class="setup-status error" role="status">{{ startup_message }} You can open another workspace below. The previous workspace has been kept.</p>{% endif %}
+        <section id="existing-workspaces" hidden aria-labelledby="existing-title">
+          <h2 id="existing-title">Continue where you left off</h2>
+          <div id="workspace-list" class="workspace-list"></div>
+          <h2>Create another workspace</h2>
+        </section>
+        <form id="workspace-form">
+          <fieldset class="workspace-choices">
+            <legend>How would you like to begin?</legend>
+            <p class="setup-choice-hint">Choose an option, then select Continue.</p>
+            <label class="workspace-choice"><input type="radio" name="kind" value="demo" checked><span><strong>Try fictional data</strong><span>Explore a fictional example, separate from your records.</span></span></label>
+            <label class="workspace-choice"><input type="radio" name="kind" value="personal"><span><strong>Start with my own data</strong><span>Create an empty workspace for your records.</span></span></label>
+            <label class="workspace-choice"><input type="radio" name="kind" value="import"><span><strong>Open existing data</strong><span>Copy a compatible database. Keep the original unchanged.</span></span></label>
+          </fieldset>
+          <div id="import-details" class="setup-detail" hidden>
+            <label for="source-database">Open Health Atlas database</label>
+            <div class="file-choice"><input id="source-database" name="source_database" readonly placeholder="No file selected"><button type="button" id="choose-database">Choose file…</button></div>
+            <p class="field-note">Choose a complete Open Health Atlas database (.db or .sqlite). PDFs, spreadsheets and databases from other apps cannot be opened here. Existing login sessions are not copied.</p>
+          </div>
+          <details class="setup-detail setup-timezone">
+            <summary>Time zone <span id="timezone-value">UTC</span><span class="timezone-edit">Change</span></summary>
+            <div class="setup-timezone-fields">
+            <label for="timezone">Time zone</label>
+            <input id="timezone" name="timezone" type="text" list="timezones" required value="UTC" autocomplete="off" aria-describedby="timezone-help">
+            <datalist id="timezones"><option value="UTC"><option value="Europe/Paris"><option value="Europe/London"><option value="America/New_York"><option value="America/Los_Angeles"><option value="Asia/Kolkata"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist>
+            <p id="timezone-help" class="field-note">Suggested from your Mac. Used to group your daily records.</p>
+            </div>
+          </details>
+        </form>
+      </div>
+    </div>
+  </main>
+  <footer class="setup-actions">
+    <div class="setup-actions-inner">
+      <div class="setup-action-copy">
+        <p id="selection-description">Open the fictional example</p>
+        <p id="setup-status" class="setup-status" role="status" aria-live="polite"></p>
+        <p class="desktop-footnote">Your workspaces stay on this Mac when you update or remove the app.</p>
+      </div>
+      <button class="desktop-primary" id="open-workspace" type="submit" form="workspace-form"><span id="continue-label">Continue</span><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </footer>
+</body>
+</html>

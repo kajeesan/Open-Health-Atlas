@@ -5,6 +5,11 @@ and analyse an existing local health database. Choose the model in your client.
 The server supplies deterministic records and evidence, and makes no model or
 provider calls itself.
 
+The [macOS desktop preview](DESKTOP_MCP.md) bundles this server and exports
+client configuration from Desktop Help. Its publication and platform limits
+are recorded in [desktop acceptance](DESKTOP_ACCEPTANCE.md). The source setup
+below remains supported independently.
+
 ## Install and create a fictional database
 
 Use Git and Python 3.11 or newer on macOS or Linux. The current analytical

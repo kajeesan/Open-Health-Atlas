@@ -1,5 +1,5 @@
 /* OpenHealthAtlas design system.
-   12 selectable themes via [data-theme] on <html> (default: paper).
+   8 selectable themes via [data-theme] on <html> (default: paper).
    Charts read these variables at render time (charts-common.js), so the
    palette lives here and only here.
    The LEGACY ALIAS block below maps every pre-redesign (v2 "Orion") variable
@@ -22,8 +22,8 @@
   --tabbar-h: 62px;
 }
 
-/* Themes use code-native gradients so the distribution has no unprovenanced
-   photo or font binaries. */
+/* Selected themes layer supplied photos beneath their contrast gradients.
+   If an image is unavailable, --bg-color still provides a readable fallback. */
 :root, [data-theme="paper"] {
   --bg-color:#efece7; --bg-image-stack:none; --ring-inner:#fffdfa;
   --ink:#23221d; --muted:#847f75; --hair:#e8e4dd;
@@ -34,18 +34,8 @@
   --hero-label:#8a8156;
   color-scheme: light;
 }
-[data-theme="alpine"] {
-  --bg-color:#252d2e; --bg-image-stack:linear-gradient(180deg,rgba(20,26,28,.26),rgba(22,28,30,.52)); --ring-inner:rgba(28,36,37,.34);
-  --ink:#eef4f4; --muted:rgba(222,235,236,.72); --hair:rgba(255,255,255,.15);
-  --card-bg:rgba(32,41,42,.32); --card-blur:20px; --card-border:rgba(196,220,223,.24); --card-shadow:0 10px 34px rgba(0,0,0,.30);
-  --sidebar-bg:rgba(20,27,28,.36); --sidebar-active:#e6f0f1; --sidebar-active-ink:#213031;
-  --accent:#b6d1d5; --accent-soft:rgba(182,209,213,.26); --track:rgba(255,255,255,.16); --grid:rgba(255,255,255,.13);
-  --good:#a3cf9b; --warn:#e6c67f; --bad:#e8978d; --chip:rgba(255,255,255,.13);
-  --hero-label:#cadfe1;
-  color-scheme: dark;
-}
 [data-theme="verdant"] {
-  --bg-color:#16301f; --bg-image-stack:linear-gradient(180deg,rgba(14,30,20,.40),rgba(12,26,17,.58)); --ring-inner:rgba(18,40,26,.36);
+  --bg-color:#16301f; --bg-image-stack:linear-gradient(180deg,rgba(14,30,20,.40),rgba(12,26,17,.58)),url('../img/themes/forest-verdant-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(18,40,26,.36);
   --ink:#eef6ec; --muted:rgba(226,241,226,.74); --hair:rgba(255,255,255,.14);
   --card-bg:rgba(28,58,40,.34); --card-blur:20px; --card-border:rgba(206,232,196,.26); --card-shadow:0 10px 34px rgba(0,0,0,.26);
   --sidebar-bg:rgba(17,40,26,.40); --sidebar-active:rgba(226,241,226,.92); --sidebar-active-ink:#1b3a26;
@@ -54,24 +44,14 @@
   --hero-label:#cfe8c4;
   color-scheme: dark;
 }
-[data-theme="sunbeam"] {
-  --bg-color:#1b201b; --bg-image-stack:linear-gradient(180deg,rgba(12,16,13,.34),rgba(10,14,11,.56)); --ring-inner:rgba(22,28,22,.36);
-  --ink:#f2f4ec; --muted:rgba(236,240,226,.72); --hair:rgba(255,255,255,.14);
-  --card-bg:rgba(30,36,28,.32); --card-blur:20px; --card-border:rgba(230,236,210,.24); --card-shadow:0 10px 34px rgba(0,0,0,.32);
-  --sidebar-bg:rgba(18,22,17,.36); --sidebar-active:rgba(238,242,222,.92); --sidebar-active-ink:#232a1e;
-  --accent:#e7ecd2; --accent-soft:rgba(231,236,210,.28); --track:rgba(255,255,255,.16); --grid:rgba(255,255,255,.15);
-  --good:#b6d492; --warn:#ecc879; --bad:#ec9a90; --chip:rgba(231,236,210,.15);
-  --hero-label:#e2e6c8;
-  color-scheme: dark;
-}
-[data-theme="ridge"] {
-  --bg-color:#333f47; --bg-image-stack:linear-gradient(180deg,rgba(20,28,32,.44),rgba(16,24,28,.56)); --ring-inner:rgba(24,36,40,.36);
-  --ink:#f1f5f4; --muted:rgba(230,240,240,.74); --hair:rgba(255,255,255,.15);
-  --card-bg:rgba(34,46,50,.34); --card-blur:20px; --card-border:rgba(214,232,232,.26); --card-shadow:0 10px 34px rgba(0,0,0,.28);
-  --sidebar-bg:rgba(22,32,36,.40); --sidebar-active:rgba(230,242,242,.92); --sidebar-active-ink:#1e2e33;
-  --accent:#dbeceb; --accent-soft:rgba(219,236,235,.30); --track:rgba(255,255,255,.16); --grid:rgba(255,255,255,.14);
-  --good:#a2d69a; --warn:#e8cb74; --bad:#ec988e; --chip:rgba(219,236,235,.16);
-  --hero-label:#d6eceb;
+[data-theme="tidal-peaks"] {
+  --bg-color:#182531; --bg-image-stack:linear-gradient(180deg,rgba(12,20,28,.28),rgba(8,15,22,.64)),url('../img/themes/tidal-peaks-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(20,32,42,.42);
+  --ink:#f3f7fa; --muted:rgba(218,229,238,.76); --hair:rgba(220,235,246,.16);
+  --card-bg:rgba(18,28,38,.42); --card-blur:20px; --card-border:rgba(200,218,232,.26); --card-shadow:0 10px 36px rgba(0,0,0,.34);
+  --sidebar-bg:rgba(13,22,30,.54); --sidebar-active:#d9bd91; --sidebar-active-ink:#20282e;
+  --accent:#d9bd91; --accent-soft:rgba(217,189,145,.28); --track:rgba(255,255,255,.16); --grid:rgba(215,230,240,.14);
+  --good:#8fc7b0; --warn:#d9bd91; --bad:#e18d82; --chip:rgba(190,211,228,.16);
+  --hero-label:#e1c9a4;
   color-scheme: dark;
 }
 [data-theme="ember"] {
@@ -85,7 +65,7 @@
   color-scheme: light;
 }
 [data-theme="cyber"] {
-  --bg-color:#05061a; --bg-image-stack:linear-gradient(180deg,rgba(6,7,26,.60),rgba(4,4,18,.78)); --ring-inner:rgba(10,10,34,.42);
+  --bg-color:#05061a; --bg-image-stack:linear-gradient(180deg,rgba(6,7,26,.60),rgba(4,4,18,.78)),url('../img/themes/cyber-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(10,10,34,.42);
   --ink:#eaf6ff; --muted:rgba(190,205,235,.72); --hair:rgba(120,150,220,.20);
   --card-bg:rgba(16,14,44,.44); --card-blur:20px; --card-border:rgba(120,120,230,.36); --card-shadow:0 10px 40px rgba(0,0,0,.5);
   --sidebar-bg:rgba(9,8,34,.54); --sidebar-active:#29e7ff; --sidebar-active-ink:#05061a;
@@ -96,55 +76,34 @@
 }
 [data-theme="cyber"] .disp { text-shadow: 0 0 16px rgba(41,231,255,.30); }
 [data-theme="cyber"] .card { box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(41,231,255,.05); }
-[data-theme="grove"] {
-  --bg-color:#2c3a2e; --bg-image-stack:linear-gradient(180deg,rgba(20,30,22,.28),rgba(18,28,20,.48)); --ring-inner:rgba(26,36,28,.34);
-  --ink:#eef4ea; --muted:rgba(226,238,224,.74); --hair:rgba(255,255,255,.15);
-  --card-bg:rgba(34,48,38,.32); --card-blur:20px; --card-border:rgba(214,232,206,.26); --card-shadow:0 10px 34px rgba(0,0,0,.24);
-  --sidebar-bg:rgba(24,36,28,.40); --sidebar-active:rgba(226,240,220,.92); --sidebar-active-ink:#25382a;
-  --accent:#cfe3bf; --accent-soft:rgba(207,227,191,.30); --track:rgba(255,255,255,.16); --grid:rgba(255,255,255,.14);
-  --good:#a7d492; --warn:#e6cb74; --bad:#e79288; --chip:rgba(207,227,191,.16);
-  --hero-label:#cfe3bf;
-  color-scheme: dark;
-}
-[data-theme="timber"] {
-  --bg-color:#1c2622; --bg-image-stack:linear-gradient(180deg,rgba(14,22,20,.36),rgba(12,20,18,.56)); --ring-inner:rgba(20,30,26,.36);
-  --ink:#eaf2ee; --muted:rgba(214,230,224,.72); --hair:rgba(255,255,255,.13);
-  --card-bg:rgba(24,36,32,.36); --card-blur:20px; --card-border:rgba(198,220,210,.24); --card-shadow:0 10px 34px rgba(0,0,0,.3);
-  --sidebar-bg:rgba(16,26,22,.44); --sidebar-active:rgba(220,236,228,.92); --sidebar-active-ink:#1a2a25;
-  --accent:#bcd6c6; --accent-soft:rgba(188,214,198,.30); --track:rgba(255,255,255,.15); --grid:rgba(255,255,255,.13);
-  --good:#9ccf94; --warn:#e2c877; --bad:#e58e86; --chip:rgba(188,214,198,.15);
-  --hero-label:#bcd6c6;
-  color-scheme: dark;
-}
-[data-theme="cosmos"] {
-  --bg-color:#0b0f2a; --bg-image-stack:linear-gradient(180deg,rgba(8,10,32,.40),rgba(6,8,26,.62)); --ring-inner:rgba(14,16,44,.42);
-  --ink:#eef0ff; --muted:rgba(200,206,240,.74); --hair:rgba(150,160,230,.20);
-  --card-bg:rgba(20,22,54,.40); --card-blur:20px; --card-border:rgba(160,165,230,.30); --card-shadow:0 10px 40px rgba(0,0,0,.45);
-  --sidebar-bg:rgba(12,14,40,.50); --sidebar-active:#b9a6ff; --sidebar-active-ink:#12102e;
-  --accent:#b9a6ff; --accent-soft:rgba(185,166,255,.28); --track:rgba(170,175,235,.20); --grid:rgba(150,160,230,.16);
-  --good:#8fe0b4; --warn:#f0d488; --bad:#f2a0b2; --chip:rgba(160,165,230,.18);
-  --hero-label:#c9bcff;
-  color-scheme: dark;
-}
-[data-theme="cosmos"] .disp { text-shadow: 0 0 18px rgba(185,166,255,.28); }
-[data-theme="glacier"] {
-  --bg-color:#26333a; --bg-image-stack:linear-gradient(180deg,rgba(18,28,32,.32),rgba(16,26,30,.50)); --ring-inner:rgba(22,34,38,.36);
-  --ink:#eef6f8; --muted:rgba(220,236,240,.74); --hair:rgba(255,255,255,.15);
-  --card-bg:rgba(30,44,50,.34); --card-blur:20px; --card-border:rgba(202,230,236,.28); --card-shadow:0 10px 34px rgba(0,0,0,.26);
-  --sidebar-bg:rgba(20,32,38,.42); --sidebar-active:rgba(224,242,246,.92); --sidebar-active-ink:#1c2e34;
-  --accent:#bfe6ec; --accent-soft:rgba(191,230,236,.30); --track:rgba(255,255,255,.16); --grid:rgba(255,255,255,.14);
-  --good:#8fd6c0; --warn:#ecd07a; --bad:#ef9a92; --chip:rgba(191,230,236,.16);
-  --hero-label:#bfe6ec;
+[data-theme="blue-glacier"] {
+  --bg-color:#0b2836; --bg-image-stack:linear-gradient(180deg,rgba(8,29,40,.18),rgba(5,19,28,.60)),url('../img/themes/blue-glacier-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(13,42,54,.40);
+  --ink:#f1fbff; --muted:rgba(218,239,247,.78); --hair:rgba(211,241,250,.18);
+  --card-bg:rgba(12,37,49,.40); --card-blur:20px; --card-border:rgba(166,222,238,.30); --card-shadow:0 10px 36px rgba(0,0,0,.30);
+  --sidebar-bg:rgba(8,29,39,.54); --sidebar-active:#78d8f4; --sidebar-active-ink:#06242f;
+  --accent:#78d8f4; --accent-soft:rgba(120,216,244,.28); --track:rgba(235,250,255,.17); --grid:rgba(210,241,250,.15);
+  --good:#8dd8c4; --warn:#f0c97a; --bad:#e88d88; --chip:rgba(150,218,238,.17);
+  --hero-label:#a9e5f5;
   color-scheme: dark;
 }
 [data-theme="canyon"] {
-  --bg-color:#1f2620; --bg-image-stack:linear-gradient(180deg,rgba(16,20,16,.32),rgba(14,18,14,.54)); --ring-inner:rgba(24,28,22,.36);
+  --bg-color:#1f2620; --bg-image-stack:linear-gradient(180deg,rgba(16,20,16,.32),rgba(14,18,14,.54)),url('../img/themes/forest-canyon-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(24,28,22,.36);
   --ink:#f4efe4; --muted:rgba(232,224,206,.74); --hair:rgba(255,255,255,.14);
   --card-bg:rgba(30,32,24,.36); --card-blur:20px; --card-border:rgba(230,210,160,.24); --card-shadow:0 10px 34px rgba(0,0,0,.30);
   --sidebar-bg:rgba(20,22,16,.44); --sidebar-active:#e8c27a; --sidebar-active-ink:#241d0f;
-  --accent:#e8c27a; --accent-soft:rgba(232,194,122,.28); --track:rgba(255,255,255,.15); --grid:rgba(255,255,255,.13); --bg-size:100% auto; --bg-pos:center top; --bg-left:230px;
+  --accent:#e8c27a; --accent-soft:rgba(232,194,122,.28); --track:rgba(255,255,255,.15); --grid:rgba(255,255,255,.13);
   --good:#a9cf7f; --warn:#e8c27a; --bad:#e2926a; --chip:rgba(232,194,122,.16);
   --hero-label:#e8c27a;
+  color-scheme: dark;
+}
+[data-theme="el-capitan"] {
+  --bg-color:#241f1d; --bg-image-stack:linear-gradient(180deg,rgba(28,20,22,.28),rgba(15,16,19,.62)),url('../img/themes/el-capitan-desktop-4x3.jpg'); --bg-size:100% 100%,cover; --bg-pos:center; --bg-left:var(--sidebar-w); --ring-inner:rgba(34,28,28,.40);
+  --ink:#f8f1ea; --muted:rgba(240,225,212,.76); --hair:rgba(255,238,222,.16);
+  --card-bg:rgba(38,30,30,.40); --card-blur:20px; --card-border:rgba(244,202,164,.28); --card-shadow:0 10px 36px rgba(0,0,0,.34);
+  --sidebar-bg:rgba(27,22,23,.50); --sidebar-active:#f0bd84; --sidebar-active-ink:#281b15;
+  --accent:#f0bd84; --accent-soft:rgba(240,189,132,.28); --track:rgba(255,255,255,.16); --grid:rgba(255,238,222,.14);
+  --good:#a7d3a0; --warn:#f0bd84; --bad:#e29383; --chip:rgba(244,202,164,.16);
+  --hero-label:#f4c999;
   color-scheme: dark;
 }
 
@@ -255,10 +214,15 @@ code { background: var(--accent-soft); padding: 1px 5px; border-radius: 5px; fon
 }
 .brand { display: flex; align-items: center; gap: 12px; padding: 4px 8px 16px; }
 .brand-mark {
-  display: grid; place-items: center;
-  width: 32px; height: 32px; border-radius: 9px;
-  background: var(--accent); color: var(--card-bg);
-  font-size: 18px;
+  display: block; width: 32px; height: 32px; flex: none;
+}
+.brand-logo { display: block; width: 100%; height: 100%; }
+.brand-logo-surface { fill: var(--accent); }
+.brand-logo-contours { stroke: var(--sidebar-active-ink); }
+.brand-logo-waypoint { stroke: var(--bad); }
+.brand-logo-point { fill: var(--bad); }
+.brand-logo-surface, .brand-logo-contours, .brand-logo-waypoint, .brand-logo-point {
+  transition: fill .4s, stroke .4s;
 }
 .brand-name { font-family: var(--disp); font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
 
@@ -375,11 +339,12 @@ code { background: var(--accent-soft); padding: 1px 5px; border-radius: 5px; fon
 }
 
 /* ---------- auth pages (login / enroll) ---------- */
+body.bare #bg { left: 0; }
 body.bare { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
 .auth-wrap { width: 100%; max-width: 380px; }
 .auth-card { padding: 28px 26px; display: grid; gap: 16px; }
 .auth-brand { display: grid; justify-items: center; gap: 8px; text-align: center; }
-.auth-brand .brand-mark { width: 46px; height: 46px; font-size: 25px; border-radius: 13px; }
+.auth-brand .brand-mark { width: 46px; height: 46px; }
 .auth-brand h1 { font-size: 1.2rem; }
 .primary-btn {
   width: 100%; padding: 13px 16px; border: 0; border-radius: 11px;
@@ -585,6 +550,8 @@ a.save-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet-panel {
   position: absolute; left: 0; right: 0;
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  max-height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom) - 20px);
+  overflow-y: auto;
   margin: 0 10px 10px;
   background: var(--sheet-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -604,6 +571,25 @@ a.save-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet-link.as-button { border: 0; background: none; font: inherit; cursor: pointer; width: 100%; color: var(--text); }
 
 @media (max-width: 840px) {
+  #bg { left: 0; }
+  [data-theme="verdant"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(14,30,20,.36),rgba(12,26,17,.56)),url('../img/themes/forest-verdant-mobile.jpg');
+  }
+  [data-theme="canyon"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(16,20,16,.28),rgba(14,18,14,.52)),url('../img/themes/forest-canyon-mobile.jpg');
+  }
+  [data-theme="cyber"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(6,7,26,.56),rgba(4,4,18,.76)),url('../img/themes/cyber-mobile.jpg');
+  }
+  [data-theme="el-capitan"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(28,20,22,.24),rgba(15,16,19,.60)),url('../img/themes/el-capitan-mobile.jpg');
+  }
+  [data-theme="tidal-peaks"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(12,20,28,.24),rgba(8,15,22,.62)),url('../img/themes/tidal-peaks-mobile.jpg');
+  }
+  [data-theme="blue-glacier"] {
+    --bg-image-stack:linear-gradient(180deg,rgba(8,29,40,.14),rgba(5,19,28,.58)),url('../img/themes/blue-glacier-mobile.jpg');
+  }
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .content { padding: 18px 14px calc(var(--tabbar-h) + 26px + env(safe-area-inset-bottom)); }
@@ -859,7 +845,7 @@ button.chip { cursor: pointer; font-family: var(--ui); }
 .card:has(.dd.open) { z-index: 41; }
 .ddmenu {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
-  /* task-60: var(--card-bg) alone is low-alpha glass (e.g. alpine .32) — an
+  /* task-60: var(--card-bg) alone can be low-alpha glass in photo themes — an
      open menu over busy page/chart content was hard to read (owner
      screenshot). Same color-mix idiom as the reduced-transparency fallback
      below, just weighted toward --bg-color for a near-opaque panel
@@ -1203,16 +1189,12 @@ table.ltab tr:last-child td { border-bottom: 0; }
 /* theme-picker swatch previews (bg 55% → accent), one class per theme */
 .pv-paper   { background: linear-gradient(135deg, #efece7 55%, #3a3833); }
 .pv-ember   { background: linear-gradient(135deg, #f4f1ee 55%, #c9480f); }
-.pv-alpine  { background: linear-gradient(135deg, #252d2e 55%, #b6d1d5); }
 .pv-verdant { background: linear-gradient(135deg, #16301f 55%, #d3ecc6); }
-.pv-sunbeam { background: linear-gradient(135deg, #1b201b 55%, #e7ecd2); }
-.pv-ridge   { background: linear-gradient(135deg, #333f47 55%, #dbeceb); }
-.pv-grove   { background: linear-gradient(135deg, #2c3a2e 55%, #cfe3bf); }
-.pv-timber  { background: linear-gradient(135deg, #1c2622 55%, #bcd6c6); }
-.pv-glacier { background: linear-gradient(135deg, #26333a 55%, #bfe6ec); }
+.pv-tidal-peaks { background: linear-gradient(135deg, #182531 55%, #d9bd91); }
+.pv-blue-glacier { background: linear-gradient(135deg, #0b2836 55%, #78d8f4); }
 .pv-canyon  { background: linear-gradient(135deg, #1f2620 55%, #e8c27a); }
+.pv-el-capitan { background: linear-gradient(135deg, #241f1d 55%, #f0bd84); }
 .pv-cyber   { background: linear-gradient(135deg, #05061a 55%, #29e7ff); }
-.pv-cosmos  { background: linear-gradient(135deg, #0b0f2a 55%, #b9a6ff); }
 
 /* nutrition (design v-nutrition), owner-review r2 */
 .h480 { height: 480px; }
@@ -1229,6 +1211,29 @@ table.ltab tr:last-child td { border-bottom: 0; }
 .note-txt { font-size: 12.5px; }
 .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }
 .mb-1 { margin-bottom: 4px; } .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; }
+
+/* Body overview: anatomy leads, with compact supporting radar cards. */
+.body-page .body-overview { display: grid; gap: 16px; align-items: start; }
+.body-page .body-radars { gap: 16px; }
+.body-page .body-radars > .card,
+.body-page .body-map { padding: 18px; }
+.body-page .body-radar { height: 210px; }
+.body-page .body-map > .grid-2 { gap: 24px; }
+.body-page .body-map .mf-svg { max-width: 200px; }
+.body-page .body-map > .row { gap: 12px; }
+@media (min-width: 700px) {
+  .body-page .body-map > .grid-2 { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .body-page .body-radars { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (min-width: 1180px) {
+  .body-page .body-overview { grid-template-columns: minmax(0,1.4fr) minmax(320px,1fr); }
+  .body-page .body-radars { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 699px) {
+  .body-page .body-map #mf-lens { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
+  .body-page .body-map .mf-svg { max-width: 240px; }
+  .body-page .body-radar { height: 250px; }
+}
 
 /* ── Muscle figure (§3f) — the ONE body-map component (js/muscle-figure.js).
    Level colors are theme-derived (accent sequential ramp): red stays reserved
@@ -1248,8 +1253,8 @@ table.ltab tr:last-child td { border-bottom: 0; }
 .mf-svg { width: 100%; max-width: 240px; height: auto; display: block; }
 /* Task A (2026-07-20): dashboard strength-balance glance — shrink the SHARED
    figure to a compact thumbnail on the dashboard only (the card links to
-   /training for the full-size picker). Scoped to `.mf-glance` mounts so the
-   Body-page figure keeps its 240px size. */
+   /training for the full-size picker). Scoped to `.mf-glance` mounts; the
+   Body page uses its separate responsive sizing above. */
 .mf-glance .mf-svg { max-width: 90px; }
 /* Both dashboard figures start below an equal-height header. The front title
    can wrap beside its → Body chip while the back title often stays on one

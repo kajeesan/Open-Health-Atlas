@@ -18,6 +18,12 @@ the calculations; the external model provides the interpretation.
 [Connect an MCP client](docs/LOCAL_MCP.md) ·
 [Develop the project](docs/DEVELOPMENT.md)**
 
+**macOS desktop preview:** a bundled native app is being verified. See the
+[installation and build guide](docs/DESKTOP.md) and
+[tested/blocked acceptance matrix](docs/DESKTOP_ACCEPTANCE.md). A notarized
+public installer is not yet available; evaluation artifacts are not a normal
+public release.
+
 ![Fictional Open Health Atlas dashboard with Muscle Balance and Athletic Profile radar charts, front and back strength-balance body diagrams, and the navigation sidebar.](docs/assets/fictional-demo-overview-v2.png)
 
 *Fictional UI demo snapshot. [Explore the demo](https://kajeesan.com/openhealthatlas-demo/)
@@ -25,9 +31,15 @@ the calculations; the external model provides the interpretation.
 
 ## Choose your starting point
 
+**New here? [Start here: install and connect your AI](docs/GETTING_STARTED.md).**
+The guide includes copy-paste instructions for a setup agent. Hermes, Telegram,
+Google Health, Hevy, Cronometer and a Hostinger VPS have their own sections on the separate
+[Optional page](docs/OPTIONAL.md).
+
 | I want to… | Start here |
 | --- | --- |
 | See the interface without installing anything | [Open the browser demo](https://kajeesan.com/openhealthatlas-demo/) — a clickable, read-only fictional snapshot, with no backend or AI connected. |
+| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) (Apple silicon, signed and notarized 0.2.5 preview). |
 | Run the real panel and try fictional data locally | [Try the local demo](docs/TRY_DEMO.md#run-the-local-panel) — includes the local API and write broker. |
 | Use my preferred AI client with local data | [Connect an MCP client](docs/LOCAL_MCP.md) — copyable setup and a fictional query → analysis → evidence example. |
 | Change code or contribute | [Develop the project](docs/DEVELOPMENT.md) — environment, relevant tests and contribution guidance. |
@@ -75,8 +87,14 @@ supported by the Unix-socket broker and POSIX file locks. The standalone MCP
 entry point uses stdio. Clients requiring remote MCP need a separate transport
 setup.
 
-A desktop installer, built-in API-key chat, hosted multi-user service and
-bundled always-on agent are not included. Existing Hermes and external-service
+A macOS desktop packaging preview includes the existing dashboard, guided
+local workspaces and a bundled optional MCP executable. The [0.2.5 preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5)
+is prepared for Developer ID signing and Apple notarization; check its
+release notes for the exact published artifact. Clean-Mac
+installation and the minimum supported macOS remain unverified; this is not
+a stable-release qualification claim.
+Built-in API-key chat, a hosted multi-user service and a bundled always-on
+agent are not included. Existing Hermes and external-service
 integrations require their own configuration. Results describe recorded data
 and bounded associations; clinical validation and causal conclusions are not
 claimed. See [known limitations](UNIMPLEMENTED.md) and the
