@@ -73,7 +73,8 @@ For MCP changes, install the optional SDK and run its real protocol tests:
 
 These start an actual stdio server and SDK client with fictional databases;
 they do not call a model. Without the optional dependency, that test module is
-skipped. For a full run including MCP:
+skipped. For complete verification, also prepare Node and the native library
+as described in [Testing](TESTING.md#complete-verification-prerequisites). Then run:
 
 ```bash
 export TZ=Europe/Paris HERMES_TIMEZONE=Europe/Paris
@@ -110,3 +111,132 @@ Keep real health records, credentials, environment files, generated caches and
 service configuration out of source and public reports. Use the existing
 fictional fixtures for reproductions. Public source begins with a clean
 history; historical private checkpoint commits are not available here.
+
+## Working conventions
+
+Start from public `main` or an explicit release tag, inspect the remote and
+working tree, and preserve unrelated changes. Use a dedicated feature branch
+and small, coherent commits. Stage named files and use the public baseline's
+sanitized author identity. Never accept software license terms automatically
+to unblock a tool.
+
+Record the starting commit before risky changes. Never access the owner's
+private health directory or live Telegram installation for tests. Never import
+or publish private development history into this clean public repository.
+
+Keep work within the agreed product scope. Preserve working UI fields and
+controls, including secondary interaction paths. Treat an unverified wired
+feature as a gap to investigate. Remove obsolete code or tests only after
+accounting for retained consumers. Company-specific work, portfolio changes
+and the separate website belong in separate tasks.
+
+Preserve CLI paths, commands, arguments, defaults, output formats, error codes,
+database compatibility and transaction ownership. Use existing wrappers at
+data boundaries. Shared calculations receive required connections, clocks and
+configuration explicitly; they do not open databases, parse CLI arguments or
+print. Fix numerical behavior separately from structural extraction.
+
+The current CLI is `toolkit/health.py`; shared runtime and calculation modules
+already live in `toolkit/hermes_insights/`. New domain modules must not import
+the CLI. Follow the product boundary in
+[Architecture](ARCHITECTURE.md#deterministic-interpretive-and-agent-boundaries).
+
+When changing analytical code, inspect each identity owner:
+`hermes_surface._engine_manifest`, `exact_cache.current_identity` and
+`provenance.engine_manifest`. Their scopes differ. Code changes may alter
+fingerprints and resampling seeds; compare numerical results and database
+effects separately from expected identity changes. Retain vendor-byte and
+license checks.
+
+Desktop packaging includes approved paths listed in the release inventory.
+Follow [Release manifest](../RELEASE_MANIFEST.md#regenerate) after staging new
+files, and [Desktop release](DESKTOP_RELEASE.md) for package verification.
+Historical recovery staging inventories are not general deployment manifests.
+A passing source check does not qualify a replacement installer for publication.
+
+Keep logs, temporary reports, environments and generated indexes outside the
+checkout. Existing ignore rules cover caches and `graphify-out/`; they do not
+exclude contributor Markdown. Do not introduce repository-wide formatting or
+new tooling as a side effect of a bounded change.
+
+Before database-changing work, make and verify a consistent fictional database
+snapshot outside Git. Code rollback does not restore database contents.
+If verification fails, isolate the regression and change only the responsible
+batch. Update [Refactoring](REFACTORING.md) after meaningful batches with
+decisions, changed files, checks, gaps and the next step.
+
+Commits remain local until task-specific publication authorization and privacy
+review permit a push. A merge requires the owner's milestone review when that
+checkpoint is part of the task. Source publication never authorizes live
+service activation or changes to the owner's records.
+
+## Review evidence
+
+Review correctness, caller compatibility, security, performance and maintenance
+cost against the actual diff and retained contracts. Consequential changes need
+an independent reader; the implementer cannot supply their own independent
+approval. Findings identify a concrete trigger, consequence and source evidence.
+Do not block a change on stylistic preference alone.
+
+Freeze the relevant source revision during verification. Each report states
+the revision, exact command, exit status, pass/fail/skip counts, elapsed time and
+log location. Investigate unexpected failures and skips. Root pytest already
+discovers toolkit tests: focused reruns support diagnosis, not higher coverage
+totals. Verification helpers report failures without weakening tests or silently
+repairing code.
+
+For calculation work, reproduce the defect before the fix and preserve
+representative timing measurements for later comparisons. Use fictional records,
+controlled clocks and isolated outputs. Record what was tested, what remains
+unverified and which results belong to an older revision. Keep private local
+paths and raw records out of public reports.
+
+## Documentation ownership
+
+This map assigns authoritative homes for new or edited facts. It does not claim
+all historical duplication has been reconciled. Link to an owning heading
+instead of copying its explanation into agent instructions or code comments.
+
+| Surface | Owns |
+|---|---|
+| `README.md` | Product introduction, quick start and navigation |
+| `CONTRIBUTING.md` | Contribution principles, change process and licensing obligations |
+| `docs/DEVELOPMENT.md` | Developer setup, working conventions, review evidence, this map and writing-tool setup |
+| `docs/TESTING.md` | Test prerequisites, commands, partitions and coverage classes |
+| `docs/ARCHITECTURE.md` | Runtime responsibilities, module navigation and trust boundaries |
+| `docs/SYSTEM_DESIGN.md` | Analytical semantics, time, identity and evidence contracts; project terminology |
+| `docs/PRODUCT_AUTHORITY.md` | Accepted product and external-client authority decisions |
+| `docs/DEPLOYMENT.md`, `docs/DESKTOP*.md`, `docs/LOCAL_MCP.md` | Service operations, desktop lifecycle/release, and local protocol setup respectively |
+| `docs/GETTING_STARTED.md`, `docs/TRY_DEMO.md`, `docs/OPTIONAL.md` | User setup, fictional demonstration and optional integrations respectively |
+| `docs/PRIVACY.md`, `SECURITY.md` | Data handling and publication boundaries; vulnerability reporting respectively |
+| `FEATURE_RETENTION_MATRIX.md`, `UNIMPLEMENTED.md` | Retained capabilities and missing functionality respectively |
+| `docs/SUBREGION_INFERENCE.md`, `docs/authored-submuscle-map.md` | Inference methodology and consumed authored seed map respectively |
+| `RELEASE_MANIFEST.md`, `RELEASE_MANIFEST.tsv` | Inventory procedure and generated identities; generated inventory is exempt from duplication checks |
+| `docs/REFACTORING.md`, `VERIFICATION.md`, `INDEPENDENT_REVIEW.md`, `PUBLICATION_DECISION.md` | Dated checkpoints and decisions; exempt where historical evidence repeats verified facts |
+| `REFERENCES.md`, `THIRD_PARTY_NOTICES.md`, `LICENSING.md`, `LICENSE`, `NOTICE`, `CITATION.cff`, vendor notices | Research, licensing, attribution and citation; exempt where legal or citation repetition is required |
+| `AGENTS.md` | Short navigation to contributor guidance |
+| `AGENTS.override.md`, `.claude/extensions/software-writer/*.md` | Formal skill delivery and settings; required envelopes/shared assignments are exempt |
+| `.github/pull_request_template.md` | Evidence prompts for one change; exempt for per-change evidence |
+
+Preserve existing section shapes when editing these guides. New module
+documentation uses purpose, public API, contracts, quirks and tests only where
+those sections carry useful facts. No additional changelog is prescribed.
+
+## Writing tools
+
+The project extensions target Software Writer 2.2.0 and Extension Setup 2.1.0,
+reviewed from `it-bens/ai-tools` revision
+`5ef774268a65f4433d52607ee576e6eb4893f64b`. Sentry's `code-review` guidance was
+reviewed at `c2f99a5b04b4cd992ec3022d7c2c3e23e938d241`. These are optional
+contributor tools, not application dependencies or correctness guarantees.
+
+`.claude/extensions/software-writer/` holds the project settings. Codex loads
+them through the root `AGENTS.override.md`, which first instructs it to read
+`AGENTS.md`. From a fresh session at the repository root, invoke a writing skill
+and confirm the matching extension is read. Read the files explicitly in a
+session that predates their creation.
+
+Apply conventions to Flask, SQLite, plain JavaScript and the Swift desktop
+wrapper. The documentation helper reviews only wording; it does not establish
+technical truth or approve changes. Keep tool configuration references pointed
+at this guide and current code, not another checkout's historical test counts.

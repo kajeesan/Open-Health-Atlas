@@ -505,3 +505,22 @@ batch; the evaluated app remains source `5d18014`.
 - Independent review reproduced an authenticated malformed setup request stopping the helper without scheduling recovery. `desktop/server.py` now validates workspace fields before stopping the helper and schedules recovery after unexpected operation failures. Existing session, CSRF and data boundaries remain intact.
 - Added nine regression cases in `tests/test_desktop_server.py`. Before the fix, eight failed and one existing recovery behavior passed. After the fix, 34 desktop server/workspace/preference tests and 91 adjacent authentication, shell, MCP, packaging and privacy checks passed. Two scanner checks initially hit the host's Xcode license prompt. Both passed using the installed Command Line Tools Git. All tests used fictional records and temporary databases.
 - Independent review of the final patch found no actionable issue. Required GitHub checks must pass on the updated PR head before merging. This source repair does not rebuild or replace the published 0.2.5 installer.
+
+## Toolkit modularization conventions, 21 September 2026
+
+- Recovery point: public main `ef053a6de7ca61b1fc33d88b69da32dca04a2a24`.
+  Work uses `codex/health-toolkit-modularization`; the first milestone requires
+  owner review before merge or module extraction.
+- Adapted the reviewed Software Writer extensions to the current Flask,
+  SQLite, plain JavaScript and desktop source. Short agent instructions point
+  to contributor guidance, with explicit override delivery. Preserved the
+  development guide's setup and moved working safeguards into its conventions.
+- Updated testing guidance to the actual application, fictional end-to-end
+  and real MCP partitions, including Node/native prerequisites and macOS SDK
+  handling. Retired interpretation behavior and old audit test counts were
+  not imported. Temporary reports and indexes remain outside tracked source.
+- Read-only configuration review checked extension mechanisms, shared settings,
+  pointers, current helpers and links. Its native-library suffix, PR-link and
+  safeguard-preservation findings were corrected. The narrow prose review
+  requested no wording changes. Numerical corrections and their verification
+  are recorded separately below when complete.
