@@ -524,3 +524,76 @@ batch; the evaluated app remains source `5d18014`.
   safeguard-preservation findings were corrected. The narrow prose review
   requested no wording changes. Numerical corrections and their verification
   are recorded separately below when complete.
+
+## Corrected toolkit baseline, 22 September 2026
+
+- Corrected baseline: `c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
+  Runtime corrections are in `562bd52`; `c427296` adds only reviewed replay
+  identity metadata and its release inventory. Working conventions are in
+  `9c45501`, based on public main `ef053a6`.
+- Excluded future records from current recovery baselines and nutrition weight
+  and activity inputs. Preserved inclusive association/interaction thresholds
+  with integer count arithmetic. Corrected extreme valid Wilson confidence
+  handling and percentile interpolation between finite opposite extremes.
+  No module extraction, schema, dependency or CLI interface change was made.
+- Added 17 focused regressions: unchanged production failed 13 while four
+  controls passed; corrected production passed all 17. Another 197 adjacent
+  tests passed. These focused runs are not added to complete-suite counts.
+
+Complete local verification used Python 3.11.14, the declared dependencies,
+Node, the native test library, fictional data and the CI civil timezone.
+Commands and prerequisites are in [Testing](TESTING.md#auditable-partitions).
+
+| Partition | Revision | Passed | Failed/skipped | Pytest duration |
+|---|---|---:|---|---:|
+| Root application, including toolkit | `562bd52` | 2,047 | 0/0 | 504.28 s |
+| Fictional end-to-end journeys | `c427296` | 15 | 0/0 | 199.81 s |
+| Actual optional MCP client/server | `562bd52` | 5 | 0/0 | 3.32 s |
+
+The disjoint total is 2,067 tests. Runtime source is identical between these
+verification revisions. Earlier interrupted socket checks, runner environment
+failures and stale replay-pin failures remain in local evidence; they are not
+represented as passing runs. Fixing the runner required no product changes.
+
+Independent numerical and configuration reviews found no blocking issue.
+The ten original traces reproduced exactly on the public baseline. Updated
+traces retain their inputs, expected statuses, assertions, notification
+decisions and database row counts. Their pins were refreshed only after
+comparison and independent review; no guard was removed or generalized.
+
+Engine identity changes also reseed statistical intervals and affect existing
+finding-ID tie-breaks. In the fictional reversal scenario, the prepared
+strongest-candidate slot changes from lag one/+0.6 to same-day/-0.6 among
+equally ranked findings. Both candidates and their numerical evidence remain
+present. Holding the old engine identity in an external diagnostic process
+reproduced all ten complete baseline traces byte for byte. This inherited
+selection behavior is a disclosed review caveat; ledger and synthesis rules
+were not changed.
+
+Paired timings used a fixed-date fictional database, one first launch and five
+repeated fresh processes per workload. The table records repeated medians;
+filesystem caches were not forcibly cleared and native acceleration was off.
+
+| Workload | Public baseline | Corrected baseline |
+|---|---:|---:|
+| CLI schema status | 142.68 ms | 146.27 ms |
+| Fixed-date recovery/readiness | 132.75 ms | 132.93 ms |
+| Nutrition targets | 124.81 ms | 125.75 ms |
+| Statistics, 120 observations with 2,000 permutation/bootstrap draws each | 286.38 ms | 282.92 ms |
+
+Outputs and database bytes were unchanged in these timing workloads. The
+initial first-launch gap did not recur in the paired follow-up. These small
+workloads establish a repeatable refactor baseline, not a general latency claim.
+
+An isolated ad hoc macOS app built from `562bd52` passed 14 lifecycle checks,
+nine bundled MCP checks, all 17 boundary regressions against packaged source,
+signature verification and a 3,080-file bundle audit. A synced-folder metadata
+failure was resolved by building into the system temporary directory. No
+installer was published or installed, and no GUI, notarization or clean-machine
+qualification is claimed. Its runtime bytes match the corrected baseline.
+
+Exact commands, logs, trace comparisons and timing samples are retained in the
+local milestone review package outside source. Release inventory and privacy
+checks remain required at the final review head. The branch remains local;
+hosted GitHub checks and owner review are required before merge. Milestone 2
+has not begun.
