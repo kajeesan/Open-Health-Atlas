@@ -3665,7 +3665,7 @@ def _recovery_baseline_rows(c, days, anchor=None, start=None):
     by_date = {}
     if anchor is None:
         query = (f"""SELECT date, source, resting_hr, {hrv_col} AS hrv_ms FROM daily_metrics
-                    WHERE date>=? ORDER BY date""", (days_ago(days),))
+                    WHERE date>=? AND date<=? ORDER BY date""", (days_ago(days), today()))
     else:
         lower = anchor - timedelta(days=days)
         if start is not None:
@@ -7176,8 +7176,8 @@ def _compute_targets(c):
     prof = ({r["key"]: r["value"] for r in c.execute("SELECT key, value FROM owner_profile")}
             if _table_exists(c, "owner_profile") else {})
     wrow = c.execute("""SELECT date, weight_kg FROM body_metrics
-                        WHERE weight_kg IS NOT NULL
-                        ORDER BY date DESC, id DESC LIMIT 1""").fetchone()
+                        WHERE weight_kg IS NOT NULL AND date<=?
+                        ORDER BY date DESC, id DESC LIMIT 1""", (today(),)).fetchone()
     weight = wrow["weight_kg"] if wrow else None
     missing = [k for k in ("height_cm", "sex", "dob") if not prof.get(k)]
     if missing or weight is None:
@@ -7212,9 +7212,9 @@ def _compute_targets(c):
     # activity over the trailing 28 days, derived deterministically
     lo = days_ago(28)
     hevy_dates = {r["date"] for r in c.execute(
-        "SELECT DISTINCT date FROM hevy_sets WHERE date>=?", (lo,))}
-    steps = _daymax(c, "steps", lo)          # per-day MAX across sources
-    ex_days = _daymax(c, "exercise_min", lo)  # (provenance rule, see _daymax)
+        "SELECT DISTINCT date FROM hevy_sets WHERE date>=? AND date<=?", (lo, today()))}
+    steps = _daymax(c, "steps", lo, today())  # per-day MAX across sources
+    ex_days = _daymax(c, "exercise_min", lo, today())  # (provenance rule, see _daymax)
     s = len(hevy_dates) / 4.0                 # sessions/week
     st_avg = round(st.mean(steps.values())) if steps else None
     days_with_data = len(hevy_dates | set(steps) | set(ex_days))

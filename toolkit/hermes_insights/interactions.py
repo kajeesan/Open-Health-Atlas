@@ -61,15 +61,16 @@ def _increment(rows: Sequence[tuple[int, int, int]]) -> float | None:
         cells[(a_value, b_value)].append(outcome)
     if any(not values for values in cells.values()):
         return None
-    rates = {
-        key: sum(values) / len(values)
-        for key, values in cells.items()
-    }
-    neither = rates[(0, 0)]
-    return (
-        rates[(1, 1)] - neither
-        - max(rates[(1, 0)] - neither, rates[(0, 1)] - neither)
-    )
+    # The shared baseline cancels: p11 - max(p10, p01). Compare the
+    # single-cell rates exactly, then divide once to retain threshold ties.
+    a_positive, a_n = sum(cells[(1, 0)]), len(cells[(1, 0)])
+    b_positive, b_n = sum(cells[(0, 1)]), len(cells[(0, 1)])
+    if a_positive * b_n >= b_positive * a_n:
+        best_positive, best_n = a_positive, a_n
+    else:
+        best_positive, best_n = b_positive, b_n
+    both_positive, both_n = sum(cells[(1, 1)]), len(cells[(1, 1)])
+    return (both_positive * best_n - best_positive * both_n) / (both_n * best_n)
 
 
 def _cell_payload(rows: Sequence[tuple[int, int, int]]) -> dict[str, Any]:

@@ -1060,7 +1060,9 @@ def _risk_effect(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     exposed_rate = ep / en
     unexposed_rate = up / un
     baseline = (ep + up) / (en + un)
-    rd = exposed_rate - unexposed_rate
+    # Keep exact count arithmetic until division so an inclusive .10 gate
+    # does not reject 18/20 - 16/20 after floating-point cancellation.
+    rd = (ep * un - up * en) / (en * un)
     rr = exposed_rate / unexposed_rate if unexposed_rate > 0 else None
     p = fisher_exact_two_sided(((ep, en - ep), (up, un - up)))
     ci = newcombe_risk_difference_interval(ep, en, up, un)
