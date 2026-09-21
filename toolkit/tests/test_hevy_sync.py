@@ -329,11 +329,12 @@ def test_import_routines_refreshes_config_with_snapshot(db, tmp_path):
     assert sched == [{"weekday": "Mon", "routine_name": "old plan"}]
 
 
-def test_sync_commands_are_not_bridge_allowlisted():
+def test_sync_commands_are_not_bridge_allowlisted(monkeypatch):
     """Bulk imports stay collector-only: the panel's write broker must refuse
     them (defense in depth — BUILD-PLAN §3 keeps dangerous/bulk commands out).
     Executes the real broker source and inspects its actual ALLOWED dict."""
     import types
+    monkeypatch.syspath_prepend(str(ROOT.parent / "deploy"))
     broker = types.ModuleType("broker")
     src = (ROOT.parent / "deploy" / "hermes-bridge").read_text()
     exec(compile(src, "hermes-bridge", "exec"), broker.__dict__)

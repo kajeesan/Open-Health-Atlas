@@ -80,6 +80,27 @@ def test_import_hevy_lbs_converted(db, tmp_path):
     assert got[0]["weight_kg"] == 45.36  # 100 lb -> kg, rounded to 2 dp
 
 
+def test_import_hevy_miles_converted(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    csv.write_text("start_time,exercise_title,distance_miles\n2026-07-01,Running,2\n")
+
+    run(db, "import-hevy", str(csv))
+
+    assert rows(db, "SELECT distance_km FROM hevy_sets") == [{"distance_km": 3.219}]
+
+
+def test_import_hevy_unknown_optional_values_stay_missing(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    csv.write_text("start_time,exercise_title,weight_kg,duration_seconds,rpe\n"
+                   "unknown,Front Squat,unknown,,NaN\n")
+
+    run(db, "import-hevy", str(csv))
+
+    assert rows(db, "SELECT date,weight_kg,duration_seconds,rpe FROM hevy_sets") == [
+        {"date": None, "weight_kg": None, "duration_seconds": None, "rpe": None}
+    ]
+
+
 def test_reimport_preserves_panel_logged_sets(db, tmp_path):
     """THE regression this repo exists to prevent: a Hevy reimport must never
     delete sets logged through the panel (source != 'hevy')."""
@@ -97,6 +118,62 @@ def test_reimport_preserves_panel_logged_sets(db, tmp_path):
     ui = rows(db, "SELECT * FROM hevy_sets WHERE source='ui'")
     assert len(ui) == 1 and ui[0]["exercise_title"] == "Deadlift (Barbell)"
     assert len(rows(db, "SELECT * FROM hevy_sets WHERE source='hevy'")) == 2  # replaced, not doubled
+
+
+def test_empty_hevy_export_clears_only_imported_history(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    write_hevy_csv(csv)
+    run(db, "import-hevy", str(csv))
+    run(db, "log-set", "Front Squat", "--reps", "5", "--date", "2026-07-01")
+    manual = rows(db, "SELECT * FROM hevy_sets WHERE source='ui'")
+    csv.write_text("title,start_time,exercise_title\n")
+
+    run(db, "import-hevy", str(csv))
+
+    assert rows(db, "SELECT * FROM hevy_sets") == manual
+
+
+def test_invalid_later_hevy_row_preserves_previous_history(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    write_hevy_csv(csv)
+    run(db, "import-hevy", str(csv))
+    previous = rows(db, "SELECT * FROM hevy_sets ORDER BY id")
+    csv.write_text("start_time,exercise_title,reps\n"
+                   "2026-07-02,New Squat,5\n2026-07-02,New Squat,invalid\n")
+
+    result = run(db, "import-hevy", str(csv), expect_ok=False)
+
+    assert result.returncode == 1
+    assert rows(db, "SELECT * FROM hevy_sets ORDER BY id") == previous
+
+
+def test_missing_hevy_export_preserves_previous_history(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    write_hevy_csv(csv)
+    run(db, "import-hevy", str(csv))
+    previous = rows(db, "SELECT * FROM hevy_sets ORDER BY id")
+
+    result = run(db, "import-hevy", str(tmp_path / "missing.csv"), expect_ok=False)
+
+    assert result.returncode == 1
+    assert rows(db, "SELECT * FROM hevy_sets ORDER BY id") == previous
+
+
+def test_failed_hevy_database_write_preserves_previous_history(db, tmp_path):
+    csv = tmp_path / "hevy.csv"
+    write_hevy_csv(csv)
+    run(db, "import-hevy", str(csv))
+    previous = rows(db, "SELECT * FROM hevy_sets ORDER BY id")
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TRIGGER reject_fixture_set BEFORE INSERT ON hevy_sets "
+                       "WHEN NEW.reps = 7 BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END")
+    connection.commit()
+    connection.close()
+
+    result = run(db, "import-hevy", str(csv), expect_ok=False)
+
+    assert result.returncode == 1
+    assert rows(db, "SELECT * FROM hevy_sets ORDER BY id") == previous
 
 
 def test_import_hevy_refuses_missing_source_without_ddl(tmp_path):

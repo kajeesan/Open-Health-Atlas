@@ -16,6 +16,7 @@ HEALTH = ROOT / "health.py"
 sys.path.insert(0, str(ROOT))
 
 import health  # noqa: E402
+from hermes_insights import cli  # noqa: E402
 
 
 PHASE5_COMMANDS = {
@@ -62,9 +63,9 @@ def _run(tmp_path, *args, stdin=None):
 
 
 def test_phase5_surface_remains_and_phase6_commands_are_additive():
-    assert PHASE5_COMMANDS <= health.JSON_COMMANDS
-    assert PHASE6_COMMANDS <= health.JSON_COMMANDS
-    assert health.REPEATABLE_FLAGS == {
+    assert PHASE5_COMMANDS <= cli.JSON_COMMANDS
+    assert PHASE6_COMMANDS <= cli.JSON_COMMANDS
+    assert cli.REPEATABLE_FLAGS == {
         "analysis-refresh": {"--outcome"},
     }
 

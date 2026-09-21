@@ -64,7 +64,9 @@ and UI state.
 | Area | Location | Responsibility |
 |---|---|---|
 | Web application | `app/` | Authentication, security middleware, HTML, JSON APIs, read models, bridge client |
-| Health toolkit | `toolkit/health.py` | Validated CLI writes, imports and compatible command adapters |
+| Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit legacy-handler wiring and temporary compatibility adapters |
+| CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
+| Hevy CSV import | `toolkit/hermes_insights/commands/hevy.py`, `importers/hevy_csv.py` | Transaction coordination and source-specific metric normalization |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -73,6 +75,36 @@ and UI state.
 | Generic integrations | `deploy/`, `config/` | Broker, collectors, OAuth helper, scheduler, messaging actions, service/timer examples |
 | Standalone local MCP | `scripts/openhealthatlas_mcp.py`, `toolkit/hermes_insights/local_surface.py` | Provider-neutral read-only tools and bounded background work for a client-selected model |
 | Acceptance assets | `tests/`, `toolkit/tests/`, `scripts/` | Synthetic fixtures, failure/adversarial tests, empty initialization, fictional demo |
+
+## Toolkit command boundaries
+
+`health.py:main` supplies an explicit mapping of unconverted handlers to
+`cli.run`. The CLI registers their arguments and the extracted `import-hevy`
+handler, then owns dispatch and error formatting. Other imports and domain
+handlers remain in `health.py` until their planned extraction.
+
+`CommandContext` carries the database path, civil clock, timezone, vault path
+and stable executable path. The facade resolves configuration at invocation.
+Analytical adapters continue using their separate `AdapterContext` contract.
+Legacy handlers retain their compatibility bindings. The Hevy importer receives
+the existing permissive number parser explicitly, without importing the facade.
+
+`commands.hevy.import_csv` opens the configured database, requires the migrated
+source column, commits a successful replacement and rolls back a failed import.
+It closes the connection before returning a result or propagating an error.
+`importers.hevy_csv.replace_history` owns CSV normalization and row replacement.
+It neither commits nor emits CLI output. Its date parser also serves the legacy
+Hevy API date fallback.
+
+CSV imports replace only rows whose source is `hevy`. Empty exports clear that
+history. Manually logged rows survive. Invalid optional numbers and unknown
+dates retain the legacy missing-value behavior, while invalid integer fields
+raise. Bulk CSV imports remain excluded from both broker allowlists.
+
+The explicit Hermes engine inventory includes the extracted runtime modules.
+Recursive exact-cache identity still covers toolkit Python source.
+Numerical provenance retains its narrower engine inventory. These identities serve
+different contracts and are not interchangeable.
 
 ## Data ownership and writes
 

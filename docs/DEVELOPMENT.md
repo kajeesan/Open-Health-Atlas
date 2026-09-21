@@ -136,8 +136,10 @@ data boundaries. Shared calculations receive required connections, clocks and
 configuration explicitly; they do not open databases, parse CLI arguments or
 print. Fix numerical behavior separately from structural extraction.
 
-The current CLI is `toolkit/health.py`; shared runtime and calculation modules
-already live in `toolkit/hermes_insights/`. New domain modules must not import
+The stable CLI executable is `toolkit/health.py`. Extracted command plumbing,
+importers, runtime and calculations live in `toolkit/hermes_insights/`.
+See [Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries)
+for current owners and compatibility wiring. New domain modules must not import
 the CLI. Follow the product boundary in
 [Architecture](ARCHITECTURE.md#deterministic-interpretive-and-agent-boundaries).
 

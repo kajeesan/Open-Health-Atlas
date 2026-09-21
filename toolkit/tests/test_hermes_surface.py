@@ -167,6 +167,14 @@ def test_engine_identity_manifest_covers_context_contracts_and_every_adapter(
     paths = {item["file"] for item in manifest}
     assert "health.py" in paths
     assert "hermes_insights/runtime.py" in paths
+    assert {
+        "hermes_insights/cli.py",
+        "hermes_insights/command_context.py",
+        "hermes_insights/commands/__init__.py",
+        "hermes_insights/commands/hevy.py",
+        "hermes_insights/importers/__init__.py",
+        "hermes_insights/importers/hevy_csv.py",
+    } <= paths
     assert "hermes_insights/catalogs.py" in paths
     assert "hermes_insights/calculations.py" in paths
     assert "hermes_insights/contracts.py" in paths

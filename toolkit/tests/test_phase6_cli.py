@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from hermes_insights import migrations, orchestrator
+from hermes_insights import cli, migrations, orchestrator
 from hermes_insights.contracts import AdapterContext
 import health
 
@@ -64,7 +64,7 @@ def test_exact_phase6_command_surface_and_bridge_exclusion():
         "insight-notification-fail", "insight-notification-resolve",
         "insight-run-status",
     }
-    assert commands <= health.JSON_COMMANDS
+    assert commands <= cli.JSON_COMMANDS
 
 
 def test_nightly_empty_data_fans_out_and_is_idempotent_without_synthesis(health_db):

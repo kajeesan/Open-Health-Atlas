@@ -9,9 +9,13 @@ prints a confirmation so a wrong match is caught immediately.
 DB path: $HEALTH_DB or $HERMES_DATA_DIR/health.db
 Run `python3 health.py --help` for commands.
 """
-import argparse, csv, io, itertools, json, math, os, re, sqlite3, statistics as st, sys
+import csv, io, itertools, json, math, os, re, sqlite3, statistics as st, sys
 from datetime import date, datetime, timedelta, timezone
 
+from hermes_insights import cli as insight_cli
+from hermes_insights.command_context import CommandContext
+from hermes_insights.commands.hevy import import_csv as import_hevy_csv
+from hermes_insights.importers.hevy_csv import parse_date as _hevy_date
 from hermes_insights import calculations as insight_calculations
 from hermes_insights import catalogs as insight_catalogs
 from hermes_insights import runtime as insight_runtime
@@ -85,7 +89,8 @@ def num(x):
     try: return float(x) if x not in (None, "", "null", "NaN") else None
     except: return None
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.strip().lower()).strip("-")
-def out(d): print(json.dumps(d, ensure_ascii=False, default=str))
+def out(d):
+    insight_cli.out(d)
 
 def _require_schema(c, table, *columns):
     """Fail closed without DDL when an explicit migration has not run."""
@@ -115,52 +120,20 @@ RATING = {"focus","energy","mood","emotional_regulation","anxiety","motivation",
 UPSERT_DATE_TABLES = {"subjective_daily", "intake", "sleep_log"}
 
 # =========================================================== ingestion
-LB_TO_KG = 0.45359237
-MI_TO_KM = 1.609344
-def _hevy_date(s):
-    for fmt in ("%b %d, %Y at %I:%M %p", "%d %b %Y, %H:%M", "%d %b %Y at %H:%M",
-                "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-        try: return datetime.strptime((s or "").strip(), fmt).strftime("%Y-%m-%d")
-        except: pass
-    return None
-
 def _ensure_hevy_source(c):
     """Require migration-owned provenance; never alter schema lazily."""
     _require_schema(c, "hevy_sets", "source")
 
+def _command_context():
+    return CommandContext(
+        database=DB, clock=_now, timezone=TIMEZONE_NAME,
+        vault=resolve_vault_root(DB), cli_path=__file__,
+    )
+
+
 def import_hevy(a):
-    """Load a Hevy workout CSV (real logged history) into hevy_sets.
-    Handles both metric (weight_kg/distance_km) and imperial (weight_lbs/distance_miles)
-    exports, converting to kg/km so the DB stays metric."""
-    c = cx()
-    _ensure_hevy_source(c)
-    # Each export is the full HEVY history -> reload hevy rows only. Sets logged
-    # through the panel (source='ui'/'chat-panel') must survive reimports.
-    c.execute("DELETE FROM hevy_sets WHERE source='hevy'")
-    n = 0
-    with open(a.csv, newline="") as f:
-        rd = csv.DictReader(f)
-        cols = rd.fieldnames or []
-        wkey = "weight_kg" if "weight_kg" in cols else ("weight_lbs" if "weight_lbs" in cols else None)
-        wmul = 1.0 if wkey == "weight_kg" else LB_TO_KG
-        dkey = "distance_km" if "distance_km" in cols else ("distance_miles" if "distance_miles" in cols else None)
-        dmul = 1.0 if dkey == "distance_km" else MI_TO_KM
-        for r in rd:
-            d = _hevy_date(r.get("start_time"))
-            w = num(r.get(wkey)) if wkey else None
-            if w is not None: w = round(w * wmul, 2)
-            dist = num(r.get(dkey)) if dkey else None
-            if dist is not None: dist = round(dist * dmul, 3)
-            c.execute("""INSERT INTO hevy_sets(date,workout_title,start_time,end_time,description,exercise_title,
-              superset_id,exercise_notes,set_index,set_type,weight_kg,reps,distance_km,duration_seconds,rpe)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-              (d, r.get("title"), r.get("start_time"), r.get("end_time"), r.get("description"), r.get("exercise_title"),
-               r.get("superset_id") or None, r.get("exercise_notes"),
-               int(float(r["set_index"])) if r.get("set_index") else None,
-               r.get("set_type"), w, int(float(r["reps"])) if r.get("reps") else None,
-               dist, num(r.get("duration_seconds")), num(r.get("rpe"))))
-            n += 1
-    c.commit(); out({"ok": True, "imported_sets": n, "weight_source": wkey, "converted_to": "kg/km"})
+    """Compatibility entry point for the extracted Hevy CSV command."""
+    out(import_hevy_csv(_command_context(), a.csv, parse_number=num))
 
 
 # ---- §5a/§5b Hevy API sync (collector-only; NOT in the bridge allowlists) ----
@@ -9125,355 +9098,141 @@ def analysis_job_cmd(a):
     analysis_jobs.cli(a.cmd, DB, a, {
         "outcome-associations": outcome_associations_cmd,
         "finding-evidence": finding_evidence_cmd,
-    }, __file__)
-
-
-JSON_COMMANDS = {
-    "analysis-job-start", "analysis-job-status", "analysis-job-work", "analysis-job-execute",
-    "schema-status", "schema-plan", "migrate", "capture-raw", "capture-resolve",
-    "event-log", "event-correct", "event-void", "events",
-    "capture-completeness-set", "capture-completeness", "entity-alias-set",
-    "entity-alias-retire", "entity-alias-history", "supplement-log",
-    "feature-registry", "feature-frame", "data-readiness", "goal-list",
-    "goal-set", "collector-run-record", "outcome-associations",
-    "finding-evidence", "analysis-refresh", "hypothesis-promote",
-    "hypothesis-refresh", "hypothesis-annotate", "hypotheses",
-    "hypothesis-brief", "synthesis-prepare", "synthesis-record",
-    "synthesis-history",
-    "insight-trigger-enqueue", "insight-trigger-claim",
-    "insight-trigger-renew", "insight-trigger-complete",
-    "insight-trigger-fail", "insight-notification-claim",
-    "insight-notification-begin-dispatch", "insight-notification-ack",
-    "insight-notification-fail", "insight-notification-resolve",
-    "insight-run-status",
-}
-STRICT_REPEAT_COMMANDS = JSON_COMMANDS | {"eat", "log-food", "pain-log"}
-REPEATABLE_FLAGS = {"analysis-refresh": {"--outcome"}}
-
-
-class HealthArgumentParser(argparse.ArgumentParser):
-    """Keep legacy argparse text while new contracts always return JSON."""
-    def error(self, message):
-        if len(sys.argv) > 1 and sys.argv[1] in JSON_COMMANDS:
-            out({"ok": False, "error": {"code": "validation_error", "message": message}})
-            raise SystemExit(2)
-        super().error(message)
+    }, _command_context().cli_path)
 
 
 def main():
-    p = HealthArgumentParser(description="Deterministic health DB toolkit")
-    sub = p.add_subparsers(dest="cmd", required=True)
-    def add(name, fn, **kw):
-        sp = sub.add_parser(name, **kw); sp.set_defaults(fn=fn); return sp
-
-    add("analysis-job-start", analysis_job_cmd, allow_abbrev=False)
-    s = add("analysis-job-status", analysis_job_cmd, allow_abbrev=False)
-    s.add_argument("job_id")
-    # Worker/execution are local toolkit internals, never bridge-allowlisted.
-    add("analysis-job-work", analysis_job_cmd, allow_abbrev=False)
-    s = add("analysis-job-execute", analysis_job_cmd, allow_abbrev=False)
-    s.add_argument("job_id"); s.add_argument("attempt")
-
-    s = add("import-hevy", import_hevy); s.add_argument("csv")
-    s = add("import-hevy-json", import_hevy_json); s.add_argument("json_file"); s.add_argument("--force", action="store_true")
-    s = add("import-hevy-body", import_hevy_body); s.add_argument("json_file")
-    s = add("import-hevy-templates", import_hevy_templates); s.add_argument("json_file")
-    s = add("import-hevy-routines", import_hevy_routines); s.add_argument("json_file")
-    s = add("today", today_session); s.add_argument("--date")
-    s = add("muscle-volume", muscle_volume); s.add_argument("--source", choices=["planned","logged"], default=None); s.add_argument("--days", type=int, default=7); s.add_argument("--by", choices=["group"])
-    s = add("last-session", last_session); s.add_argument("exercise")
-    s = add("log-set", log_set); s.add_argument("exercise")
-    s.add_argument("--weight", type=float); s.add_argument("--reps", type=int)
-    s.add_argument("--rpe", type=float); s.add_argument("--set-index", dest="set_index", type=int)
-    s.add_argument("--date"); s.add_argument("--workout-title", dest="workout_title")
-    s.add_argument("--set-type", dest="set_type")
-    s = add("routine-set", routine_set); s.add_argument("routine"); s.add_argument("exercise")
-    s.add_argument("--sets", type=int); s.add_argument("--reps", type=int)
-    s.add_argument("--weight", type=float); s.add_argument("--order", type=int)
-    s = add("routine-remove", routine_remove); s.add_argument("routine"); s.add_argument("exercise")
-    s = add("routine-undo", routine_undo)
-    s = add("schedule-set", schedule_set); s.add_argument("weekday"); s.add_argument("routine")
-    # §3e fitness_tests capture + §3c/§3d engines
-    s = add("fitness-test-log", fitness_test_log); s.add_argument("movement")
-    s.add_argument("--side"); s.add_argument("--load", type=float); s.add_argument("--reps", type=int)
-    s.add_argument("--seconds", type=float); s.add_argument("--rating", type=int)
-    s.add_argument("--cm", type=float)
-    s.add_argument("--degrees", type=float); s.add_argument("--passed", type=int)   # Phase 4 mobility (rom/binary)
-    s.add_argument("--note"); s.add_argument("--date")
-    s.add_argument("--source")
-    s = add("fitness-tests", fitness_tests); s.add_argument("--days", type=int, default=120)
-    s = add("fitness-test-void", fitness_test_void); s.add_argument("id", type=int); s.add_argument("--reason")
-    s = add("athletic-radar", athletic_radar)
-    s = add("athletic-target-set", athletic_target_set); s.add_argument("axis")
-    s.add_argument("--target", type=float, required=True); s.add_argument("--lift", default="")
-    s = add("strength-ratios", strength_ratios); s.add_argument("--view", choices=["tested", "everyday"], default="tested")
-    s = add("vtaper", vtaper); s.add_argument("--days", type=int, default=365)
-    s = add("muscle-detail", muscle_detail); s.add_argument("group"); s.add_argument("--days", type=int, default=7)
-    s = add("muscle-map", muscle_map); s.add_argument("--lens", choices=["activation", "strength-balance", "pain", "mobility"], default="activation"); s.add_argument("--days", type=int, default=None); s.add_argument("--side-mode", choices=["combined", "lr"], default="combined")
-    # §3g physio capture — collector/agent-only writers (NOT in either bridge
-    # allowlist; a drift test pins them out). Reads go through muscle-map --lens pain.
-    s = add("pain-log", pain_log); s.add_argument("region")
-    s.add_argument("--intensity", type=int); s.add_argument("--side")
-    s.add_argument("--quality"); s.add_argument("--pattern"); s.add_argument("--flags")
-    s.add_argument("--note"); s.add_argument("--date"); s.add_argument("--source")
-    s.add_argument("--reported-onset-date", dest="reported_onset_date")
-    s.add_argument("--onset-precision", dest="onset_precision",
-                   choices=["exact", "approximate", "unknown"])
-    s.add_argument("--capture-id", dest="capture_id")
-    s = add("self-test-log", self_test_log); s.add_argument("test")
-    s.add_argument("--result"); s.add_argument("--side"); s.add_argument("--note")
-    s.add_argument("--date"); s.add_argument("--source")
-    s = add("exercise-trial-log", exercise_trial_log); s.add_argument("drill")
-    s.add_argument("--response"); s.add_argument("--target"); s.add_argument("--dose")
-    s.add_argument("--pain-during", dest="pain_during", type=int)
-    s.add_argument("--note"); s.add_argument("--date"); s.add_argument("--source")
-    s = add("physio-void", physio_void); s.add_argument("--kind"); s.add_argument("id", type=int)
-    s.add_argument("--reason")
-    s = add("import-submuscle-map", import_submuscle_map); s.add_argument("md_file"); s.add_argument("--seed", action="store_true"); s.add_argument("--seed-all", action="store_true")
-    s = add("import-lab-catalog", import_lab_catalog); s.add_argument("md_file"); s.add_argument("--seed", action="store_true")
-    s = add("lab-capture", lab_capture); s.add_argument("name")
-    s = add("lab-ingest", lab_ingest); s.add_argument("--date"); s.add_argument("--panel")
-    s.add_argument("--commit", action="store_true"); s.add_argument("--confirm", action="append")
-    s = add("labs", labs); s.add_argument("--days", type=int, default=None)
-    s.add_argument("--test"); s.add_argument("--panel")
-    s = add("write-note", write_note); s.add_argument("path")
-    s = add("journal-capture", journal_capture); s.add_argument("--date"); s.add_argument("--time")
-    s = add("transcript-capture", transcript_capture); s.add_argument("audio")
-    s = add("import-recipes", import_recipes); s.add_argument("csv")
-    s.add_argument("--per-serving", dest="per_serving", action="store_true")
-    s.add_argument("--per-gram", dest="per_gram", action="store_true")
-    s.add_argument("--servings", type=int, default=None)
-    s.add_argument("--batch-grams", dest="batch_grams", type=float, default=None)
-    s.add_argument("--portions", type=int, default=None)
-    s.add_argument("--meal-type", dest="meal_type", choices=MEAL_TYPES, default=None)
-    s = add("recipe-ingredients-set", recipe_ingredients_set); s.add_argument("recipe")
-    s = add("import-cronometer", import_cronometer); s.add_argument("csv")
-    s = add("import-google-health", import_google_health); s.add_argument("json_file", nargs="?", default="-")
-    s = add("nutrition-target-set", nutrition_target_set); s.add_argument("name")
-    s.add_argument("--target", type=float, required=True)
-    s = add("profile-set", profile_set); s.add_argument("key"); s.add_argument("value")
-    s = add("phase-set", phase_set); s.add_argument("phase")
-    s = add("nutrition-targets", nutrition_targets)
-    s = add("nutrition-coverage", nutrition_coverage)
-    s.add_argument("--days", type=int, default=7, choices=[7, 30, 90, 365])
-    s = add("set-batch", set_batch); s.add_argument("recipe"); s.add_argument("--grams", type=float, required=True)
-    s.add_argument("--portions", type=int, default=None)
-    s = add("recipe-tag", recipe_tag); s.add_argument("recipe"); s.add_argument("meal_type")
-    s = add("prep", prep); s.add_argument("recipe"); s.add_argument("--portions", type=int, required=True); s.add_argument("--batch-grams", dest="batch_grams", type=float)
-    s = add("eat", eat); s.add_argument("recipe"); s.add_argument("--portions", type=int, default=1); s.add_argument("--date")
-    s.add_argument("--time"); s.add_argument("--meal-type", dest="meal_type"); s.add_argument("--source")
-    s = add("log-food", log_food); s.add_argument("recipe"); s.add_argument("--grams", type=float, required=True); s.add_argument("--date")
-    s.add_argument("--time"); s.add_argument("--meal-type", dest="meal_type"); s.add_argument("--source")
-    s = add("menu", menu); s.add_argument("--date")
-    s = add("restock-check", restock_check)
-    s.add_argument("--threshold", type=float, default=2); s.add_argument("--date")
-    s = add("restock-mark", restock_mark); s.add_argument("recipe")
-    s.add_argument("--action", required=True, choices=sorted(RESTOCK_ACTIONS))
-    s.add_argument("--threshold", type=float, default=2)
-    s.add_argument("--snooze-until"); s.add_argument("--date")
-    s = add("log", log); s.add_argument("table"); s.add_argument("fields", nargs="+")
-    s = add("day-rating", day_rating); s.add_argument("rating"); s.add_argument("--date"); s.add_argument("--source")
-    s = add("water-add", water_add); s.add_argument("ml", type=int); s.add_argument("--date")
-    s = add("query", query); s.add_argument("sql")
-    s = add("bp-brief", bp_brief); s.add_argument("--days", type=int, default=90); s.add_argument("--drug", default=PRIMARY_MEDICATION)
-    s = add("summary", summary); s.add_argument("--days", type=int, default=14)
-    s = add("schema", schema); s.add_argument("table", nargs="?")
-    s = add("build-daily-frame", build_daily_frame); s.add_argument("--days", type=int, default=180)
-    s = add("features", features); s.add_argument("--days", type=int, default=180)
-    s = add("correlate", correlate); s.add_argument("--days", type=int, default=365)
-    s.add_argument("--min-n", dest="min_n", type=int, default=10)
-    s.add_argument("--top", type=int, default=40)
-    s = add("day-signature", day_signature); s.add_argument("--days", type=int, default=365)
-    s.add_argument("--min-days", dest="min_days", type=int, default=3)
-    s = add("commitment-set", commitment_set); s.add_argument("name")
-    s.add_argument("--identity"); s.add_argument("--trigger"); s.add_argument("--floor")
-    s.add_argument("--reward"); s.add_argument("--active", type=int)
-    s = add("commitment-list", commitment_list); s.add_argument("--all", action="store_true")
-    s = add("log-commitment", log_commitment); s.add_argument("status")
-    s.add_argument("--id", type=int); s.add_argument("--why"); s.add_argument("--date"); s.add_argument("--source")
-    s = add("checkin", checkin); s.add_argument("kind"); s.add_argument("value", type=int)
-    s.add_argument("--time"); s.add_argument("--note"); s.add_argument("--date"); s.add_argument("--source")
-    s = add("feedback-status", feedback_status); s.add_argument("--date", required=True)
-    s = add("adherence", adherence); s.add_argument("--days", type=int, default=90)
-    s = add("planned-time-set", planned_time_set); s.add_argument("metric"); s.add_argument("time")
-    s.add_argument("--tolerance", type=int)
-    s = add("timing-adherence", timing_adherence); s.add_argument("--days", type=int, default=28)
-    s = add("data-coverage", data_coverage); s.add_argument("--days", type=int, default=90)
-    s = add("scores", scores); s.add_argument("--days", type=int, default=SCORES_DEFAULT_DAYS)
-    s = add("readiness", readiness); s.add_argument("--anchor")
-    s.add_argument("--from", dest="from_date")
-    # Phase 2 explicit migrations and agent/SSH-only lossless capture.
-    s = add("schema-status", schema_status_cmd)
-    s = add("schema-plan", schema_plan_cmd); s.add_argument("--to", type=int, required=True)
-    s = add("migrate", migrate_cmd); s.add_argument("--to", type=int, required=True)
-    s.add_argument("--expected-from", dest="expected_from", type=int, required=True)
-    s = add("capture-raw", capture_raw_cmd); s.add_argument("--stdin", action="store_true", required=True)
-    s = add("capture-resolve", capture_resolve_cmd); s.add_argument("--stdin", action="store_true", required=True)
-    s = add("event-log", event_log_cmd); s.add_argument("--stdin", action="store_true", required=True)
-    s = add("event-correct", event_correct_cmd); s.add_argument("id", type=int)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("event-void", event_void_cmd); s.add_argument("id", type=int)
-    s.add_argument("--reason", required=True)
-    s = add("events", events_cmd)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--category"); s.add_argument("--entity-key", dest="entity_key")
-    s = add("capture-completeness-set", capture_completeness_set_cmd)
-    s.add_argument("--date", required=True); s.add_argument("--scope", required=True)
-    s.add_argument("--state", required=True); s.add_argument("--explicit-none", dest="explicit_none", action="store_true")
-    s.add_argument("--entity-key", dest="entity_key"); s.add_argument("--source", required=True)
-    s.add_argument("--capture-id", dest="capture_id"); s.add_argument("--note")
-    s = add("capture-completeness", capture_completeness_cmd)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--scope")
-    s = add("entity-alias-set", entity_alias_set_cmd); s.add_argument("type"); s.add_argument("alias")
-    s.add_argument("--canonical", required=True); s.add_argument("--label", required=True)
-    s = add("entity-alias-retire", entity_alias_retire_cmd); s.add_argument("type"); s.add_argument("alias")
-    s = add("entity-alias-history", entity_alias_history_cmd); s.add_argument("type"); s.add_argument("alias")
-    s = add("supplement-log", supplement_log); s.add_argument("supplement")
-    s.add_argument("--taken", type=int, choices=[0, 1]); s.add_argument("--dose", type=float)
-    s.add_argument("--time"); s.add_argument("--date"); s.add_argument("--note")
-    s.add_argument("--capture-id", dest="capture_id"); s.add_argument("--source", required=True)
-    # Phase 3 registry/frame/readiness reads plus agent/SSH-only config writers.
-    s = add("feature-registry", feature_registry_cmd)
-    s.add_argument("--family")
-    s = add("feature-frame", feature_frame_cmd)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--family"); s.add_argument("--include-provenance", dest="include_provenance", action="store_true")
-    s = add("data-readiness", data_readiness_cmd)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--goal", choices=insight_goals.GOAL_KEYS); s.add_argument("--outcome")
-    # Phase 4 pure analytical reads.  Abbreviated long flags are refused on
-    # these new surfaces without changing legacy argparse compatibility.
-    s = add("outcome-associations", outcome_associations_cmd, allow_abbrev=False)
-    s.add_argument("--outcome", required=True)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--mode", choices=insight_associations.MODE_VALUES, default="all")
-    s.add_argument("--min-n", dest="min_n", type=int, default=insight_associations.DEFAULT_MIN_N)
-    s.add_argument("--interactions", choices=("none", "pairwise"), default="none")
-    s.add_argument("--top", type=int, default=insight_associations.DEFAULT_TOP)
-    s = add("finding-evidence", finding_evidence_cmd, allow_abbrev=False)
-    s.add_argument("--outcome", required=True)
-    s.add_argument("--finding-id", dest="finding_id", required=True)
-    s.add_argument("--input-fingerprint", dest="input_fingerprint", required=True)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    # Phase 5 canonical ledger/synthesis surface. Only identifier-only
-    # hypothesis promotion and the three structured reads enter the bridge.
-    # Every other command here remains local agent/SSH-only.
-    s = add("analysis-refresh", analysis_refresh_cmd, allow_abbrev=False)
-    s.add_argument(
-        "--kind",
-        choices=("manual", "nightly", "weekly", "monthly", "trigger"),
-        required=True,
+    """Launch the shared CLI with the remaining legacy handlers wired explicitly."""
+    insight_cli.run(
+        _command_context(),
+        {
+            "analysis-job-start": analysis_job_cmd,
+            "analysis-job-status": analysis_job_cmd,
+            "analysis-job-work": analysis_job_cmd,
+            "analysis-job-execute": analysis_job_cmd,
+            "import-hevy-json": import_hevy_json,
+            "import-hevy-body": import_hevy_body,
+            "import-hevy-templates": import_hevy_templates,
+            "import-hevy-routines": import_hevy_routines,
+            "today": today_session,
+            "muscle-volume": muscle_volume,
+            "last-session": last_session,
+            "log-set": log_set,
+            "routine-set": routine_set,
+            "routine-remove": routine_remove,
+            "routine-undo": routine_undo,
+            "schedule-set": schedule_set,
+            "fitness-test-log": fitness_test_log,
+            "fitness-tests": fitness_tests,
+            "fitness-test-void": fitness_test_void,
+            "athletic-radar": athletic_radar,
+            "athletic-target-set": athletic_target_set,
+            "strength-ratios": strength_ratios,
+            "vtaper": vtaper,
+            "muscle-detail": muscle_detail,
+            "muscle-map": muscle_map,
+            "pain-log": pain_log,
+            "self-test-log": self_test_log,
+            "exercise-trial-log": exercise_trial_log,
+            "physio-void": physio_void,
+            "import-submuscle-map": import_submuscle_map,
+            "import-lab-catalog": import_lab_catalog,
+            "lab-capture": lab_capture,
+            "lab-ingest": lab_ingest,
+            "labs": labs,
+            "write-note": write_note,
+            "journal-capture": journal_capture,
+            "transcript-capture": transcript_capture,
+            "import-recipes": import_recipes,
+            "recipe-ingredients-set": recipe_ingredients_set,
+            "import-cronometer": import_cronometer,
+            "import-google-health": import_google_health,
+            "nutrition-target-set": nutrition_target_set,
+            "profile-set": profile_set,
+            "phase-set": phase_set,
+            "nutrition-targets": nutrition_targets,
+            "nutrition-coverage": nutrition_coverage,
+            "set-batch": set_batch,
+            "recipe-tag": recipe_tag,
+            "prep": prep,
+            "eat": eat,
+            "log-food": log_food,
+            "menu": menu,
+            "restock-check": restock_check,
+            "restock-mark": restock_mark,
+            "log": log,
+            "day-rating": day_rating,
+            "water-add": water_add,
+            "query": query,
+            "bp-brief": bp_brief,
+            "summary": summary,
+            "schema": schema,
+            "build-daily-frame": build_daily_frame,
+            "features": features,
+            "correlate": correlate,
+            "day-signature": day_signature,
+            "commitment-set": commitment_set,
+            "commitment-list": commitment_list,
+            "log-commitment": log_commitment,
+            "checkin": checkin,
+            "feedback-status": feedback_status,
+            "adherence": adherence,
+            "planned-time-set": planned_time_set,
+            "timing-adherence": timing_adherence,
+            "data-coverage": data_coverage,
+            "scores": scores,
+            "readiness": readiness,
+            "schema-status": schema_status_cmd,
+            "schema-plan": schema_plan_cmd,
+            "migrate": migrate_cmd,
+            "capture-raw": capture_raw_cmd,
+            "capture-resolve": capture_resolve_cmd,
+            "event-log": event_log_cmd,
+            "event-correct": event_correct_cmd,
+            "event-void": event_void_cmd,
+            "events": events_cmd,
+            "capture-completeness-set": capture_completeness_set_cmd,
+            "capture-completeness": capture_completeness_cmd,
+            "entity-alias-set": entity_alias_set_cmd,
+            "entity-alias-retire": entity_alias_retire_cmd,
+            "entity-alias-history": entity_alias_history_cmd,
+            "supplement-log": supplement_log,
+            "feature-registry": feature_registry_cmd,
+            "feature-frame": feature_frame_cmd,
+            "data-readiness": data_readiness_cmd,
+            "outcome-associations": outcome_associations_cmd,
+            "finding-evidence": finding_evidence_cmd,
+            "analysis-refresh": analysis_refresh_cmd,
+            "hypothesis-promote": hypothesis_promote_cmd,
+            "hypothesis-refresh": hypothesis_refresh_cmd,
+            "hypothesis-annotate": hypothesis_annotate_cmd,
+            "hypotheses": hypotheses_cmd,
+            "hypothesis-brief": hypothesis_brief_cmd,
+            "synthesis-prepare": synthesis_prepare_cmd,
+            "synthesis-record": synthesis_record_cmd,
+            "synthesis-history": synthesis_history_cmd,
+            "insight-trigger-enqueue": insight_trigger_enqueue_cmd,
+            "insight-trigger-claim": insight_trigger_claim_cmd,
+            "insight-trigger-renew": insight_trigger_renew_cmd,
+            "insight-trigger-complete": insight_trigger_complete_cmd,
+            "insight-trigger-fail": insight_trigger_fail_cmd,
+            "insight-notification-claim": insight_notification_claim_cmd,
+            "insight-notification-begin-dispatch": insight_notification_begin_dispatch_cmd,
+            "insight-notification-ack": insight_notification_ack_cmd,
+            "insight-notification-fail": insight_notification_fail_cmd,
+            "insight-notification-resolve": insight_notification_resolve_cmd,
+            "insight-run-status": insight_run_status_cmd,
+            "goal-list": goal_list_cmd,
+            "goal-set": goal_set_cmd,
+            "collector-run-record": collector_run_record_cmd,
+            "fetch-weather": fetch_weather,
+            "fetch-air": fetch_air,
+        },
+        argv=sys.argv[1:], output=out, parse_number=num,
+        meal_types=MEAL_TYPES, restock_actions=RESTOCK_ACTIONS,
+        scores_default_days=SCORES_DEFAULT_DAYS,
     )
-    s.add_argument("--outcome", action="append")
-    s.add_argument("--mode", choices=insight_associations.MODE_VALUES)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s.add_argument("--anchor")
-    s.add_argument("--stdin", action="store_true")
-    s = add("hypothesis-promote", hypothesis_promote_cmd, allow_abbrev=False)
-    s.add_argument("--outcome", required=True)
-    s.add_argument("--finding-id", dest="finding_id", required=True)
-    s.add_argument("--input-fingerprint", dest="input_fingerprint", required=True)
-    s.add_argument("--from", dest="from_date"); s.add_argument("--to", dest="to_date")
-    s.add_argument("--days", type=int); s.add_argument("--all", dest="all_dates", action="store_true")
-    s = add("hypothesis-refresh", hypothesis_refresh_cmd, allow_abbrev=False)
-    s.add_argument("--batch-id", dest="batch_id", required=True)
-    s = add("hypothesis-annotate", hypothesis_annotate_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("hypotheses", hypotheses_cmd, allow_abbrev=False)
-    s.add_argument("--status", choices=sorted(insight_ledger.HYPOTHESIS_STATUSES))
-    s.add_argument("--outcome")
-    s.add_argument("--limit", type=int, default=50)
-    s.add_argument("--before")
-    s = add("hypothesis-brief", hypothesis_brief_cmd, allow_abbrev=False)
-    s.add_argument("hypothesis_id")
-    s = add("synthesis-prepare", synthesis_prepare_cmd, allow_abbrev=False)
-    s.add_argument("--batch-id", dest="batch_id", required=True)
-    s = add("synthesis-record", synthesis_record_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("synthesis-history", synthesis_history_cmd, allow_abbrev=False)
-    s.add_argument("--limit", type=int, default=20)
-    s.add_argument("--before")
-    # Phase 6 queue/outbox commands remain scheduler/agent-only.  The sole
-    # panel-exposed command is the read-only, redacted run-status view.
-    s = add("insight-trigger-enqueue", insight_trigger_enqueue_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-trigger-claim", insight_trigger_claim_cmd, allow_abbrev=False)
-    s.add_argument("--worker-id", dest="worker_id", required=True)
-    s = add("insight-trigger-renew", insight_trigger_renew_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-trigger-complete", insight_trigger_complete_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-trigger-fail", insight_trigger_fail_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-notification-claim", insight_notification_claim_cmd, allow_abbrev=False)
-    s.add_argument("--worker-id", dest="worker_id", required=True)
-    s = add(
-        "insight-notification-begin-dispatch",
-        insight_notification_begin_dispatch_cmd,
-        allow_abbrev=False,
-    )
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-notification-ack", insight_notification_ack_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-notification-fail", insight_notification_fail_cmd, allow_abbrev=False)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add(
-        "insight-notification-resolve",
-        insight_notification_resolve_cmd,
-        allow_abbrev=False,
-    )
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("insight-run-status", insight_run_status_cmd, allow_abbrev=False)
-    s.add_argument("--limit", type=int, default=20)
-    s = add("goal-list", goal_list_cmd); s.add_argument("--all", dest="all_goals", action="store_true")
-    s = add("goal-set", goal_set_cmd); s.add_argument("goal", choices=insight_goals.GOAL_KEYS)
-    s.add_argument("--enabled", type=int, choices=[0, 1], required=True)
-    s.add_argument("--priority", type=int, choices=range(1, 6), required=True)
-    s.add_argument("--outcome"); s.add_argument("--direction", choices=["increase", "decrease", "maintain"])
-    s.add_argument("--note"); s.add_argument("--source", required=True)
-    s = add("collector-run-record", collector_run_record_cmd)
-    s.add_argument("--stdin", action="store_true", required=True)
-    s = add("fetch-weather", fetch_weather); s.add_argument("--lat", required=True); s.add_argument("--lon", required=True); s.add_argument("--location", default=""); s.add_argument("--date")
-    s = add("fetch-air", fetch_air); s.add_argument("--lat", required=True); s.add_argument("--lon", required=True); s.add_argument("--location", default=""); s.add_argument("--date")
 
-    if len(sys.argv) > 1 and sys.argv[1] in STRICT_REPEAT_COMMANDS:
-        seen_flags = set()
-        repeatable = REPEATABLE_FLAGS.get(sys.argv[1], set())
-        for token in sys.argv[2:]:
-            if not token.startswith("--"):
-                continue
-            flag = token.split("=", 1)[0]
-            if flag in seen_flags and flag not in repeatable:
-                p.error(f"repeated flag is not allowed: {flag}")
-            seen_flags.add(flag)
-    a = p.parse_args()
-    try:
-        a.fn(a)
-    except (insight_migrations.SchemaError, insight_events.CaptureError,
-            insight_frame.FrameError, insight_goals.GoalError,
-            insight_readiness.ReadinessError,
-            insight_readiness_ancestry.ReadinessAncestryError,
-            insight_registry.RegistryError,
-            insight_associations.AssociationError,
-            insight_provenance.ProvenanceError,
-            insight_ledger.LedgerError,
-            insight_orchestrator.OrchestrationError,
-            insight_synthesis.SynthesisError) as exc:
-        out({"ok": False, "error": {"code": exc.code, "message": str(exc)}})
-        raise SystemExit(2 if exc.validation else 1)
-    except sqlite3.Error as exc:
-        if len(sys.argv) > 1 and sys.argv[1] in JSON_COMMANDS:
-            out({"ok": False, "error": {"code": "database_error", "message": str(exc)}})
-            raise SystemExit(1)
-        raise
 
 if __name__ == "__main__":
     main()
