@@ -170,38 +170,53 @@ def build_app(manager, workspace, socket_path, launch_token, restart_event, code
     def mutate(operation):
         if not mutation_lock.acquire(blocking=False):
             return jsonify(error="A workspace is already opening."), 409
+        restart_delay = None
         try:
             if restart_event.is_set():
                 return jsonify(error="The application is restarting."), 409
+            restart_delay = 3
             quiesce()
             operation()
             # Let the response reach WebKit before the launcher's exec restart.
-            timer = threading.Timer(0.5, restart_event.set)
-            timer.daemon = True
-            timer.start()
+            restart_delay = 0.5
             return jsonify(ok=True, restarting=True)
         except (ValueError, OSError, RuntimeError) as error:
-            timer = threading.Timer(3, restart_event.set)
-            timer.daemon = True
-            timer.start()
             from desktop.workspaces import WorkspaceError
             message = str(error) if isinstance(error, WorkspaceError) else "The workspace could not be opened. Your existing data was kept. Check the file and timezone, then try again."
             return jsonify(error=message), 400
         finally:
-            mutation_lock.release()
+            try:
+                # Unexpected errors must also recover a stopped helper.
+                if restart_delay is not None:
+                    timer = threading.Timer(restart_delay, restart_event.set)
+                    timer.daemon = True
+                    timer.start()
+            finally:
+                mutation_lock.release()
 
     @bp.post("/api/workspaces")
     def create_workspace():
         body = request.get_json(silent=True)
         if not isinstance(body, dict) or set(body) - {"kind", "timezone", "source_database"}:
             return jsonify(error="Choose a workspace and timezone."), 400
-        return mutate(lambda: manager.create(kind=body.get("kind"), timezone=body.get("timezone"),
-                                             source_database=body.get("source_database")))
+        kind = body.get("kind")
+        if not isinstance(kind, str) or kind not in {"demo", "personal", "import"}:
+            return jsonify(error="Choose a workspace type."), 400
+        from desktop.workspaces import WorkspaceError, validate_timezone
+        try:
+            timezone = validate_timezone(body.get("timezone"))
+        except WorkspaceError as error:
+            return jsonify(error=str(error)), 400
+        source = body.get("source_database")
+        if ((source is not None and not isinstance(source, str))
+                or (kind == "import" and not source)):
+            return jsonify(error="Choose a database file to import."), 400
+        return mutate(lambda: manager.create(kind=kind, timezone=timezone, source_database=source))
 
     @bp.post("/api/select")
     def select_workspace():
         body = request.get_json(silent=True)
-        if not isinstance(body, dict) or set(body) != {"id"}:
+        if not isinstance(body, dict) or set(body) != {"id"} or not isinstance(body["id"], str):
             return jsonify(error="Choose a saved workspace."), 400
         return mutate(lambda: manager.select(body["id"]))
 

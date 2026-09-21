@@ -32,6 +32,64 @@ def test_launch_session_single_use_and_retained_csrf(tmp_path):
     assert client.get("/enroll").status_code == 401
 
 
+@pytest.mark.parametrize(("route", "payload"), [
+    ("workspaces", {"kind": [], "timezone": "UTC"}),
+    ("workspaces", {"kind": "unknown", "timezone": "UTC"}),
+    ("workspaces", {"kind": "personal", "timezone": []}),
+    ("workspaces", {"kind": "personal", "timezone": "not/a-timezone"}),
+    ("workspaces", {"kind": "import", "timezone": "UTC", "source_database": {"path": "sample.db"}}),
+    ("workspaces", {"kind": "import", "timezone": "UTC", "source_database": ""}),
+    ("select", {"id": []}),
+])
+def test_invalid_workspace_request_keeps_existing_helper_available(tmp_path, route, payload):
+    manager = WorkspaceManager(tmp_path, Path(__file__).resolve().parents[1], "a" * 40)
+    helper_running = threading.Event()
+    helper_running.set()
+    restart = threading.Event()
+    app = build_app(manager, None, tmp_path / "socket", "validation-launch",
+                    restart, "a" * 40, quiesce=helper_running.clear)
+    app.config["RATELIMIT_ENABLED"] = False
+    client = app.test_client()
+    client.post("/desktop/session", headers={"X-OHA-Launch-Token": "validation-launch"})
+    csrf = csrf_from(client.get("/desktop/").text)
+
+    response = client.post(f"/desktop/api/{route}", json=payload,
+                           headers={"X-CSRFToken": csrf})
+
+    assert response.status_code == 400
+    assert helper_running.is_set()
+    assert not restart.is_set()
+    assert manager.list_workspaces() == []
+
+
+@pytest.mark.parametrize(("failure", "status"), [(OSError, 400), (TypeError, 500)])
+def test_workspace_failure_after_stopping_helper_requests_recovery(tmp_path, monkeypatch, failure, status):
+    manager = WorkspaceManager(tmp_path, Path(__file__).resolve().parents[1], "a" * 40)
+    helper_running = threading.Event()
+    helper_running.set()
+    restart = threading.Event()
+
+    def fail_create(**kwargs):
+        raise failure("synthetic setup failure")
+
+    monkeypatch.setattr(manager, "create", fail_create)
+    app = build_app(manager, None, tmp_path / "socket", "recovery-launch",
+                    restart, "a" * 40, quiesce=helper_running.clear)
+    app.config.update(RATELIMIT_ENABLED=False, PROPAGATE_EXCEPTIONS=False)
+    client = app.test_client()
+    client.post("/desktop/session", headers={"X-OHA-Launch-Token": "recovery-launch"})
+    csrf = csrf_from(client.get("/desktop/").text)
+
+    response = client.post("/desktop/api/workspaces",
+                           json={"kind": "personal", "timezone": "UTC"},
+                           headers={"X-CSRFToken": csrf})
+
+    assert response.status_code == status
+    assert not helper_running.is_set()
+    assert restart.wait(5)
+    assert "synthetic setup failure" not in response.text
+
+
 def test_idle_desktop_logout_revokes_session_and_offers_native_reopen(tmp_path, monkeypatch):
     from app import auth
     clock = [int(time.time())]
