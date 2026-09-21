@@ -1,5 +1,32 @@
 # Refactoring checkpoint
 
+## Current toolkit project
+
+The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
+It owns scope, architecture, milestone order, acceptance and continuation policy.
+Older entries below are dated history, including superseded approval checkpoints.
+
+Milestone 1 is complete at `cbeaf164256ef16f3b4dfef6b55fb5edd0e59efd`, with
+corrected runtime/replay baseline `c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
+Milestone 2 scope: shared CLI plumbing and the Hevy CSV importer. Continue on
+`codex/health-toolkit-modularization`; retain the accumulated local commits.
+
+On 22 September 2026, the owner authorized fresh-main continuation after each
+milestone's verification and independent-review gates, replacing routine approval
+before starting the next milestone. Push, merge, release, private-data, credential
+and live-integration boundaries remain unchanged. No merge is needed to continue
+authorized local work.
+
+Milestone 2 ownership transfers through the fresh-main handoff. Exact checkout,
+active task ownership, acceptance receipts and local evidence paths stay in the
+external handoff package. The successor must verify and explicitly accept the
+checkpoint before editing, then update this section at its milestone boundary.
+
+The [corrected baseline record](#corrected-toolkit-baseline-22-september-2026)
+contains the evidence and inherited resampling/finding-ID tie-break caveat.
+Carry that caveat forward; the 2,067 passing tests do not imply that every
+prepared evidence-selection slot is invariant under engine identity changes.
+
 ## Agreed requirements
 
 The owner delegated selection of the most complete development branch. Every field and control already wired to collect or display data is required functionality. Report broken or unverified fields instead of deleting them. Telegram is the primary interaction path. Preserve useful health features and external Hermes integration. Company-specific work, the public website and portfolio redesign are deferred.

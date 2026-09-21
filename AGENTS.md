@@ -12,5 +12,6 @@
 
 - Read `docs/DEVELOPMENT.md` §Working conventions for privacy, commit and publication boundaries.
 - Read `docs/REFACTORING.md` for the current checkpoint; verify consequential claims in current source.
+- Read `docs/TOOLKIT_MODULARIZATION.md` for the approved scope, milestone order and fresh-main relay.
 - Read `docs/ARCHITECTURE.md` §Major packages to locate owning modules.
 - Read `docs/DEVELOPMENT.md` §Documentation ownership and §Writing tools before using project extensions.

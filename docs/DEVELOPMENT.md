@@ -166,9 +166,11 @@ batch. Update [Refactoring](REFACTORING.md) after meaningful batches with
 decisions, changed files, checks, gaps and the next step.
 
 Commits remain local until task-specific publication authorization and privacy
-review permit a push. A merge requires the owner's milestone review when that
-checkpoint is part of the task. Source publication never authorizes live
-service activation or changes to the owner's records.
+review permit a push. Merges retain their separate owner-review boundary.
+The toolkit project follows [its approved continuation policy](TOOLKIT_MODULARIZATION.md#authorization-and-exclusions)
+between verified milestones; it does not require a merge to continue local work.
+Source publication never authorizes live service activation or changes to the
+owner's records.
 
 ## Review evidence
 
@@ -203,6 +205,7 @@ instead of copying its explanation into agent instructions or code comments.
 | `CONTRIBUTING.md` | Contribution principles, change process and licensing obligations |
 | `docs/DEVELOPMENT.md` | Developer setup, working conventions, review evidence, this map and writing-tool setup |
 | `docs/TESTING.md` | Test prerequisites, commands, partitions and coverage classes |
+| `docs/TOOLKIT_MODULARIZATION.md` | Approved toolkit architecture, milestone order, acceptance criteria and fresh-main relay policy |
 | `docs/ARCHITECTURE.md` | Runtime responsibilities, module navigation and trust boundaries |
 | `docs/SYSTEM_DESIGN.md` | Analytical semantics, time, identity and evidence contracts; project terminology |
 | `docs/PRODUCT_AUTHORITY.md` | Accepted product and external-client authority decisions |
