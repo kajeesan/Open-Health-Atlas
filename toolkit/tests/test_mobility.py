@@ -238,14 +238,15 @@ def test_shipped_norms_do_not_overlap_so_worst_wins_is_inert(db):
             seen[base] = mv
 
 
-def test_worst_wins_and_pending_norm_via_full_payload(db, monkeypatch):
-    # genuinely exercise apply()'s worst-wins AND the pending-norm (normal_at=None
-    # → untested) path through the FULL payload. A patched norm map can't cross a
-    # subprocess boundary, so drive the lens in-process against a DB the real
-    # writer populated. Movements stay REAL (only the norm map is patched).
-    monkeypatch.setenv("HEALTH_DB", str(db))   # for the subprocess ft() writers
-    monkeypatch.setattr(health, "DB", str(db))  # for the in-process lens read (DB is bound at import)
-    monkeypatch.setattr(health, "MOBILITY_NORM", {
+def test_worst_wins_and_pending_norm_via_full_payload(db):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from hermes_insights import muscle_figure, runtime
+
+    # Real movements share a display region in this explicit configuration;
+    # another has a measured value but no defensible cutoff.
+    mobility_norm = {
         # two REAL tests pointed at the SAME base → a contested region
         "ankle-df-wall": {"label": "AR", "svg": ("quads",), "unit": "deg",
                           "better": "higher", "normal_at": 30, "cite": "x"},
@@ -254,14 +255,20 @@ def test_worst_wins_and_pending_norm_via_full_payload(db, monkeypatch):
         # a pending norm: value logged, no cited cutoff → honest untested
         "thomas": {"label": "CP", "svg": ("biceps",), "unit": "pass-fail",
                    "better": "higher", "normal_at": None, "cite": "z"},
-    })
-    ft(db, "ankle-df-wall", "--side", "left", "--degrees", "20")          # restricted
-    ft(db, "shoulder-flexion-rom", "--side", "left", "--degrees", "60")   # normal
-    ft(db, "thomas", "--side", "left", "--passed", "1")                   # pending → untested
-    box = {}
-    monkeypatch.setattr(health, "out", lambda d: box.update(d))
-    import types
-    health._muscle_map_mobility(types.SimpleNamespace(lens="mobility", days=None, side_mode="combined"))
+    }
+    ft(db, "ankle-df-wall", "--side", "left", "--degrees", "20", "--date", "2026-07-20")
+    ft(db, "shoulder-flexion-rom", "--side", "left", "--degrees", "60", "--date", "2026-07-20")
+    ft(db, "thomas", "--side", "left", "--passed", "1", "--date", "2026-07-20")
+    connection = runtime.connect(db)
+    try:
+        box = muscle_figure.mobility(
+            connection,
+            clock=lambda: datetime(2026, 7, 20, 12, tzinfo=ZoneInfo("Europe/Paris")),
+            mobility_norm=mobility_norm,
+        )
+    finally:
+        connection.close()
+
     # restricted (rank 2) beats normal (rank 1) on the shared quads-left region
     assert box["regions"]["quads-left"]["status"] == "restricted"
     thomas = next(t for t in box["tests"] if t["movement"] == "thomas")

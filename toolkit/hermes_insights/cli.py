@@ -21,6 +21,7 @@ from .catalogs import PRIMARY_MEDICATION
 from .commands import (
     collectors, cronometer, daily_capture, followthrough, google_health, hevy,
     food, nutrition, lab_catalog, notes, recipes, schedules, submuscle_map,
+    training, fitness, muscles, physio,
 )
 from .commands.hevy import import_csv
 
@@ -359,7 +360,8 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
 
 def run(context, legacy_handlers, *, argv, output, parse_number,
         meal_types, restock_actions, scores_default_days,
-        quarterly_routines, stdin, slug, figure_sub_svg, water_target_ml, open_url,
+        quarterly_routines, quarterly_unilateral_titles, mobility_norm,
+        stdin, slug, figure_sub_svg, water_target_ml, open_url,
         medication_aliases, nutrition_config):
     """Dispatch converted commands and explicitly wired compatibility handlers."""
     def hevy_csv(arguments):
@@ -508,8 +510,88 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
     def nutrition_coverage(arguments):
         output(nutrition.nutrition_coverage(context, arguments, config=nutrition_config))
 
+    def log_set(arguments):
+        output(training.log_set(context, arguments, parse_number=parse_number))
+
+    def today_session(arguments):
+        output(training.today_session(context, arguments))
+
+    def last_session(arguments):
+        output(training.last_session(context, arguments))
+
+    def routine_set(arguments):
+        output(training.routine_set(context, arguments, parse_number=parse_number))
+
+    def routine_remove(arguments):
+        output(training.routine_remove(context, arguments))
+
+    def routine_undo(arguments):
+        output(training.routine_undo(context, arguments))
+
+    def fitness_test_log(arguments):
+        output(fitness.fitness_test_log(context, arguments))
+
+    def fitness_test_void(arguments):
+        output(fitness.fitness_test_void(context, arguments))
+
+    def fitness_tests(arguments):
+        output(fitness.fitness_tests(context, arguments))
+
+    def athletic_target_set(arguments):
+        output(fitness.athletic_target_set(context, arguments))
+
+    def athletic_radar(arguments):
+        output(fitness.athletic_radar(context, arguments))
+
+    def strength_ratios(arguments):
+        output(fitness.strength_ratios(context, arguments))
+
+    def vtaper(arguments):
+        output(fitness.vtaper(context, arguments))
+
+    def muscle_volume(arguments):
+        output(muscles.muscle_volume(context, arguments))
+
+    def muscle_detail(arguments):
+        output(muscles.muscle_detail(context, arguments))
+
+    def muscle_map(arguments):
+        output(muscles.muscle_map(context, arguments, quarterly_routines=quarterly_routines, unilateral_titles=quarterly_unilateral_titles, mobility_norm=mobility_norm))
+
+    def pain_log(arguments):
+        output(physio.pain_log(context, arguments))
+
+    def self_test_log(arguments):
+        output(physio.self_test_log(context, arguments))
+
+    def exercise_trial_log(arguments):
+        output(physio.exercise_trial_log(context, arguments))
+
+    def physio_void(arguments):
+        output(physio.physio_void(context, arguments))
+
     handlers = {
         **legacy_handlers,
+        "log-set": log_set,
+        "today": today_session,
+        "last-session": last_session,
+        "routine-set": routine_set,
+        "routine-remove": routine_remove,
+        "routine-undo": routine_undo,
+        "fitness-test-log": fitness_test_log,
+        "fitness-test-void": fitness_test_void,
+        "fitness-tests": fitness_tests,
+        "athletic-target-set": athletic_target_set,
+        "athletic-radar": athletic_radar,
+        "strength-ratios": strength_ratios,
+        "vtaper": vtaper,
+        "muscle-volume": muscle_volume,
+        "muscle-detail": muscle_detail,
+        "muscle-map": muscle_map,
+        "pain-log": pain_log,
+        "self-test-log": self_test_log,
+        "exercise-trial-log": exercise_trial_log,
+        "physio-void": physio_void,
         "set-batch": set_batch,
         "recipe-tag": recipe_tag,
         "recipe-ingredients-set": recipe_ingredients_set,

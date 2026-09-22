@@ -69,6 +69,7 @@ and UI state.
 | File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
 | Nutrition and food | `toolkit/hermes_insights/nutrition.py`, `food.py`, `score_contracts.py`, `commands/` | Profile targets, nutrition coverage, recipe scaling, food capture and freezer stock |
+| Training and movement | `toolkit/hermes_insights/fitness.py`, `muscles.py`, `muscle_figure.py`, `figure_contracts.py`, `physio.py`, `body_measurements.py`, `commands/` | Training edits, fitness reports, muscle volume and figure lenses |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -82,7 +83,7 @@ and UI state.
 
 `health.py:main` supplies an explicit mapping of unconverted handlers to
 `cli.run`. The CLI registers their arguments alongside the extracted import and
-daily, nutrition and food commands, then owns dispatch and error formatting. Other command families remain
+daily, nutrition, food and training commands, then owns dispatch and error formatting. Other command families remain
 in the facade until their planned extraction.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
@@ -108,8 +109,8 @@ They neither commit nor emit CLI output. Existing schema guards remain mandatory
 Catalog dry runs retain their reports without writing records.
 
 Shared fitness and body bounds live in `fitness_contracts.py` and
-`body_contracts.py`. Routine snapshots live in `routine_history.py`, shared with
-unconverted routine commands. The facade retains compatibility exports for those
+`body_contracts.py`. Routine snapshots live in `routine_history.py`, shared by schedule, routine
+and Hevy import commands. The facade retains compatibility exports for those
 consumers. Quarterly Hevy configuration still resolves once at startup and supplies
 both imports and activation accounting. Shared calculations retain their existing
 owners.
@@ -185,6 +186,49 @@ Ingredient sidecars use the supplied vault and validated full payload. They repl
 one file through a temporary file and atomic rename, with cleanup on failure.
 They remain distinct from immutable transcript captures. Broker permissions remain
 unchanged. Configuration writers and ingredient sidecars stay outside its allowlist.
+
+### Training and movement ownership
+
+`commands/training.py` owns set capture, scheduled and latest-session reads,
+and routine set/remove/undo. `commands/fitness.py` owns fitness capture, soft
+voids, target writes and fitness/body reports. `commands/muscles.py` dispatches
+volume, detail and the four figure lenses. `commands/physio.py` owns pain,
+self-test and trial capture and their soft voids. Each command owns its connection
+and preserves the original commit boundary.
+
+`fitness.py` queries fitness results, quarterly coverage, current strength,
+owner-target radar and everyday movement patterns. It calls the existing
+`calculations.py` owners for e1RM, latest tests, ratio judgment and axis scoring.
+A complete older quarter takes precedence over a newer partial quarter.
+`body_measurements.py` keeps V-taper measurements paired within one source row.
+
+`muscles.py` owns authored-first volume, activation set counts and the separate
+subregion theory. Its shared rollup serves both commands and retained score and
+readiness consumers. Unanchored legacy windows have only a lower date bound.
+Anchored readiness windows also exclude rows after the anchor. These differ
+from the analytical adapter's window and completeness contracts. The facade
+retains score/readiness coordination and its calculation context for later work.
+
+`muscle_figure.py` projects activation, strength balance, pain and mobility onto
+the exact SVG vocabulary in `figure_contracts.py`. The submuscle importer receives
+the same vocabulary explicitly. Quarterly configuration still resolves once at
+facade startup and supplies both importers and activation accounting. Mobility
+uses existing fitness capture and cited norms, without separate storage.
+`physio.py` owns pain vocabulary and schema guards. Catalogs retain cited content.
+
+Routine edits, undo history and versioned plan snapshots share one transaction.
+Fitness capture and quarterly triggers remain atomic. Pain capture, links,
+completeness invalidation and first-positive triggers also remain atomic. Existing
+events, migrations and orchestration modules retain those authorities. Undo can
+still reverse schedule edits.
+
+Validation and report asymmetries remain intentional compatibility constraints.
+Fitness accepts extra valid value fields and rejects repeated voids. Physio voids
+can repeat and retain whitespace reasons. Pain has stricter source/capture rules
+than fitness, self-tests and trials. Legacy future-row inclusion, inclusive lower
+bounds, laterality deduplication and intermediate rounding remain unchanged.
+The body figure keeps uncertain subregion theory separate from measured tests
+and weighted exposure. Broker permissions and medical content are unchanged.
 
 ## Data ownership and writes
 

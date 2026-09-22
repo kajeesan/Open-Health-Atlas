@@ -372,7 +372,14 @@ def test_completeness_proven_running_restart_enqueues_in_batch_transaction(
 def test_pain_producer_failure_rolls_back_capture_and_trigger(
     health_db, monkeypatch,
 ):
-    monkeypatch.setattr(health, "DB", str(health_db))
+    from hermes_insights.command_context import CommandContext
+    from hermes_insights.commands import physio
+
+    context = CommandContext(
+        database=str(health_db),
+        clock=lambda: datetime(2026, 7, 20, 12, tzinfo=timezone.utc),
+        timezone="Europe/Paris", vault=str(health_db.parent / "vault"), cli_path=str(HEALTH),
+    )
 
     def fail_enqueue(*_args, **_kwargs):
         raise orchestrator.OrchestrationError(
@@ -380,7 +387,7 @@ def test_pain_producer_failure_rolls_back_capture_and_trigger(
         )
 
     monkeypatch.setattr(
-        health.insight_orchestrator, "enqueue_internal_trigger", fail_enqueue,
+        orchestrator, "enqueue_internal_trigger", fail_enqueue,
     )
     args = SimpleNamespace(
         region="anterior-knee", intensity=3, side="left", quality=None,
@@ -389,7 +396,7 @@ def test_pain_producer_failure_rolls_back_capture_and_trigger(
         capture_id=None,
     )
     with pytest.raises(orchestrator.OrchestrationError):
-        health.pain_log(args)
+        physio.pain_log(context, args)
     conn = sqlite3.connect(health_db)
     assert conn.execute("SELECT COUNT(*) FROM pain_log").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM insight_triggers").fetchone()[0] == 0
