@@ -70,6 +70,7 @@ and UI state.
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
 | Nutrition and food | `toolkit/hermes_insights/nutrition.py`, `food.py`, `score_contracts.py`, `commands/` | Profile targets, nutrition coverage, recipe scaling, food capture and freezer stock |
 | Training and movement | `toolkit/hermes_insights/fitness.py`, `muscles.py`, `muscle_figure.py`, `figure_contracts.py`, `physio.py`, `body_measurements.py`, `commands/` | Training edits, fitness reports, muscle volume and figure lenses |
+| Daily frames, scores, Recovery and labs | `toolkit/hermes_insights/daily_frames.py`, `scores.py`, `recovery.py`, `labs.py`, `commands/` | Legacy daily reports, dashboard scores, verified Recovery and laboratory workflows |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -83,7 +84,7 @@ and UI state.
 
 `health.py:main` supplies an explicit mapping of unconverted handlers to
 `cli.run`. The CLI registers their arguments alongside the extracted import and
-daily, nutrition, food and training commands, then owns dispatch and error formatting. Other command families remain
+daily, nutrition, food, training, frame, score, Recovery and lab commands, then owns dispatch and error formatting. Other command families remain
 in the facade until their planned extraction.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
@@ -127,13 +128,12 @@ Daily commands own database closure and preserve their original commit points.
 Generic-write restrictions and optional capture sources have one owner in
 `capture_contracts.py`. Labs remain outside the generic writer. The exact note
 allowlist and vault path guard live in `vault_notes.py`. Food commands directly reuse
-capture-source validation; retained laboratory commands use the vault compatibility alias.
+capture-source validation; laboratory commands call the same vault path guard.
 
 Schedule history and versioned plan snapshots share the schedule transaction.
 Day-rating milestone triggers and supplement capture links likewise remain atomic
 with their observations. Timing reports use the configured medication aliases and
-existing time calculations. `adherence` remains with the unconverted daily-frame
-coordination until that family moves.
+existing time calculations. `commands/daily_frames.py` owns `adherence` and reuses the legacy frame.
 
 Weather and air commands commit and emit the primary result before separately
 attempting best-effort provenance. A provenance failure cannot undo that result.
@@ -159,10 +159,10 @@ different contracts and are not interchangeable.
 
 `commands/nutrition.py` owns profile and phase writes, manual macro targets,
 current target reports and daily nutrition coverage. `nutrition.py` owns target
-calculations and the per-day nutrition values and score. The retained `scores`
-command reaches those same functions through facade adapters. Shared score bands
-and rounding live in `score_contracts.py`. Later score/readiness coordination remains
-in the facade.
+calculations and the per-day nutrition values and score. The `scores.py` owner
+calls those same functions directly. Shared score bands
+and rounding live in `score_contracts.py`. Recovery reuses the score owner
+for sleep selection and baseline queries.
 
 The facade resolves water, phase, protein and micronutrient configuration at
 startup, preserving missing and invalid configuration behavior. It supplies
@@ -206,8 +206,8 @@ A complete older quarter takes precedence over a newer partial quarter.
 subregion theory. Its shared rollup serves both commands and retained score and
 readiness consumers. Unanchored legacy windows have only a lower date bound.
 Anchored readiness windows also exclude rows after the anchor. These differ
-from the analytical adapter's window and completeness contracts. The facade
-retains score/readiness coordination and its calculation context for later work.
+from the analytical adapter's window and completeness contracts. `scores.py` and `recovery.py`
+consume the shared rollup while preserving those distinct windows.
 
 `muscle_figure.py` projects activation, strength balance, pain and mobility onto
 the exact SVG vocabulary in `figure_contracts.py`. The submuscle importer receives
@@ -229,6 +229,44 @@ than fitness, self-tests and trials. Legacy future-row inclusion, inclusive lowe
 bounds, laterality deduplication and intermediate rounding remain unchanged.
 The body figure keeps uncertain subregion theory separate from measured tests
 and weighted exposure. Broker permissions and medical content are unchanged.
+
+### Daily frames, scores, Recovery and labs ownership
+
+`commands/daily_frames.py` owns the legacy daily-frame, feature, correlation,
+day-signature, adherence, summary, blood-pressure, and coverage reports.
+`daily_frames.py` owns their queries and calculations. These reports remain
+separate from the governed feature-frame and association engines. Original
+all-history source selection, source preference, zero-fill, lags, and tie
+ordering remain unchanged. Some legacy queries use only a lower date bound,
+including their diagnostics.
+
+`commands/scores.py` coordinates dashboard scores; `commands/recovery.py`
+coordinates Recovery.
+`scores.py` shares sleep selection and recovery baseline queries between the
+two reports, and reuses nutrition, muscle rollup, and shared numerical owners.
+`recovery.py` owns the composite policy, calculation context, and result.
+The existing `readiness.py` continues to own governed data sufficiency.
+
+Recovery calculates on the connection yielded by `verified_readiness_snapshot`.
+This boundary retains schema/lane checks, private ancestry sidecars, and final
+file validation. The ancestry generator consumes the Recovery owner directly.
+Same-source baselines, bounded training history, input fingerprints, and private
+soreness-note handling remain unchanged. The public evidence projection does
+not expose private ancestry material.
+
+`commands/labs.py` owns binary raw capture, text ingestion, and lab reports.
+`labs.py` owns report parsing, validation, catalog lookup, and read
+calculations. The existing lab catalog importer remains the catalog-document
+authority. Raw capture uses exclusive file creation. Ingestion validates the
+complete batch against stored priors before writing rows and confirmed catalog
+entries in one transaction. Priors remain the latest stored result across all
+dates; rows in the incoming batch do not become priors for one another.
+
+Commands own connection closure and preserve commit points. Domain functions
+receive connections, clocks, and configuration explicitly. Lab latest/trend
+selection, exact confirmation names, report-range precedence, and catalog
+reflagging remain unchanged. Parser contracts and broker permissions remain
+unchanged.
 
 ## Data ownership and writes
 

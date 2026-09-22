@@ -2,16 +2,13 @@
 
 from datetime import date, datetime, timedelta
 from dataclasses import replace
-import json
 from pathlib import Path
 import sqlite3
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
 
-import health
-from hermes_insights import nutrition
+from hermes_insights import nutrition, scores
 from hermes_insights.catalogs import MICRO_KEYS, MICRO_SEED, MICRO_TARGET_EXTRA
 
 
@@ -133,10 +130,7 @@ def test_independent_target_configs_use_their_own_civil_clock(
     assert repeated == first
 
 
-def test_future_readings_cannot_change_current_recovery(calculation_db, capsys, monkeypatch):
-    database = calculation_db.execute("PRAGMA database_list").fetchone()["file"]
-    monkeypatch.setattr(health, "DB", database)
-    monkeypatch.setattr(health, "_now", lambda: datetime(2026, 1, 15, 12, tzinfo=TZ))
+def test_future_readings_cannot_change_current_recovery(calculation_db, nutrition_config):
     calculation_db.executemany(
         "INSERT INTO daily_metrics(date,source,resting_hr,hrv_ms) VALUES(?,?,?,?)",
         [((TODAY - timedelta(days=back)).isoformat(), "apple", 60, 50)
@@ -153,8 +147,10 @@ def test_future_readings_cannot_change_current_recovery(calculation_db, capsys, 
     )
     calculation_db.commit()
 
-    health.scores(SimpleNamespace(days=30))
-    recovery = json.loads(capsys.readouterr().out)["scores"]["recovery"]
+    recovery = scores.scores(
+        calculation_db, 30, clock=lambda: datetime(2026, 1, 15, 12, tzinfo=TZ),
+        timezone=str(TZ), nutrition_config=nutrition_config,
+    )["scores"]["recovery"]
 
     assert recovery["score"] == 75
     assert recovery["inputs"]["baseline_days"] == 14

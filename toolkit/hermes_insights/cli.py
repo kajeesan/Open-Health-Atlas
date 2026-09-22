@@ -21,8 +21,9 @@ from .catalogs import PRIMARY_MEDICATION
 from .commands import (
     collectors, cronometer, daily_capture, followthrough, google_health, hevy,
     food, nutrition, lab_catalog, notes, recipes, schedules, submuscle_map,
-    training, fitness, muscles, physio,
+    training, fitness, muscles, physio, daily_frames, recovery,
 )
+from .commands import labs as labs_commands, scores as scores_commands
 from .commands.hevy import import_csv
 
 
@@ -570,8 +571,67 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
     def physio_void(arguments):
         output(physio.physio_void(context, arguments))
 
+    def build_daily_frame(arguments):
+        output(daily_frames.build_daily_frame(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def features(arguments):
+        output(daily_frames.features(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def correlate(arguments):
+        output(daily_frames.correlate(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def day_signature(arguments):
+        output(daily_frames.day_signature(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def adherence(arguments):
+        output(daily_frames.adherence(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def summary(arguments):
+        output(daily_frames.summary(context, arguments))
+
+    def bp_brief(arguments):
+        output(daily_frames.bp_brief(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def data_coverage(arguments):
+        output(daily_frames.data_coverage(
+            context, arguments, medication_aliases=medication_aliases))
+
+    def scores(arguments):
+        output(scores_commands.scores(context, arguments, nutrition_config=nutrition_config))
+
+    def readiness(arguments):
+        output(recovery.readiness(context, arguments))
+
+    def lab_capture(arguments):
+        output(labs_commands.lab_capture(context, arguments, stdin=stdin))
+
+    def lab_ingest(arguments):
+        output(labs_commands.lab_ingest(context, arguments, stdin=stdin))
+
+    def labs(arguments):
+        output(labs_commands.labs(context, arguments))
+
     handlers = {
         **legacy_handlers,
+        "build-daily-frame": build_daily_frame,
+        "features": features,
+        "correlate": correlate,
+        "day-signature": day_signature,
+        "adherence": adherence,
+        "summary": summary,
+        "bp-brief": bp_brief,
+        "data-coverage": data_coverage,
+        "scores": scores,
+        "readiness": readiness,
+        "lab-capture": lab_capture,
+        "lab-ingest": lab_ingest,
+        "labs": labs,
         "log-set": log_set,
         "today": today_session,
         "last-session": last_session,

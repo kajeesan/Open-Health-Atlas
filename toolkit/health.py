@@ -41,7 +41,15 @@ from hermes_insights.muscle_figure import (
     fig_level as _fig_level, mobility_status as _mobility_status,
 )
 from hermes_insights import nutrition as nutrition_domain
+from hermes_insights import daily_frames as daily_frames_domain
+from hermes_insights import scores as scores_domain
+from hermes_insights import recovery as recovery_domain
+from hermes_insights import labs as labs_domain
 from hermes_insights.commands import food as food_commands, nutrition as nutrition_commands
+from hermes_insights.commands import daily_frames as daily_frames_commands
+from hermes_insights.commands import scores as scores_commands
+from hermes_insights.commands import recovery as recovery_commands
+from hermes_insights.commands import labs as labs_commands
 from hermes_insights.food import MEAL_TYPES, RESTOCK_ACTIONS, RESTOCK_THRESHOLD_MAX
 from hermes_insights.nutrition import (
     OWNER_PROFILE_KEYS, SEX_VALUES, ACTIVITY_FALLBACK_VALUES, DIET_PHASES,
@@ -353,36 +361,11 @@ def _daily_metrics_has_hrv_ms(c):
     return True
 
 def summary(a):
-    c = cx(); d = a.days; lo = days_ago(d)
-    hrv_col = "hrv_ms" if _daily_metrics_has_hrv_ms(c) else "hrv_sdnn"
-    q = f"""SELECT ROUND(AVG(resting_hr),1) resting_hr, ROUND(AVG({hrv_col}),1) hrv,
-                  ROUND(AVG(sleep_hours),2) sleep_h, ROUND(AVG(steps),0) steps
-           FROM daily_metrics WHERE date >= ?"""
-    row = dict(c.execute(q, (lo,)).fetchone())
-    subj = c.execute("""SELECT ROUND(AVG(focus),1) focus, ROUND(AVG(mood),1) mood, ROUND(AVG(energy),1) energy
-            FROM subjective_daily WHERE date >= ?""", (lo,)).fetchone()
-    row.update({k: subj[k] for k in subj.keys()})
-    out({"window_days": d, "averages": row})
+    out(daily_frames_commands.summary(_command_context(), a))
 
 def bp_brief(a):
-    """Return vitals and dose totals for one configured medication.
-
-    A generic SUM over meds_log would combine unrelated medications. The
-    installation-owned alias set keeps the selection explicit and testable.
-    """
-    c = cx(); d = int(a.days); lo = days_ago(d)
-    vitals = [dict(r) for r in c.execute(
-        """SELECT date, time, systolic, diastolic, resting_hr FROM vitals
-           WHERE date >= ? ORDER BY date, time""", (lo,))]
-    drug = (a.drug or "").strip().lower()
-    names = sorted(MEDICATION_ALIASES) if drug in MEDICATION_ALIASES else [drug]
-    ph = ",".join("?" * len(names))
-    doses = [dict(r) for r in c.execute(
-        f"""SELECT date, ROUND(SUM(dose_mg), 1) AS dose_total_mg FROM meds_log
-            WHERE LOWER(drug) IN ({ph}) AND date >= ?
-            GROUP BY date ORDER BY date""", (*names, lo))]
-    out({"days": d, "drug": a.drug, "matched_names": names,
-         "vitals": vitals, "doses": doses})
+    out(daily_frames_commands.bp_brief(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 # =========================================================== vault notes
 
@@ -477,77 +460,9 @@ def feedback_status(a):
     """Compatibility entry point for the extracted daily command."""
     out(followthrough_commands.feedback_status(_command_context(), a, output=out))
 
-# conditions contrasted between kept and broken days by `adherence`
-CONDITION_FIELDS = ("medication_dose_mg", "medication_first_dose_min", "sleep_hours",
-                    "sl_bedtime_min", "mood", "energy", "stress", "anxiety",
-                    "tr_session", "is_weekend", "habits_done", "steps",
-                    "caffeine_mg", "alcohol_units", "word_kept_r7")
-
 def adherence(a):
-    """Follow-through rate + trend + the CONDITIONS that predict a kept vs
-    broken day. All computed here; 'partly' counts 0.5 toward the rate and is
-    excluded from the kept/broke contrast (it is neither side's evidence)."""
-    c = cx()
-    if not _table_exists(c, "commitments_log"):
-        out({"insufficient_data": True, "reason": "no follow-through data logged yet"})
-        return
-    dates, rows, cov = _daily_frame(c, a.days)
-    _add_features(dates, rows)
-    logged = [(d, rows[d]["word_kept"]) for d in dates if "word_kept" in rows[d]]
-    base = {"meta": _meta(cov), "days_logged": len(logged),
-            "window_days": len(dates)}
-    if len(logged) < 3:
-        out({**base, "insufficient_data": True,
-             "needed": ">= 3 whole-day kept/partly/broke logs"})
-        return
-    vals = [v for _, v in logged]
-    counts = {"kept": vals.count(1.0), "partly": vals.count(0.5), "broke": vals.count(0.0)}
-    half = len(logged) // 2
-    trend = {"first_half_rate": _rnd(st.mean(v for _, v in logged[:half]), 3),
-             "second_half_rate": _rnd(st.mean(v for _, v in logged[half:]), 3)} if half >= 2 else None
-    # streak: consecutive CALENDAR days ending at the most recent logged day —
-    # a gap in logging breaks it (a streak with holes isn't a streak), and so
-    # does a 'broke' day.
-    streak = 0
-    prev = None
-    for d, v in reversed(logged):
-        if v == 0.0: break
-        if prev is not None:
-            gap = (date.fromisoformat(prev) - date.fromisoformat(d)).days
-            if gap != 1: break
-        streak += 1
-        prev = d
-    # per-commitment rates over the SAME window as the frame
-    per = [dict(r) for r in c.execute(
-        """SELECT cl.commitment_id, cm.name, COUNT(*) n,
-           ROUND(AVG(CASE cl.status WHEN 'kept' THEN 1.0 WHEN 'partly' THEN 0.5
-                     ELSE 0.0 END), 3) rate
-           FROM commitments_log cl JOIN commitments cm ON cm.id=cl.commitment_id
-           WHERE cl.commitment_id != 0 AND cl.date >= ?
-           GROUP BY cl.commitment_id ORDER BY rate""", (dates[0],))]
-    # conditions: contrast kept vs broke days across the engine's features
-    kept_d = [d for d, v in logged if v == 1.0]
-    broke_d = [d for d, v in logged if v == 0.0]
-    conditions = None
-    if len(kept_d) >= 3 and len(broke_d) >= 3:
-        conditions = []
-        for f in CONDITION_FIELDS:
-            kv = [rows[d][f] for d in kept_d if rows[d].get(f) is not None]
-            bv = [rows[d][f] for d in broke_d if rows[d].get(f) is not None]
-            if len(kv) < 3 or len(bv) < 3: continue
-            delta = st.mean(kv) - st.mean(bv)
-            pooled = st.pstdev(kv + bv)
-            conditions.append({"field": f,
-                "kept": {"n": len(kv), "mean": _rnd(st.mean(kv))},
-                "broke": {"n": len(bv), "mean": _rnd(st.mean(bv))},
-                "delta_mean": _rnd(delta),
-                "effect": _rnd(delta / pooled, 3) if pooled > 0 else None})
-        conditions.sort(key=lambda s: -(abs(s["effect"]) if s["effect"] is not None else 0))
-    out({**base, "rate": _rnd(st.mean(vals), 3), "counts": counts,
-         "streak_non_broke": streak, "trend": trend,
-         "per_commitment": per,
-         "conditions": conditions if conditions is not None else
-             f"insufficient data (need >= 3 kept AND >= 3 broke days; have {len(kept_d)}/{len(broke_d)})"})
+    out(daily_frames_commands.adherence(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 # =========================================================== §4b timing adherence
 
@@ -577,483 +492,64 @@ def timing_adherence(a):
 # out as explicit nulls / "insufficient data" — never a fabricated value.
 
 
-# frame field -> pillar; correlate only reports BETWEEN-pillar pairs.
-PILLARS = {
-  "sleep_hours": "sleep", "sl_asleep_h": "sleep", "sl_quality": "sleep",
-  "sl_bedtime_min": "sleep", "sl_awakenings": "sleep", "sl_deep_min": "sleep", "sl_rem_min": "sleep",
-  "resting_hr": "recovery", "hrv_ms": "recovery", "respiratory_rate": "recovery",
-  "spo2_pct": "recovery", "hr_avg": "recovery", "hr_min": "recovery", "hr_max": "recovery",
-  "walking_hr_avg": "recovery",
-  "steps": "activity", "active_energy_kcal": "activity", "basal_energy_kcal": "activity",
-  "exercise_min": "activity", "distance_km": "activity", "flights": "activity",
-  "cardio_min": "activity", "cardio_km": "activity", "cardio_kcal": "activity",
-  "tr_sets": "training", "tr_volume_kg": "training", "tr_session": "training", "tr_mean_rpe": "training",
-  "day_rating": "subjective", "focus": "subjective", "energy": "subjective", "mood": "subjective",
-  "emotional_regulation": "subjective", "anxiety": "subjective", "stress": "subjective",
-  "motivation": "subjective",
-  "caffeine_mg": "substances", "alcohol_units": "substances",
-  "medication_dose_mg": "meds", "medication_first_dose_min": "meds", "medication_n_doses": "meds", "medication_rebound": "meds",
-  "bp_sys": "vitals", "bp_dia": "vitals", "cuff_hr": "vitals",
-  "nut_kcal": "nutrition", "nut_protein_g": "nutrition", "water_ml": "nutrition",
-  "weight_kg": "body", "waist_cm": "body",
-  "wx_temp_max_c": "environment", "wx_sunshine_h": "environment", "wx_daylight_h": "environment",
-  "wx_precip_mm": "environment", "wx_uv_max": "environment",
-  "air_aqi": "environment", "air_pm2_5": "environment", "air_grass_pollen": "environment",
-  "air_birch_pollen": "environment",
-  "word_kept": "integrity", "commit_kept_rate": "integrity", "habits_done": "integrity",
-}
-# timed check-ins, bucketed am (<12:00) / pm (<17:00) / eve — within-day
-# readings are how dose-timing -> afternoon-crash questions become answerable
-PILLARS.update({f"chk_{k}_{b}": "subjective"
-                for k in ("energy", "focus", "mood") for b in ("am", "pm", "eve")})
-# Symptom fields (higher = worse, per vault CLAUDE.md rating families): correlate
-# flips their sign so every reported correlation reads in wellbeing space
-# ("positive" always means good-goes-with-good). Flips are listed in meta.
-FLIPPED = {"anxiety", "stress", "medication_rebound", "sl_awakenings"}
-
-# fields that get rolling means + day-over-day deltas in `features`
-FEATURE_BASE = ("sleep_hours", "resting_hr", "hrv_ms", "steps", "mood", "energy",
-                "focus", "anxiety", "stress", "tr_volume_kg", "nut_protein_g",
-                "nut_kcal", "medication_dose_mg", "word_kept")
-# yesterday's value, for did-X-yesterday -> how-is-today questions
-LAG1_FIELDS = ("tr_volume_kg", "tr_session", "medication_dose_mg", "alcohol_units",
-               "caffeine_mg", "cardio_min", "sl_bedtime_min", "sleep_hours", "word_kept")
-
+PILLARS = daily_frames_domain.PILLARS
+FLIPPED = daily_frames_domain.FLIPPED
+FEATURE_BASE = daily_frames_domain.FEATURE_BASE
+LAG1_FIELDS = daily_frames_domain.LAG1_FIELDS
+CONDITION_FIELDS = daily_frames_domain.CONDITION_FIELDS
 
 def _hhmm_min(s):
-    return insight_calculations._hhmm_min(s)
+    return daily_frames_domain._hhmm_min(s)
 
 def _bedtime_min(s):
-    """Bedtime as minutes from the PREVIOUS noon, so 23:30 (690) < 00:30 (750)
-    orders correctly across midnight and correlates monotonically with 'late'."""
-    v = _hhmm_min(s)
-    if v is None: return None
-    return v + 1440 - 720 if v < 720 else v - 720
+    return daily_frames_domain._bedtime_min(s)
 
 def _rnd(v, nd=4):
-    return round(v, nd) if isinstance(v, float) else v
+    return daily_frames_domain._rnd(v, nd)
 
 def _daily_frame(c, days):
-    """One record per calendar day joining every table that exists. Missing
-    tables are skipped (and reported), never fabricated. Returns (dates,
-    rows: {date: {field: value}}, coverage)."""
-    cov = {"missing_tables": [], "table_rows": {}, "dm_source_counts": {},
-           "other_medications": [], "unparsed_times": 0}
-    end = _now().date()
-
-    def _tbl(name):
-        if _table_exists(c, name): return True
-        cov["missing_tables"].append(name); return False
-
-    # window start: --days N back from today, or the earliest row anywhere (0 = all)
-    if days:
-        start = end - timedelta(days=days - 1)
-    else:
-        mins = []
-        for t in ("daily_metrics", "subjective_daily", "workouts", "hevy_sets",
-                  "meds_log", "sleep_log", "nutrition_log", "vitals",
-                  "commitments_log", "checkins"):
-            if _table_exists(c, t):
-                r = c.execute(f"SELECT MIN(date) m FROM {t}").fetchone()
-                if r and r["m"]: mins.append(r["m"])
-        start = date.fromisoformat(min(mins)) if mins else end
-    lo = start.isoformat()
-    dates = [(start + timedelta(days=i)).isoformat()
-             for i in range((end - start).days + 1)]
-    rows = {d: {} for d in dates}
-
-    def put(d, field, value):
-        if d in rows and value is not None:
-            rows[d][field] = _rnd(value)
-
-    def zero_fill_era(seen_dates, fields):
-        """Hevy exports / Apple workout history are COMPLETE within the period
-        they cover, so between the first and last logged date a day with NO
-        rows is a genuine rest day (0), not missing data. Days that DO have a
-        row keep their per-field nulls (a 45-min run with unknown km must stay
-        km=null, never 0 — review finding), and outside the era we honestly
-        don't know, so everything stays null."""
-        if not seen_dates: return
-        first, last = min(seen_dates), max(seen_dates)
-        seen = set(seen_dates)
-        for d in dates:
-            if first <= d <= last and d not in seen:
-                for f in fields: rows[d][f] = 0
-
-    # -- daily_metrics: per-metric primary source with fallback --------------
-    if _tbl("daily_metrics"):
-        by_date = {}
-        n = 0
-        for raw in c.execute("SELECT * FROM daily_metrics WHERE date>=?", (lo,)):
-            # DM_METRICS indexes rows by "hrv_ms" (the canonical name) — a
-            # legacy DB's SELECT * carries "hrv_sdnn" instead (no "hrv_ms" key
-            # at all), which would KeyError below. Read path — never DDL, just
-            # a Python-side COALESCE: prefer hrv_ms, fall back to hrv_sdnn when
-            # hrv_ms is absent or (defensively) null. See _daily_metrics_has_hrv_ms
-            # for the writer-side migration; nothing mutates the DB here.
-            r = dict(raw)
-            if r.get("hrv_ms") is None:
-                r["hrv_ms"] = r.get("hrv_sdnn")
-            by_date.setdefault(r["date"], {})[(r["source"] or "").lower()] = r
-            n += 1
-        cov["table_rows"]["daily_metrics"] = n
-        counts = {}
-        for d, srcs in by_date.items():
-            for m in DM_METRICS:
-                prio = [DM_PRIMARY[m]] + sorted(s for s in srcs if s != DM_PRIMARY[m])
-                for s in prio:
-                    r = srcs.get(s)
-                    if r is not None and r[m] is not None:
-                        put(d, m, r[m])
-                        counts.setdefault(m, {}).setdefault(s, 0)
-                        counts[m][s] += 1
-                        break
-        cov["dm_source_counts"] = counts
-
-    # -- subjective_daily -----------------------------------------------------
-    if _tbl("subjective_daily"):
-        n = 0
-        for r in c.execute("SELECT * FROM subjective_daily WHERE date>=?", (lo,)):
-            n += 1
-            for f in ("day_rating", "focus", "energy", "mood", "emotional_regulation",
-                      "anxiety", "stress", "motivation", "caffeine_mg", "alcohol_units"):
-                put(r["date"], f, r[f])
-        cov["table_rows"]["subjective_daily"] = n
-
-    # -- vitals: day means (several cuff readings per day are normal) --------
-    if _tbl("vitals"):
-        n = 0
-        for r in c.execute("""SELECT date, AVG(systolic) s, AVG(diastolic) d,
-                              AVG(resting_hr) h, COUNT(*) n FROM vitals
-                              WHERE date>=? GROUP BY date""", (lo,)):
-            n += r["n"]
-            put(r["date"], "bp_sys", r["s"]); put(r["date"], "bp_dia", r["d"])
-            put(r["date"], "cuff_hr", r["h"])
-        cov["table_rows"]["vitals"] = n
-
-    # -- meds_log: configured medication only; unrelated rows never summed --
-    if _tbl("meds_log"):
-        n = 0; others = set()
-        agg = {}
-        for r in c.execute("SELECT * FROM meds_log WHERE date>=?", (lo,)):
-            n += 1
-            drug = (r["drug"] or "").strip().lower()
-            if drug not in MEDICATION_ALIASES:
-                if drug: others.add(drug)
-                continue
-            a = agg.setdefault(r["date"], {"mg": 0.0, "n": 0, "times": [], "reb": None})
-            if r["dose_mg"] is not None:
-                a["mg"] += r["dose_mg"]; a["n"] += 1
-            t = _hhmm_min(r["time_taken"])
-            if t is not None: a["times"].append(t)
-            elif r["time_taken"]: cov["unparsed_times"] += 1
-            if r["rebound"] is not None:
-                a["reb"] = max(a["reb"] or 0, 1 if r["rebound"] else 0)
-        for d, a in agg.items():
-            if a["n"]:
-                put(d, "medication_dose_mg", a["mg"]); put(d, "medication_n_doses", a["n"])
-            if a["times"]: put(d, "medication_first_dose_min", min(a["times"]))
-            if a["reb"] is not None: put(d, "medication_rebound", a["reb"])
-        cov["table_rows"]["meds_log"] = n
-        cov["other_medications"] = sorted(others)
-
-    # -- sleep_log (manual/coach-logged sleep; wearable sleep_hours is separate)
-    if _tbl("sleep_log"):
-        n = 0
-        for r in c.execute("SELECT * FROM sleep_log WHERE date>=?", (lo,)):
-            n += 1
-            put(r["date"], "sl_asleep_h", r["time_asleep_hours"])
-            put(r["date"], "sl_quality", r["quality"])
-            put(r["date"], "sl_awakenings", r["awakenings"])
-            put(r["date"], "sl_deep_min", r["deep_min"])
-            put(r["date"], "sl_rem_min", r["rem_min"])
-            put(r["date"], "sl_bedtime_min", _bedtime_min(r["bedtime"]))
-        cov["table_rows"]["sleep_log"] = n
-
-    # -- hevy_sets: strength session summary ---------------------------------
-    # A warmup-only day is still a training day (tr_session=1): warmups are
-    # excluded only from the working-set count/volume, not from "did I train".
-    if _tbl("hevy_sets"):
-        n = 0; seen = []
-        for r in c.execute("""SELECT date, COUNT(*) all_sets,
-              SUM(CASE WHEN COALESCE(set_type,'normal')!='warmup' THEN 1 ELSE 0 END) sets,
-              SUM(CASE WHEN COALESCE(set_type,'normal')!='warmup'
-                  THEN COALESCE(weight_kg,0)*COALESCE(reps,0) ELSE 0 END) vol,
-              AVG(CASE WHEN COALESCE(set_type,'normal')!='warmup' THEN rpe END) rpe
-              FROM hevy_sets WHERE date>=? AND date IS NOT NULL
-              GROUP BY date""", (lo,)):
-            n += r["all_sets"]; seen.append(r["date"])
-            put(r["date"], "tr_sets", r["sets"])
-            put(r["date"], "tr_volume_kg", r["vol"])
-            put(r["date"], "tr_session", 1)
-            put(r["date"], "tr_mean_rpe", r["rpe"])
-        zero_fill_era(seen, ("tr_sets", "tr_volume_kg", "tr_session"))
-        cov["table_rows"]["hevy_sets"] = n
-
-    # -- workouts (cardio history) -------------------------------------------
-    if _tbl("workouts"):
-        n = 0; seen = []
-        for r in c.execute("""SELECT date, SUM(minutes) m, SUM(km) km, SUM(kcal) k,
-                              COUNT(*) n FROM workouts WHERE date>=? GROUP BY date""", (lo,)):
-            n += r["n"]; seen.append(r["date"])
-            put(r["date"], "cardio_min", r["m"]); put(r["date"], "cardio_km", r["km"])
-            put(r["date"], "cardio_kcal", r["k"])
-        zero_fill_era(seen, ("cardio_min", "cardio_km", "cardio_kcal"))
-        cov["table_rows"]["workouts"] = n
-
-    # -- nutrition / intake ----------------------------------------------------
-    if _tbl("nutrition_log"):
-        n = 0
-        for r in c.execute("""SELECT date, SUM(kcal) k, SUM(protein_g) p, COUNT(*) n
-                              FROM nutrition_log WHERE date>=? GROUP BY date""", (lo,)):
-            n += r["n"]
-            put(r["date"], "nut_kcal", r["k"]); put(r["date"], "nut_protein_g", r["p"])
-        cov["table_rows"]["nutrition_log"] = n
-    if _tbl("intake"):
-        n = 0
-        for r in c.execute("SELECT date, water_ml FROM intake WHERE date>=?", (lo,)):
-            n += 1; put(r["date"], "water_ml", r["water_ml"])
-        cov["table_rows"]["intake"] = n
-
-    # -- habits ---------------------------------------------------------------
-    if _tbl("habits_log"):
-        n = 0
-        for r in c.execute("""SELECT date, SUM(CASE WHEN done THEN 1 ELSE 0 END) d,
-                              COUNT(*) n FROM habits_log WHERE date>=? GROUP BY date""", (lo,)):
-            n += r["n"]; put(r["date"], "habits_done", r["d"])
-        cov["table_rows"]["habits_log"] = n
-
-    # -- body -----------------------------------------------------------------
-    if _tbl("body_metrics"):
-        n = 0
-        for r in c.execute("""SELECT date, weight_kg, waist_cm FROM body_metrics
-                              WHERE date>=? ORDER BY date, id""", (lo,)):
-            n += 1
-            put(r["date"], "weight_kg", r["weight_kg"]); put(r["date"], "waist_cm", r["waist_cm"])
-        cov["table_rows"]["body_metrics"] = n
-
-    # -- environment ----------------------------------------------------------
-    if _tbl("weather"):
-        n = 0
-        for r in c.execute("SELECT * FROM weather WHERE date>=?", (lo,)):
-            n += 1
-            put(r["date"], "wx_temp_max_c", r["temp_max_c"])
-            put(r["date"], "wx_sunshine_h", r["sunshine_hours"])
-            put(r["date"], "wx_daylight_h", r["daylight_hours"])
-            put(r["date"], "wx_precip_mm", r["precipitation_mm"])
-            put(r["date"], "wx_uv_max", r["uv_index_max"])
-        cov["table_rows"]["weather"] = n
-    if _tbl("air_quality"):
-        n = 0
-        for r in c.execute("SELECT * FROM air_quality WHERE date>=?", (lo,)):
-            n += 1
-            put(r["date"], "air_aqi", r["european_aqi_mean"])
-            put(r["date"], "air_pm2_5", r["pm2_5_ugm3"])
-            put(r["date"], "air_grass_pollen", r["grass_pollen"])
-            put(r["date"], "air_birch_pollen", r["birch_pollen"])
-        cov["table_rows"]["air_quality"] = n
-
-    # -- follow-through layer (created by Part C; tolerate absence) ----------
-    if _table_exists(c, "commitments_log"):
-        n = 0
-        stat = {"kept": 1.0, "partly": 0.5, "broke": 0.0}
-        day_word = {}; per_commit = {}
-        for r in c.execute("SELECT * FROM commitments_log WHERE date>=?", (lo,)):
-            n += 1
-            v = stat.get(r["status"])
-            if v is None: continue
-            if not r["commitment_id"]:             # 0 (or legacy NULL) = whole-day
-                day_word[r["date"]] = v
-            else:
-                per_commit.setdefault(r["date"], []).append(v)
-        for d, v in day_word.items(): put(d, "word_kept", v)
-        for d, vs in per_commit.items():
-            put(d, "commit_kept_rate", sum(vs) / len(vs))
-        cov["table_rows"]["commitments_log"] = n
-    else:
-        cov["missing_tables"].append("commitments_log")
-
-    # -- timed check-ins, bucketed into day parts -----------------------------
-    if _table_exists(c, "checkins"):
-        n = 0; agg = {}
-        for r in c.execute("SELECT date, time, kind, value FROM checkins WHERE date>=?", (lo,)):
-            n += 1
-            t = _hhmm_min(r["time"])
-            if t is None:
-                cov["unparsed_times"] += 1; continue
-            bucket = "am" if t < 720 else "pm" if t < 1020 else "eve"
-            agg.setdefault((r["date"], r["kind"], bucket), []).append(r["value"])
-        for (d, kind, bucket), vs in agg.items():
-            put(d, f"chk_{kind}_{bucket}", sum(vs) / len(vs))
-        cov["table_rows"]["checkins"] = n
-    else:
-        cov["missing_tables"].append("checkins")
-
-    # calendar context
-    for d in dates:
-        wd = date.fromisoformat(d).weekday()        # 0=Mon
-        rows[d]["weekday"] = wd
-        rows[d]["is_weekend"] = 1 if wd >= 5 else 0
-
-    cov["window"] = {"from": lo, "to": end.isoformat(), "days": len(dates)}
-    return dates, rows, cov
+    return daily_frames_domain._daily_frame(
+        c, days, clock=_now, medication_aliases=MEDICATION_ALIASES)
 
 def _meta(cov):
-    return {"tz": str(CANON_TZ), "window": cov["window"], "coverage": cov,
-            "flipped_in_correlations": sorted(FLIPPED),
-            "note": "deterministic output; correlation is not causation; "
-                    "all numbers computed by health.py, none by the LLM"}
+    return daily_frames_domain._meta(cov, TIMEZONE_NAME)
 
 def _sparse(dates, rows):
-    return [dict(date=d, **{k: v for k, v in rows[d].items() if v is not None})
-            for d in dates]
+    return daily_frames_domain._sparse(dates, rows)
 
 def build_daily_frame(a):
-    """ONE day-by-day record across every pillar — the substrate for features/
-    correlate/day-signature and for the coach's Synthesise workflow."""
-    dates, rows, cov = _daily_frame(cx(), a.days)
-    out({"meta": _meta(cov), "days": _sparse(dates, rows)})
+    out(daily_frames_commands.build_daily_frame(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 def _add_features(dates, rows):
-    """Derived fields raw graphs hide: trailing rolling means (r3 needs >=2,
-    r7 needs >=3 non-null days), day-over-day deltas, yesterday's value
-    (_lag1), and the configured medication dose-regime run each day belongs to."""
-    series = {f: [rows[d].get(f) for d in dates]
-              for f in set(FEATURE_BASE) | set(LAG1_FIELDS)}
-    for f in FEATURE_BASE:
-        vals = series[f]
-        for i, d in enumerate(dates):
-            for w, mn, tag in ((3, 2, "_r3"), (7, 3, "_r7")):
-                win = [v for v in vals[max(0, i - w + 1):i + 1] if v is not None]
-                if len(win) >= mn:
-                    rows[d][f + tag] = _rnd(sum(win) / len(win))
-            if i and vals[i] is not None and vals[i - 1] is not None:
-                rows[d][f + "_d1"] = _rnd(vals[i] - vals[i - 1])
-    for f in LAG1_FIELDS:
-        vals = series[f]
-        for i, d in enumerate(dates):
-            if i and vals[i - 1] is not None:
-                rows[d][f + "_lag1"] = vals[i - 1]
-    # dose regime: consecutive run of the same daily total (dosed days only)
-    prev_total, run = None, 0
-    for d in dates:
-        mg = rows[d].get("medication_dose_mg")
-        if mg is None: continue
-        run = run + 1 if mg == prev_total else 1
-        prev_total = mg
-        label = int(mg) if float(mg).is_integer() else _rnd(mg)
-        rows[d]["medication_regime"] = f"medication:{label}"
-        rows[d]["medication_regime_day"] = run
-    return rows
+    return daily_frames_domain._add_features(dates, rows)
 
 def features(a):
-    dates, rows, cov = _daily_frame(cx(), a.days)
-    _add_features(dates, rows)
-    out({"meta": _meta(cov), "days": _sparse(dates, rows)})
+    out(daily_frames_commands.features(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 def _pillar_of(field):
-    base = re.sub(r"_(r3|r7|d1|lag1)$", "", field)
-    return PILLARS.get(base), base
+    return daily_frames_domain._pillar_of(field)
 
 def _pearson(xs, ys):
-    n = len(xs)
-    mx, my = sum(xs) / n, sum(ys) / n
-    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
-    sxx = sum((x - mx) ** 2 for x in xs)
-    syy = sum((y - my) ** 2 for y in ys)
-    if sxx <= 0 or syy <= 0: return None
-    return sxy / (sxx * syy) ** 0.5
+    return daily_frames_domain._pearson(xs, ys)
 
 def _ranks(vs):
-    order = sorted(range(len(vs)), key=lambda i: vs[i])
-    ranks = [0.0] * len(vs)
-    i = 0
-    while i < len(order):
-        j = i
-        while j + 1 < len(order) and vs[order[j + 1]] == vs[order[i]]:
-            j += 1
-        r = (i + j) / 2 + 1                          # average rank for ties
-        for k in range(i, j + 1): ranks[order[k]] = r
-        i = j + 1
-    return ranks
+    return daily_frames_domain._ranks(vs)
 
 def _spearman(xs, ys):
-    return _pearson(_ranks(xs), _ranks(ys))
+    return daily_frames_domain._spearman(xs, ys)
 
 def _strength(rho):
-    a = abs(rho)
-    return ("negligible" if a < 0.1 else "weak" if a < 0.3 else
-            "moderate" if a < 0.5 else "strong" if a < 0.7 else "very strong")
+    return daily_frames_domain._strength(rho)
 
 def correlate(a):
-    """Cross-PILLAR pairwise associations. Pearson + Spearman with n, direction
-    and lag tags; pairs under --min-n are suppressed (counted, never shown as
-    findings). Data only — interpretation belongs to the coach workflow."""
-    if a.min_n < 3: sys.exit("--min-n must be >= 3")
-    dates, rows, cov = _daily_frame(cx(), a.days)
-    _add_features(dates, rows)
-    fields = sorted({f for d in dates for f in rows[d]
-                     if _pillar_of(f)[0] and isinstance(rows[d][f], (int, float))})
-    pairs, suppressed, constant = [], 0, 0
-    for fa, fb in itertools.combinations(fields, 2):
-        pa, ba = _pillar_of(fa); pb, bb = _pillar_of(fb)
-        if pa == pb or ba == bb:                    # between-pillar, never self-vs-derived
-            continue
-        xs, ys = [], []
-        for d in dates:
-            x, y = rows[d].get(fa), rows[d].get(fb)
-            if x is not None and y is not None:
-                xs.append(x); ys.append(y)
-        if len(xs) < a.min_n:
-            suppressed += 1; continue
-        r, rho = _pearson(xs, ys), _spearman(xs, ys)
-        if r is None or rho is None:
-            constant += 1; continue
-        flip = (-1 if ba in FLIPPED else 1) * (-1 if bb in FLIPPED else 1)
-        lag = ("_lag1" in fa and fa) or ("_lag1" in fb and fb) or None
-        pairs.append({"a": fa, "b": fb, "pillars": [pa, pb], "n": len(xs),
-                      "pearson": _rnd(r * flip, 3), "spearman": _rnd(rho * flip, 3),
-                      "strength": _strength(rho),
-                      "lag": f"{lag} is yesterday's value" if lag else None})
-    pairs.sort(key=lambda p: (-abs(p["spearman"]), p["a"], p["b"]))
-    out({"meta": _meta(cov), "min_n": a.min_n,
-         "pairs": pairs[:a.top], "pairs_total": len(pairs),
-         "suppressed_below_min_n": suppressed, "skipped_constant": constant})
+    out(daily_frames_commands.correlate(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 def day_signature(a):
-    """Deterministic contrast of green (day_rating 3) vs red (1) days: mean/
-    median of every numeric feature on each side, so 'what makes a good day'
-    is computed, not eyeballed. Honest refusal when either side is too thin."""
-    if a.min_days < 1: sys.exit("--min-days must be >= 1")
-    dates, rows, cov = _daily_frame(cx(), a.days)
-    _add_features(dates, rows)
-    green = [d for d in dates if rows[d].get("day_rating") == 3]
-    red = [d for d in dates if rows[d].get("day_rating") == 1]
-    yellow = [d for d in dates if rows[d].get("day_rating") == 2]
-    base = {"meta": _meta(cov), "green_days": len(green), "red_days": len(red),
-            "yellow_days_excluded": len(yellow), "min_days_per_side": a.min_days}
-    if len(green) < a.min_days or len(red) < a.min_days:
-        out({**base, "insufficient_data": True,
-             "needed": f">= {a.min_days} green AND >= {a.min_days} red rated days"})
-        return
-    fields = sorted({f for d in green + red for f in rows[d]
-                     if f != "day_rating" and _pillar_of(f)[0]
-                     and isinstance(rows[d][f], (int, float))})
-    sig = []
-    for f in fields:
-        gv = [rows[d][f] for d in green if rows[d].get(f) is not None]
-        rv = [rows[d][f] for d in red if rows[d].get(f) is not None]
-        if len(gv) < a.min_days or len(rv) < a.min_days:
-            continue
-        delta = st.mean(gv) - st.mean(rv)
-        pooled = st.pstdev(gv + rv)
-        sig.append({"field": f, "pillar": _pillar_of(f)[0],
-                    "green": {"n": len(gv), "mean": _rnd(st.mean(gv)), "median": _rnd(st.median(gv))},
-                    "red": {"n": len(rv), "mean": _rnd(st.mean(rv)), "median": _rnd(st.median(rv))},
-                    "delta_mean": _rnd(delta),
-                    "effect": _rnd(delta / pooled, 3) if pooled > 0 else None})
-    sig.sort(key=lambda s: -(abs(s["effect"]) if s["effect"] is not None else 0))
-    out({**base, "signature": sig})
+    out(daily_frames_commands.day_signature(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 # --------------------------------------------------------- goal scores
 # Dashboard score cards. Every score is an int 0-100 with an ENGINE-assigned
@@ -1088,11 +584,11 @@ WATER_HOT_DAY_BONUS_ML = _configured_positive_number(
 WATER_HOT_DAY_TEMP_C = _configured_positive_number(
     "HERMES_WATER_HOT_DAY_TEMP_C", 26
 )
-SLEEP_TARGET_H = 8.0
+SLEEP_TARGET_H = scores_domain.SLEEP_TARGET_H
 # `scores`'s own --days default — T48's readiness engine reuses the SAME
 # baseline window (never a second invented constant) so the two engines'
 # RHR/HRV baselines can't drift apart.
-SCORES_DEFAULT_DAYS = 90
+SCORES_DEFAULT_DAYS = scores_domain.SCORES_DEFAULT_DAYS
 
 
 def _configured_micro_targets():
@@ -1115,923 +611,64 @@ def import_google_health(a):
 
 
 def _score(v, **inputs):
-    v = _clamp100(v)
-    return {"score": v, "band": _band(v), "inputs": inputs}
+    return scores_domain._score(v, **inputs)
 
 def _no_data(reason, **inputs):
-    d = {"insufficient_data": True, "reason": reason}
-    if inputs: d["inputs"] = inputs
-    return d
+    return scores_domain._no_data(reason, **inputs)
 
 
 def _anchor_day(raw=None):
-    """Return the explicit analysis day, or preserve the ordinary live day."""
-    return (date.fromisoformat(valid_date(raw, "--anchor"))
-            if raw is not None else _now().date())
+    return date.fromisoformat(valid_date(raw, "--anchor")) if raw is not None else _now().date()
 
 
 def _sleep_score(c, anchor=None, *, include_ancestry=False):
-    """Sleep component: most recent night within 2 days (sleep_log first,
-    else daily_metrics fitbit-preferred fallback), 70% hours-vs-target + 30%
-    quality/5 when quality exists, else hours only. ONE function — scores()'s
-    sleep component AND readiness()'s sleep component both call this (T48:
-    factor, don't fork). Returns a _score()/_no_data() shape."""
-    night = None
-    for back in (0, 1):
-        d = ((anchor - timedelta(days=back)).isoformat()
-             if anchor is not None else days_ago(back))
-        r = c.execute(
-            "SELECT time_asleep_hours h, quality q, source FROM sleep_log WHERE date=?",
-            (d,),
-        ).fetchone() if _table_exists(c, "sleep_log") else None
-        if r and r["h"] is not None:
-            night = {"date": d, "hours": r["h"], "quality": r["q"], "source": "sleep_log"}
-            if include_ancestry:
-                night["ancestry"] = {
-                    "table": "sleep_log",
-                    "locator": f"sleep_log:{d}",
-                    "source_label": r["source"],
-                    "observed_at": d,
-                }
-            break
-        rows = {(x["source"] or "").lower(): x for x in c.execute(
-            "SELECT source, sleep_hours FROM daily_metrics WHERE date=?", (d,))}
-        for srcname in ["fitbit"] + sorted(k for k in rows if k != "fitbit"):
-            selected = rows.get(srcname)
-            if selected is not None and selected["sleep_hours"] is not None:
-                night = {
-                    "date": d,
-                    "hours": selected["sleep_hours"],
-                    "quality": None,
-                    "source": srcname,
-                }
-                if include_ancestry:
-                    night["ancestry"] = {
-                        "table": "daily_metrics",
-                        "locator": f"daily_metrics:{d}:{selected['source']}",
-                        "source_label": selected["source"],
-                        "observed_at": d,
-                    }
-                break
-        if night: break
-    if not night:
-        return _no_data("no sleep data for today or yesterday")
-    hours_part = min(night["hours"] / SLEEP_TARGET_H, 1.0) * 100
-    if night["quality"] is not None:
-        val = 0.7 * hours_part + 0.3 * (night["quality"] / 5 * 100)
-    else:
-        val = hours_part
-    return _score(val, **night, target_h=SLEEP_TARGET_H)
+    return scores_domain._sleep_score(c, anchor, clock=_now, include_ancestry=include_ancestry)
 
 
 def _recovery_baseline_rows(c, days, anchor=None, start=None):
-    """date-deduped daily_metrics rows (fitbit-preferred provenance — the
-    user's merge rule) carrying resting_hr/hrv_ms plus each selected source,
-    over the trailing
-    `days` window. ONE query — shared by scores()'s combined recovery
-    component and readiness()'s separate hrv/rhr components (T48: factor,
-    don't fork). Rows with neither value are dropped. Read path — resolves
-    the migration-owned hrv_ms via a no-DDL guard."""
-    hrv_col = "hrv_ms" if _daily_metrics_has_hrv_ms(c) else "hrv_sdnn"
-    by_date = {}
-    if anchor is None:
-        query = (f"""SELECT date, source, resting_hr, {hrv_col} AS hrv_ms FROM daily_metrics
-                    WHERE date>=? AND date<=? ORDER BY date""", (days_ago(days), today()))
-    else:
-        lower = anchor - timedelta(days=days)
-        if start is not None:
-            lower = max(lower, start)
-        query = (f"""SELECT date, source, resting_hr, {hrv_col} AS hrv_ms FROM daily_metrics
-                    WHERE date>=? AND date<=? ORDER BY date""",
-                 (lower.isoformat(), anchor.isoformat()))
-    for r in c.execute(*query):
-        by_date.setdefault(r["date"], {})[(r["source"] or "").lower()] = r
-    def _pick(srcs, f):
-        for sname in ["fitbit"] + sorted(k for k in srcs if k != "fitbit"):
-            if sname in srcs and srcs[sname][f] is not None:
-                return srcs[sname][f], srcs[sname]["source"], sname
-        return None, None, None
-    def _available(srcs, f):
-        return {
-            sname: {
-                "source_label": row["source"],
-                "value": row[f],
-            }
-            for sname, row in sorted(srcs.items())
-            if row[f] is not None
-        }
-    base_rows = []
-    for d, srcs in sorted(by_date.items()):
-        resting_hr, resting_hr_source, resting_hr_source_key = _pick(
-            srcs, "resting_hr"
-        )
-        hrv_ms, hrv_ms_source, hrv_ms_source_key = _pick(srcs, "hrv_ms")
-        base_rows.append({
-            "date": d,
-            "resting_hr": resting_hr,
-            "resting_hr_source": resting_hr_source,
-            "resting_hr_source_key": resting_hr_source_key,
-            "resting_hr_sources": _available(srcs, "resting_hr"),
-            "hrv_ms": hrv_ms,
-            "hrv_ms_source": hrv_ms_source,
-            "hrv_ms_source_key": hrv_ms_source_key,
-            "hrv_ms_sources": _available(srcs, "hrv_ms"),
-        })
-    return [r for r in base_rows if r["resting_hr"] is not None or r["hrv_ms"] is not None]
+    return scores_domain._recovery_baseline_rows(c, days, anchor, start, clock=_now)
 
 
 def _dev_score(value, baseline_vals, coef, invert):
-    return insight_calculations._dev_score(value, baseline_vals, coef, invert)
+    return scores_domain._dev_score(value, baseline_vals, coef, invert)
 
 
 def scores(a):
-    c = cx()
-    days = max(int(a.days), 14)
-    lo = days_ago(days)
-    out_scores = {}
-
-    # -- consistency (hero) --------------------------------------------------
-    if _table_exists(c, "commitments_log"):
-        logged = [(r["date"], {"kept": 1.0, "partly": 0.5, "broke": 0.0}[r["status"]])
-                  for r in c.execute(
-                      """SELECT date, status FROM commitments_log
-                         WHERE commitment_id=0 AND date>=? ORDER BY date""",
-                      (days_ago(30),))]
-        if len(logged) >= 3:
-            rate = st.mean(v for _, v in logged)
-            # a streak is only a streak if it reaches the present: the run must
-            # include today or yesterday (tonight's answer may not exist yet)
-            streak, prev = 0, None
-            if logged[-1][0] >= days_ago(1):
-                for d, v in reversed(logged):
-                    if v == 0.0: break
-                    if prev is not None and (date.fromisoformat(prev) - date.fromisoformat(d)).days != 1:
-                        break
-                    streak += 1; prev = d
-            out_scores["consistency"] = _score(rate * 100,
-                days_logged=len(logged),
-                kept=sum(1 for _, v in logged if v == 1.0),
-                partly=sum(1 for _, v in logged if v == 0.5),
-                broke=sum(1 for _, v in logged if v == 0.0),
-                streak=streak, window_days=30)
-        else:
-            out_scores["consistency"] = _no_data(
-                "needs >= 3 evening kept/partly/broke answers", days_logged=len(logged))
-    else:
-        out_scores["consistency"] = _no_data("no follow-through data logged yet")
-
-    # -- sleep ----------------------------------------------------------------
-    # T48: factored into _sleep_score — readiness()'s sleep component calls
-    # the SAME function, never a re-derivation.
-    out_scores["sleep"] = _sleep_score(c)
-
-    # -- recovery (personal-baseline relative) --------------------------------
-    # T48: the baseline query (_recovery_baseline_rows) and the 50±k mapping
-    # (_dev_score) are factored out — readiness()'s separate hrv/rhr
-    # components call the SAME two helpers. This block's gating/output is
-    # byte-identical to the pre-T48 inline version (known-answer tests pin it).
-    base_rows = _recovery_baseline_rows(c, days)
-    today_row = next((r for b in (0, 1) for r in base_rows if r["date"] == days_ago(b)), None)
-    rhr_base = [r["resting_hr"] for r in base_rows if r["resting_hr"] is not None
-                and (not today_row or r["date"] != today_row["date"])]
-    hrv_base = [r["hrv_ms"] for r in base_rows if r["hrv_ms"] is not None
-                and (not today_row or r["date"] != today_row["date"])]
-    if today_row and (len(rhr_base) >= 14 or len(hrv_base) >= 14):
-        parts, inputs = [], {"date": today_row["date"]}
-        if today_row["resting_hr"] is not None:
-            r = _dev_score(today_row["resting_hr"], rhr_base, 500, True)
-            if r:
-                sc, b = r
-                parts.append(sc)
-                inputs.update(rhr=today_row["resting_hr"], rhr_baseline=_rnd(b, 1))
-        if today_row["hrv_ms"] is not None:
-            r = _dev_score(today_row["hrv_ms"], hrv_base, 250, False)
-            if r:
-                sc, b = r
-                parts.append(sc)
-                inputs.update(hrv=today_row["hrv_ms"], hrv_baseline=_rnd(b, 1))
-        if parts:
-            out_scores["recovery"] = _score(st.mean(parts), **inputs,
-                                            baseline_days=max(len(rhr_base), len(hrv_base)))
-        else:
-            out_scores["recovery"] = _no_data("no RHR/HRV reading today or yesterday")
-    else:
-        out_scores["recovery"] = _no_data(
-            "needs a current RHR/HRV reading + >= 14 baseline days",
-            baseline_days=max(len(rhr_base), len(hrv_base)))
-
-    # -- muscle balance (7d logged vs planned, on the radar's 7-group map) -----
-    # validated behavior 2026-07-09: the score and the radar share ONE rollup —
-    # since v2.8 that is _rollup7 (authored-first cited sub-muscle map, coarse
-    # Hevy-tag fallback), so the card's "X of Y groups" agrees with the 7-axis
-    # radar (Y <= 7). A group counts as PLANNED by presence (any scheduled
-    # exercise touches it), not by volume — routine-set without --sets leaves
-    # target_sets NULL and must not silently shrink the denominator. Unmapped
-    # muscle names are echoed in inputs so dropped volume is diagnosable.
-    lg7 = _rollup7(c, "logged", 7)
-    pl7 = _rollup7(c, "planned")
-    logged_v = lg7["groups"]
-    planned_groups = [g for g in MUSCLE_GROUP_AXES if g in pl7["present"]]
-    unmapped = sorted(lg7["unmapped"] | pl7["unmapped"])
-    unmapped_ex = sorted(set(lg7["unmatched"]) | set(pl7["unmatched"]))
-    if sum(logged_v.values()) >= 3 and planned_groups:
-        covered = sum(1 for g in planned_groups if logged_v.get(g, 0) >= 2)
-        coverage = covered / len(planned_groups)
-        vals = [logged_v.get(g, 0.0) for g in planned_groups]
-        mean_v = st.mean(vals)
-        cv = (st.pstdev(vals) / mean_v) if mean_v > 0 else 1.0
-        evenness = max(0.0, 1.0 - min(cv, 1.0))
-        out_scores["muscle_balance"] = _score(60 * coverage + 40 * evenness,
-            groups_planned=len(planned_groups), groups_covered=covered,
-            evenness=_rnd(evenness, 2), window_days=7, unmapped=unmapped,
-            unmapped_exercises=unmapped_ex)
-    else:
-        reason = ("no scheduled exercise maps to the 7 muscle groups — check "
-                  "the routine/schedule and the muscle map" if not planned_groups
-                  else "needs logged sets this week")
-        out_scores["muscle_balance"] = _no_data(
-            reason, effective_sets_7d=_rnd(sum(logged_v.values()), 1),
-            unmapped=unmapped, unmapped_exercises=unmapped_ex)
-
-    # -- water ------------------------------------------------------------
-    # T46: target now comes from the T44 compute engine (_compute_targets ->
-    # _water_target: configured baseline + exercise/weather heuristic) instead of the
-    # flat WATER_TARGET_ML constant, so the dashboard ring and the Nutrition
-    # page's Water surfaces agree on one number. WATER_TARGET_ML remains the
-    # engine's own documented no-weight fallback (see _water_target) — both
-    # the "ok" and "insufficient_data" shapes of _compute_targets always
-    # carry targets.water_ml, so this doesn't need its own profile gate.
-    tg = _compute_targets(c)
-    water_target = tg["targets"]["water_ml"]["target"]
-    w = c.execute("SELECT water_ml FROM intake WHERE date=?", (today(),)).fetchone()
-    if w and w["water_ml"] is not None:
-        out_scores["water"] = _score(w["water_ml"] / water_target * 100,
-                                     water_ml=w["water_ml"], target_ml=water_target)
-    else:
-        out_scores["water"] = _no_data("no water logged today", target_ml=water_target)
-
-    # -- nutrition (§4a composite: protein 25 + kcal 15 + top-10 micros 60) ----
-    # T46: ONE shared scorer (_nutrition_day_score) and ONE targets source
-    # (_compute_targets, the T44 engine — the same one nutrition-coverage and
-    # the Nutrition page's "% of target" card use) replace the old
-    # Cronometer-data + manually-set nutrition_targets-rows gate. A legacy
-    # nutrition_targets override (nutrition-target-set) still applies, but
-    # now layers ON TOP OF a complete profile rather than substituting for
-    # one — see _compute_targets. Weights/credit shapes are UNCHANGED
-    # (NUTRITION_WEIGHTS, ±10%→0-at-±25% kcal band, 80%-low-micro flag);
-    # only WHERE the targets come from changed.
-    nut_day = None
-    for back in (0, 1):
-        dd = days_ago(back)
-        if _nutrition_day_values(c, dd):
-            nut_day = dd
-            break
-    if nut_day is None:
-        out_scores["nutrition"] = _no_data(
-            "no logged nutrition or Cronometer data for today/yesterday",
-            citation_status=MICRO_CITATION_STATUS)
-    elif tg["status"] != "ok":
-        out_scores["nutrition"] = _no_data(tg["reason"], date=nut_day,
-                                           citation_status=MICRO_CITATION_STATUS)
-    else:
-        res = _nutrition_day_score(c, nut_day, tg["targets"])
-        comp = res["components"]
-        out_scores["nutrition"] = _score(
-            res["score"], date=nut_day, protein_g=comp["protein_g"],
-            protein_target=comp["protein_target"], kcal=comp["kcal"],
-            kcal_target=comp["kcal_target"], micros=comp["micros"],
-            low_micros=comp["low_micros"], weights=NUTRITION_WEIGHTS,
-            citation_status=MICRO_CITATION_STATUS)
-
-    # -- mind (T49: stated-weights composite over WHATEVER of these has data —
-    #    equal-weight mean, weights stated in output. NO sentiment analysis on
-    #    brain_dump text (determinism law); it only feeds a streak count.
-    #    anxiety is deliberately NOT included in v1 (symptom-direction field,
-    #    owner didn't list it in the spec). A `social` component would join
-    #    here once social logging exists in the schema — not emitted as a
-    #    null placeholder in the meantime.) ------------------------------
-    lo30 = days_ago(30)
-    mind_components = []
-    if _table_exists(c, "subjective_daily"):
-        for key in ("mood", "focus", "emotional_regulation"):
-            vals = [r[0] for r in c.execute(
-                f"SELECT {key} FROM subjective_daily WHERE date>=? AND {key} IS NOT NULL",
-                (lo30,))]
-            if vals:
-                mv = st.mean(vals)
-                mind_components.append({"key": key, "score": _clamp100(mv * 20),
-                    "basis": f"30d mean {mv:.1f}/5 over {len(vals)} day(s)"})
-        bd_dates = [r[0] for r in c.execute(
-            "SELECT date FROM subjective_daily WHERE date>=?"
-            " AND TRIM(COALESCE(brain_dump,'')) != '' ORDER BY date", (lo30,))]
-        if bd_dates:
-            streak, prev = 0, None
-            if bd_dates[-1] >= days_ago(1):    # only a run reaching today/yesterday counts
-                for d in reversed(bd_dates):
-                    if prev is not None and (date.fromisoformat(prev) - date.fromisoformat(d)).days != 1:
-                        break
-                    streak += 1; prev = d
-            capped = min(streak, 14)           # 14-day cap: presentation scaling for
-                                                # the 0-100 score, not a clinical claim
-            mind_components.append({"key": "brain_dump_streak",
-                "score": _clamp100(capped / 14 * 100),
-                "basis": f"{streak}-day brain-dump streak (14-day cap for scoring)"})
-    if _table_exists(c, "habits_log"):
-        hrows = c.execute("SELECT done FROM habits_log WHERE date>=?", (lo30,)).fetchall()
-        if hrows:
-            done_n = sum(1 for r in hrows if r["done"])
-            pct = 100 * done_n / len(hrows)
-            mind_components.append({"key": "habit_consistency", "score": _clamp100(pct),
-                "basis": f"{done_n}/{len(hrows)} habits_log rows done ({_rnd(pct, 1)}%)"})
-    if len(mind_components) < 2:
-        have = [mc["key"] for mc in mind_components]
-        missing = [k for k in ("mood", "focus", "emotional_regulation",
-                                "brain_dump_streak", "habit_consistency") if k not in have]
-        out_scores["mind"] = _no_data(
-            "needs >= 2 of mood/focus/emotional_regulation/brain_dump_streak/"
-            f"habit_consistency logged in the last 30 days (have {len(have)}: "
-            f"{', '.join(have) or 'none'}; missing {', '.join(missing)})",
-            components=mind_components, window_days=30)
-    else:
-        mind_val = st.mean(mc["score"] for mc in mind_components)
-        out_scores["mind"] = _score(mind_val, components=mind_components,
-                                    weights="equal", window_days=30)
-
-    # -- external care (T49: 30-day skincare-routine adherence) ---------------
-    # ONE definition, two readers: done = used=1 rows, expected = logged rows,
-    # joined to skincare_products with BOTH sides of the fraction filtered to
-    # active=1 — the T34 lesson (supplements adherence once filtered only the
-    # denominator to active products, inflating/deflating the score off a
-    # retired product's historical rows; fixed there by filtering both sides
-    # together, applied proactively here from day one). app/routes/dash.py's
-    # care() route was aligned to this same active-only semantic in T55
-    # (owner flag 1), closing the discrepancy T49 had documented and parked.
-    care_lo = days_ago(30)
-    care_row = None
-    if _table_exists(c, "skincare_log") and _table_exists(c, "skincare_products"):
-        care_row = c.execute(
-            "SELECT COUNT(*) AS expected, SUM(sl.used) AS done FROM skincare_log sl"
-            " JOIN skincare_products sp ON sp.product_id = sl.product_id"
-            " WHERE sp.active = 1 AND sl.date >= ?", (care_lo,)).fetchone()
-    if care_row and care_row["expected"]:
-        expected, done = care_row["expected"], care_row["done"] or 0
-        out_scores["care"] = _score(100 * done / expected,
-                                    done=done, expected=expected, window_days=30)
-    else:
-        out_scores["care"] = _no_data(
-            "no skincare_log rows for an active product in the last 30 days",
-            window_days=30)
-
-    # -- habits & streaks (for the habits card; streak = consecutive days done,
-    #    ending at the habit's most recent log; active = logged in last 21 days)
-    habits = []
-    if _table_exists(c, "habits_log"):
-        names = [r["h"] for r in c.execute(
-            "SELECT DISTINCT habit h FROM habits_log WHERE date>=? ORDER BY habit",
-            (days_ago(21),))]
-        for h in names:
-            rows = c.execute(
-                """SELECT date, MAX(done) done FROM habits_log WHERE habit=? AND date>=?
-                   GROUP BY date ORDER BY date""", (h, lo)).fetchall()
-            streak, prev = 0, None
-            if rows and rows[-1]["date"] >= days_ago(1):   # current runs only
-                for r in reversed(rows):
-                    if not r["done"]: break
-                    if prev is not None and (date.fromisoformat(prev) - date.fromisoformat(r["date"])).days != 1:
-                        break
-                    streak += 1; prev = r["date"]
-            habits.append({"habit": h, "streak": streak,
-                           "last_done": next((r["date"] for r in reversed(rows) if r["done"]), None),
-                           "done_7d": sum(1 for r in rows if r["done"] and r["date"] >= days_ago(7))})
-    out({"meta": {"tz": str(CANON_TZ), "date": today(), "window_days": days,
-                  "note": "all scores computed here; bands engine-assigned; "
-                          "missing inputs -> insufficient_data, never a guess"},
-         "scores": out_scores, "habits": habits})
+    out(scores_commands.scores(
+        _command_context(), a, nutrition_config=_nutrition_config()))
 
 # --------------------------------------------------------- T48 readiness engine
-READINESS_DISCLAIMER = ("Transparent heuristic over your own baselines — "
-                        "not medical advice.")
-READINESS_EVIDENCE_CONTRACT = "readiness-evidence-v2"
-READINESS_MINIMUM_SAME_SOURCE_BASELINE = 14
-READINESS_HRV_DEVIATION_COEFFICIENT = 250
-READINESS_RHR_DEVIATION_COEFFICIENT = 500
-READINESS_TRAINING_VOLUME_DAYS = 7
-READINESS_TRAINING_PERFORMANCE_DAYS = 28
-
-# Soreness-note -> muscle_recovery group highlighting. A DISPLAY AID, not
-# NLP: plain case-insensitive substring match against the user's own
-# free-text note (always shown verbatim regardless of any match). Each
-# group's own name is checked automatically; these are just the common
-# colloquial synonyms for the 7 MUSCLE_GROUP_AXES.
-SORENESS_SYNONYMS = {
-    "Legs":      ["quad", "hamstring", "calv", "thigh"],
-    "Glutes":    ["glute", "booty"],
-    "Back":      ["lat", "trap", "spine"],
-    "Chest":     ["pec"],
-    "Shoulders": ["delt"],
-    "Arms":      ["bicep", "tricep", "forearm"],
-    "Core":      ["abs", "abdominal", "oblique"],
-}
-
-READINESS_POLICY = {
-    "policy_id": "openhealthatlas-readiness-policy",
-    "version": "1.0.0",
-    "meaning": "non_diagnostic_readiness_heuristic",
-    "baseline_days": SCORES_DEFAULT_DAYS,
-    "minimum_same_source_baseline_observations": (
-        READINESS_MINIMUM_SAME_SOURCE_BASELINE
-    ),
-    "component_keys": ["sleep", "hrv", "rhr"],
-    "composite": "equal_weight_mean_of_available_components",
-    "minimum_components": 2,
-    "sleep": {
-        "target_hours": SLEEP_TARGET_H,
-        "method": "hours_target_70pct_plus_optional_quality_30pct",
-        "quality_scale_max": 5,
-    },
-    "hrv": {
-        "method": "same_source_median_deviation",
-        "deviation_coefficient": READINESS_HRV_DEVIATION_COEFFICIENT,
-        "higher_is_better": True,
-    },
-    "resting_hr": {
-        "method": "same_source_median_deviation",
-        "deviation_coefficient": READINESS_RHR_DEVIATION_COEFFICIENT,
-        "lower_is_better": True,
-    },
-    "bands": {
-        "bad_below": SCORE_BAD_CUTOFF,
-        "warn_below": SCORE_GOOD_CUTOFF,
-        "good_at_or_above": SCORE_GOOD_CUTOFF,
-    },
-    "training": {
-        "effective_sets_window_days": READINESS_TRAINING_VOLUME_DAYS,
-        "performance_window_days": READINESS_TRAINING_PERFORMANCE_DAYS,
-        "e1rm_method": "epley-v1",
-        "performance_comparison": (
-            "latest_session_mean_vs_window_working_set_median"
-        ),
-        "below_median_rule": "signed_percentage_delta_lt_zero",
-        "muscle_mapping": "authored_then_coarse-v2.8",
-    },
-    "soreness": {
-        "derivation": "case_insensitive_group_or_synonym_substring-v1",
-        "synonym_map_sha256": insight_provenance.sha256_id(SORENESS_SYNONYMS),
-        "meaning": "display_flag_only",
-    },
-}
-READINESS_POLICY_SHA256 = insight_provenance.sha256_id(READINESS_POLICY)
-
+READINESS_DISCLAIMER = recovery_domain.READINESS_DISCLAIMER
+READINESS_EVIDENCE_CONTRACT = recovery_domain.READINESS_EVIDENCE_CONTRACT
+READINESS_MINIMUM_SAME_SOURCE_BASELINE = recovery_domain.READINESS_MINIMUM_SAME_SOURCE_BASELINE
+READINESS_HRV_DEVIATION_COEFFICIENT = recovery_domain.READINESS_HRV_DEVIATION_COEFFICIENT
+READINESS_RHR_DEVIATION_COEFFICIENT = recovery_domain.READINESS_RHR_DEVIATION_COEFFICIENT
+READINESS_TRAINING_VOLUME_DAYS = recovery_domain.READINESS_TRAINING_VOLUME_DAYS
+READINESS_TRAINING_PERFORMANCE_DAYS = recovery_domain.READINESS_TRAINING_PERFORMANCE_DAYS
+SORENESS_SYNONYMS = recovery_domain.SORENESS_SYNONYMS
+READINESS_POLICY = recovery_domain.READINESS_POLICY
+READINESS_POLICY_SHA256 = recovery_domain.READINESS_POLICY_SHA256
 
 def _readiness_calculation_context():
-    """Private code-owned inputs that can change Recovery interpretation.
-
-    This complete context is bound inside the private snapshot sidecar and the
-    deterministic input fingerprint.  Its mapping details are not copied into
-    the public evidence projection.
-    """
-
-    static_mapping_policy = {
-        "muscle_group_axes": list(MUSCLE_GROUP_AXES),
-        "muscle_to_group": MUSCLE_TO_GROUP,
-        "mobility_exercises": sorted(MOBILITY_EXERCISES),
-        "non_volume_exercises": sorted(NON_VOLUME_EXERCISES),
-    }
-    return {
-        "policy": READINESS_POLICY,
-        "policy_sha256": READINESS_POLICY_SHA256,
-        "static_mapping_policy": static_mapping_policy,
-        "soreness_synonyms": SORENESS_SYNONYMS,
-    }
+    return recovery_domain._readiness_calculation_context()
 
 
 def _muscle_recovery(c, anchor=None, start=None):
-    """Per-7-group (MUSCLE_GROUP_AXES) recovery snapshot for the readiness
-    drill — days since a mapped exercise was last trained (ALL-TIME,
-    non-warmup hevy_sets), effective sets in the trailing 7d (the SAME
-    _rollup7 rollup the radar/muscle_balance score share — never a rival
-    count), and for the group's most-frequently-SET exercise over the
-    trailing 28d: last-session mean e1RM vs the trailing-28d median e1RM as a
-    signed %% delta. `below_median` is SIGN ONLY (delta < 0) — no invented
-    magnitude threshold; e1rm() is the one shared formula, never re-derived.
-    Groups with no mapped exercise EVER trained get an honest
-    days_since=None + note='never logged' row rather than being omitted."""
-    authored, coarse = _group_weight_maps(c)
-
-    def _groups_for(title):
-        gmap, basis = _basis_weights(title, authored, coarse)
-        return set(gmap) if gmap else set()
-
-    if anchor is None:
-        last_query = ("""SELECT exercise_title, MAX(date) last FROM hevy_sets
-                          WHERE COALESCE(set_type,'normal')!='warmup'
-                          GROUP BY exercise_title""", ())
-        window_query = ("""SELECT exercise_title, date, weight_kg, reps FROM hevy_sets
-            WHERE date >= ? AND COALESCE(set_type,'normal')!='warmup'
-            ORDER BY date""", (days_ago(READINESS_TRAINING_PERFORMANCE_DAYS),))
-        reference_day = date.fromisoformat(today())
-    else:
-        last_query = ("""SELECT exercise_title, MAX(date) last FROM hevy_sets
-                          WHERE date>=? AND date<=?
-                            AND COALESCE(set_type,'normal')!='warmup'
-                          GROUP BY exercise_title""",
-                      ((start or date.min).isoformat(), anchor.isoformat()))
-        window_start = anchor - timedelta(days=READINESS_TRAINING_PERFORMANCE_DAYS)
-        if start is not None:
-            window_start = max(window_start, start)
-        window_query = ("""SELECT exercise_title, date, weight_kg, reps FROM hevy_sets
-            WHERE date >= ? AND date <= ?
-              AND COALESCE(set_type,'normal')!='warmup'
-            ORDER BY date""",
-            (window_start.isoformat(), anchor.isoformat()))
-        reference_day = anchor
-    last_by_ex = {r["exercise_title"]: r["last"] for r in c.execute(*last_query)}
-    sets7 = _rollup7(
-        c, "logged", READINESS_TRAINING_VOLUME_DAYS, anchor=anchor,
-    )["groups"]
-
-    win_rows = c.execute(*window_query).fetchall()
-    by_group_ex = {g: {} for g in MUSCLE_GROUP_AXES}
-    for r in win_rows:
-        for g in _groups_for(r["exercise_title"]):
-            by_group_ex[g].setdefault(r["exercise_title"], []).append(r)
-
-    rows_out = []
-    for g in MUSCLE_GROUP_AXES:
-        last_dates = [d for t, d in last_by_ex.items() if d and g in _groups_for(t)]
-        days_since = ((reference_day - date.fromisoformat(max(last_dates))).days
-                      if last_dates else None)
-        entry = {"group": g, "days_since": days_since, "sets_7d": sets7.get(g, 0.0),
-                 "exercise": None, "e1rm_delta_pct": None, "below_median": None,
-                 "sore": False}
-        if days_since is None:
-            entry["note"] = "never logged"
-            rows_out.append(entry)
-            continue
-        exs = by_group_ex.get(g, {})
-        if exs:
-            # most-frequently-SET exercise (by working-set count in the 28d
-            # window), deterministic alpha tiebreak
-            top_ex, ex_rows = sorted(exs.items(), key=lambda kv: (-len(kv[1]), kv[0]))[0]
-            entry["exercise"] = top_ex
-            last_date = max(r["date"] for r in ex_rows)
-            last_vals = [v for v in (e1rm(r["weight_kg"], r["reps"]) for r in ex_rows
-                                     if r["date"] == last_date) if v is not None]
-            all_vals = [v for v in (e1rm(r["weight_kg"], r["reps"]) for r in ex_rows) if v is not None]
-            if last_vals and all_vals:
-                median28 = st.median(all_vals)
-                if median28 > 0:
-                    delta = round(100 * (st.mean(last_vals) - median28) / median28, 1)
-                    entry["e1rm_delta_pct"] = delta
-                    entry["below_median"] = delta < 0
-        rows_out.append(entry)
-    return rows_out
+    return recovery_domain._muscle_recovery(c, anchor, start, clock=_now)
 
 
 def _readiness_metric_evidence(base_rows, today_row, key):
-    """Return one same-source baseline plus bounded, non-value ancestry.
-
-    ``daily_metrics`` permits one row per date and source.  The existing merge
-    rule still chooses Fitbit first for each metric on each date, but a
-    baseline may use only rows selected from the current observation's source.
-    This is essential for HRV, whose stored algorithm differs by source, and
-    keeps the same integrity rule for resting HR.
-    """
-
-    field = "hrv_ms" if key == "hrv" else "resting_hr"
-    source_field = f"{field}_source"
-    source_key_field = f"{field}_source_key"
-    transformation = (
-        "same-source-baseline-deviation-hrv-v1"
-        if key == "hrv"
-        else "same-source-baseline-deviation-rhr-v1"
-    )
-    current_value = today_row.get(field) if today_row else None
-    current_source = today_row.get(source_field) if today_row else None
-    current_source_key = today_row.get(source_key_field) if today_row else None
-    if current_value is None or current_source is None:
-        ancestry = {
-            "key": key,
-            "status": "missing",
-            "reason_code": "no_current_observation",
-            "ancestry_state": "missing",
-            "current": None,
-            "baseline": None,
-            "transformation": transformation,
-        }
-        return ancestry, [], {"key": key, "status": "missing"}, None
-
-    current = {
-        "table": "daily_metrics",
-        "locator": f"daily_metrics:{today_row['date']}:{current_source}",
-        "source_label": current_source,
-        "observed_at": today_row["date"],
-    }
-    available_field = f"{field}_sources"
-    baseline_rows = [
-        row for row in base_rows if row["date"] != today_row["date"]
-    ]
-    same_source = [
-        (row, row[available_field][current_source_key])
-        for row in baseline_rows
-        if current_source_key in row[available_field]
-    ]
-    baseline = {
-        "source_label": current_source,
-        "observation_count": len(same_source),
-        "range_from": same_source[0][0]["date"] if same_source else None,
-        "range_to": same_source[-1][0]["date"] if same_source else None,
-        "locators": [
-            f"daily_metrics:{row['date']}:{selected['source_label']}"
-            for row, selected in same_source
-        ],
-    }
-    required = READINESS_MINIMUM_SAME_SOURCE_BASELINE
-    baseline_values = [selected["value"] for _row, selected in same_source]
-    enough = len(same_source) >= required
-    positive = enough and st.median(baseline_values) > 0
-    reason_code = (
-        None
-        if positive
-        else (
-            "insufficient_same_source_baseline"
-            if not enough
-            else "nonpositive_same_source_baseline"
-        )
-    )
-    ancestry = {
-        "key": key,
-        "status": "included" if positive else "excluded",
-        "reason_code": reason_code,
-        "ancestry_state": "source_rows_identified",
-        "current": current,
-        "baseline": baseline,
-        "transformation": transformation,
-    }
-    fingerprint_input = {
-        "key": key,
-        "status": ancestry["status"],
-        "reason_code": ancestry["reason_code"],
-        "current": {**current, "value": current_value},
-        "baseline": [
-            {
-                "locator": f"daily_metrics:{row['date']}:{selected['source_label']}",
-                "source_label": selected["source_label"],
-                "observed_at": row["date"],
-                "value": selected["value"],
-            }
-            for row, selected in same_source
-        ],
-        "transformation": transformation,
-    }
-    warning = None
-    if not positive:
-        warning = {
-            "code": reason_code,
-            "component": key,
-            "source_label": current_source,
-            "required": required,
-            "observed": len(same_source),
-            "other_source_observations_excluded": (
-                sum(
-                    1
-                    for row in baseline_rows
-                    for source_key in row[available_field]
-                    if source_key != current_source_key
-                )
-            ),
-        }
-    return ancestry, baseline_values, fingerprint_input, warning
+    return recovery_domain._readiness_metric_evidence(base_rows, today_row, key)
 
 
 def _readiness_result(c, *, anchor, range_start, snapshot_attestation):
-    """T48 readiness engine: a transparent equal-weight-mean composite of the
-    SAME sleep/hrv/rhr math scores() uses — sleep via _sleep_score, hrv/rhr
-    via _recovery_baseline_rows + _dev_score (factored, never forked; same
-    candidate window via SCORES_DEFAULT_DAYS and same constants). Readiness
-    additionally requires every HRV/RHR baseline to match the selected current
-    source. `drag[i].points` =
-    (100-component)/n, the EXACT arithmetic shortfall each included
-    component contributes under that equal-weight mean — deterministic, no
-    invented per-component weights. Fewer than 2 available components ->
-    insufficient_data (muscle_recovery + soreness are independent of the
-    composite and are still returned)."""
-    components = []
-
-    evidence_components = []
-    evidence_warnings = []
-    fingerprint_components = []
-
-    sleep_c = _sleep_score(
-        c, anchor=anchor,
-        include_ancestry=True,
-    )
-    if not sleep_c.get("insufficient_data"):
-        i = sleep_c["inputs"]
-        q = f" · quality {i['quality']}/5" if i.get("quality") is not None else ""
-        components.append({"key": "sleep", "score": sleep_c["score"], "value": i["hours"],
-            "basis": f"{i['hours']:.1f}h{q} vs {SLEEP_TARGET_H:.0f}h target"})
-        sleep_ancestry = i["ancestry"]
-        evidence_components.append({
-            "key": "sleep",
-            "status": "included",
-            "reason_code": None,
-            "ancestry_state": (
-                "source_row_identified"
-                if sleep_ancestry.get("source_label")
-                else "row_identified_source_missing"
-            ),
-            "current": sleep_ancestry,
-            "baseline": None,
-            "transformation": "sleep-score-v1",
-        })
-        fingerprint_components.append({
-            "key": "sleep",
-            "status": "included",
-            "current": {
-                **sleep_ancestry,
-                "hours": i["hours"],
-                "quality": i.get("quality"),
-            },
-            "target_hours": SLEEP_TARGET_H,
-            "transformation": "sleep-score-v1",
-        })
-    else:
-        evidence_components.append({
-            "key": "sleep",
-            "status": "missing",
-            "reason_code": "no_current_observation",
-            "ancestry_state": "missing",
-            "current": None,
-            "baseline": None,
-            "transformation": "sleep-score-v1",
-        })
-        fingerprint_components.append({"key": "sleep", "status": "missing"})
-
-    bounded_anchor = anchor
-    base_rows = _recovery_baseline_rows(
-        c, SCORES_DEFAULT_DAYS, anchor=bounded_anchor, start=range_start,
-    )
-    current_dates = [(anchor - timedelta(days=b)).isoformat() for b in (0, 1)]
-    today_row = next((r for d in current_dates for r in base_rows if r["date"] == d), None)
-    for key, field, coef, invert, unit in (
-        (
-            "hrv", "hrv_ms", READINESS_HRV_DEVIATION_COEFFICIENT,
-            False, "ms",
-        ),
-        (
-            "rhr", "resting_hr", READINESS_RHR_DEVIATION_COEFFICIENT,
-            True, "bpm",
-        ),
-    ):
-        ancestry, baseline_values, fingerprint_input, warning = (
-            _readiness_metric_evidence(base_rows, today_row, key)
-        )
-        evidence_components.append(ancestry)
-        fingerprint_components.append(fingerprint_input)
-        if warning is not None:
-            evidence_warnings.append(warning)
-        if ancestry["status"] != "included":
-            continue
-        dev = _dev_score(today_row[field], baseline_values, coef, invert)
-        if dev:
-            sc, b = dev
-            components.append({
-                "key": key,
-                "score": _clamp100(sc),
-                "value": today_row[field],
-                "basis": (
-                    f"{today_row[field]:.0f} {unit} vs {b:.0f} {unit} "
-                    "same-source baseline (14+ day median)"
-                ),
-            })
-
-    muscle_recovery = _muscle_recovery(
-        c, anchor=bounded_anchor, start=range_start,
-    )
-
-    # soreness: today's, else yesterday's, subjective_daily.soreness_note
-    # VERBATIM inside the private deterministic result. The field is owned by
-    # Migration 001: this read requires it and never performs compatibility
-    # DDL. With a trusted ledger, a legacy column shape therefore reports the
-    # explicit schema_migration_required error.
-    soreness = None
-    soreness_source = None
-    if _table_exists(c, "subjective_daily") and _subjective_daily_has_soreness_note(c):
-        for back in (0, 1):
-            d = (anchor - timedelta(days=back)).isoformat()
-            row = c.execute(
-                "SELECT soreness_note, source FROM subjective_daily WHERE date=?",
-                (d,),
-            ).fetchone()
-            if row and row["soreness_note"]:
-                soreness = {"date": d, "note": row["soreness_note"]}
-                soreness_source = row["source"]
-                break
-    if soreness:
-        note_l = soreness["note"].lower()
-        for entry in muscle_recovery:
-            terms = [entry["group"].lower()] + SORENESS_SYNONYMS.get(entry["group"], [])
-            entry["sore"] = any(t in note_l for t in terms)
-
-    if soreness:
-        soreness_evidence = {
-            "status": "present",
-            "table": "subjective_daily",
-            "locator": f"subjective_daily:{soreness['date']}",
-            "source_label": soreness_source,
-            "observed_at": soreness["date"],
-        }
-        soreness_fingerprint_input = {
-            **soreness_evidence,
-            "sore_groups": sorted(
-                entry["group"] for entry in muscle_recovery if entry["sore"]
-            ),
-        }
-    else:
-        soreness_evidence = {
-            "status": "missing",
-            "table": "subjective_daily",
-            "locator": None,
-            "source_label": None,
-            "observed_at": None,
-        }
-        soreness_fingerprint_input = {"status": "missing"}
-
-    fingerprint_payload = {
-        "contract": READINESS_EVIDENCE_CONTRACT,
-        "policy_sha256": READINESS_POLICY_SHA256,
-        "range": {
-            "from": range_start.isoformat() if range_start else None,
-            "anchor": anchor.isoformat(),
-        },
-        "components": fingerprint_components,
-        "muscle_recovery": muscle_recovery,
-        "soreness": soreness_fingerprint_input,
-    }
-    # The private sidecar separately binds exact row bytes, including the raw
-    # note.  Neither that digest nor the raw note enters this public identity:
-    # equivalent wording with the same bounded sore-group flags has the same
-    # calculation identity.
-    evidence = {
-        "contract": READINESS_EVIDENCE_CONTRACT,
-        "input_fingerprint": insight_provenance.sha256_id(fingerprint_payload),
-        "fingerprint_scope": [
-            "calculation_relevant_projection", "calculation_policy", "range",
-        ],
-        "policy": READINESS_POLICY,
-        "policy_sha256": READINESS_POLICY_SHA256,
-        "snapshot_integrity": dict(snapshot_attestation.public_summary),
-        "components": evidence_components,
-        "soreness": soreness_evidence,
-        "warnings": evidence_warnings,
-        "remaining_ancestry_gaps": [],
-    }
-    evidence["public_evidence_identity"] = insight_provenance.sha256_id(evidence)
-
-    if len(components) < 2:
-        return {"status": "insufficient_data", "anchor_date": anchor.isoformat(),
-                "range_from": range_start.isoformat() if range_start else None,
-                "reason": f"needs >= 2 of sleep/HRV/resting HR (have {len(components)})",
-                "components": components, "muscle_recovery": muscle_recovery,
-                "soreness": soreness, "evidence": evidence,
-                "disclaimer": READINESS_DISCLAIMER}
-
-    n = len(components)
-    score = _clamp100(st.mean(comp["score"] for comp in components))
-    drag = sorted(({"key": comp["key"],
-                    "points": round((100 - comp["score"]) / n, 1),
-                    "label": f"{comp['key']} — {round((100 - comp['score']) / n, 1)} pts"}
-                   for comp in components), key=lambda d: -d["points"])
-    return {"status": "ok", "anchor_date": anchor.isoformat(),
-            "range_from": range_start.isoformat() if range_start else None,
-            "score": score, "band": _band(score),
-            "components": components, "drag": drag,
-            "muscle_recovery": muscle_recovery, "soreness": soreness,
-            "evidence": evidence, "disclaimer": READINESS_DISCLAIMER}
+    return recovery_domain._readiness_result(
+        c, anchor=anchor, range_start=range_start,
+        snapshot_attestation=snapshot_attestation, clock=_now)
 
 
 def readiness(a):
-    """Run Recovery inside one file-bound, read-only SQLite snapshot."""
-
-    anchor = _anchor_day(a.anchor)
-    range_start = (date.fromisoformat(valid_date(a.from_date, "--from"))
-                   if a.from_date is not None else None)
-    if range_start is not None and range_start > anchor:
-        sys.exit("--from must not be after --anchor")
-    with insight_readiness_ancestry.verified_readiness_snapshot(
-        DB,
-        range_start=range_start,
-        anchor=anchor,
-        calculation_context=_readiness_calculation_context(),
-    ) as (connection, snapshot_attestation):
-        result = _readiness_result(
-            connection,
-            anchor=anchor,
-            range_start=range_start,
-            snapshot_attestation=snapshot_attestation,
-        )
-    out(result)
+    out(recovery_commands.readiness(_command_context(), a))
 
 # --------------------------------------------------------- data-to-add ranker
 # What each signal unlocks and how much it costs to capture. `weight` (1-5,
@@ -2040,60 +677,11 @@ def readiness(a):
 # a weekly weigh-in tops out at ~14%, a 3x/week cuff at ~40%) are EDITORIAL
 # CONSTANTS — priorities, not measurements; the only computed inputs are the
 # live coverage percentages.
-COVERAGE_CATALOG = [
-  {"field": "day_rating", "target_pct": 90, "how": "one tap, dashboard/Telegram, evenings", "effort": 1, "weight": 5,
-   "unlocks": "the green-vs-red day signature — without rated days 'what makes a good day' cannot be computed at all"},
-  {"field": "word_kept", "target_pct": 90, "how": "one tap: kept/partly/broke, evenings", "effort": 1, "weight": 5,
-   "unlocks": "follow-through rate + the conditions that predict keeping your word (the self-integrity goal is unmeasurable without it)"},
-  {"field": "medication_dose_mg", "target_pct": 80, "how": "tell the coach dose+time when you take it", "effort": 1, "weight": 5,
-   "unlocks": "dose/timing vs focus, rebound, and sleep for discussion with a clinician"},
-  {"field": "bp_sys", "target_pct": 40, "how": "cuff reading, ~3x/week (quick-log)", "effort": 2, "weight": 5,
-   "unlocks": "descriptive blood-pressure context alongside a configured medication"},
-  {"field": "focus", "target_pct": 90, "how": "quick-log 1-5, evenings", "effort": 1, "weight": 4,
-   "unlocks": "sleep→focus and dose→focus links for a user-selected outcome"},
-  {"field": "chk_energy_pm", "target_pct": 60, "how": "one tap 'energy now' in the afternoon", "effort": 1, "weight": 4,
-   "unlocks": "wear-off/afternoon-crash detection — daily ratings average it away"},
-  {"field": "sl_bedtime_min", "target_pct": 90, "how": "log bedtime (or wearable sleep import)", "effort": 1, "weight": 4,
-   "unlocks": "bedtime vs next-day everything — the most controllable upstream lever"},
-  {"field": "tr_volume_kg", "target_pct": 90, "how": "log sets in the Training tab / Hevy", "effort": 1, "weight": 4,
-   "unlocks": "training→mood/sleep lags and progression vs recovery"},
-  {"field": "tr_mean_rpe", "target_pct": 40, "how": "add RPE when logging sets", "effort": 1, "weight": 3,
-   "unlocks": "effort-adjusted training load — distinguishes a heavy day from a long one"},
-  {"field": "nut_protein_g", "target_pct": 90, "how": "eat/log-food from the freezer menu", "effort": 2, "weight": 4,
-   "unlocks": "protein vs recovery/strength — the recomposition pillar's only input"},
-  {"field": "caffeine_mg", "target_pct": 90, "how": "mention coffees in the evening check-in", "effort": 1, "weight": 3,
-   "unlocks": "separates caffeine from configured-medication effects"},
-  {"field": "alcohol_units", "target_pct": 90, "how": "mention drinks in the evening check-in", "effort": 1, "weight": 3,
-   "unlocks": "alcohol vs sleep quality/HRV — a classic hidden confounder"},
-  {"field": "weight_kg", "target_pct": 14, "how": "scale, ~weekly", "effort": 2, "weight": 3,
-   "unlocks": "recomposition trend context (waist/photos stay the headline)"},
-  {"field": "water_ml", "target_pct": 90, "how": "+250/+500 taps", "effort": 1, "weight": 2,
-   "unlocks": "hydration vs headaches/energy (weak signal, cheapest capture)"},
-]
+COVERAGE_CATALOG = daily_frames_domain.COVERAGE_CATALOG
 
 def data_coverage(a):
-    """Rank the data NOT being captured by insight-per-effort. Coverage %s are
-    computed from the live frame; weights/effort are editorial constants (see
-    COVERAGE_CATALOG). score = (1 - coverage) * weight / effort."""
-    dates, rows, cov = _daily_frame(cx(), a.days)
-    n_days = len(dates)
-    ranked = []
-    for item in COVERAGE_CATALOG:
-        f = item["field"]
-        have = sum(1 for d in dates if rows[d].get(f) is not None)
-        coverage = have / n_days if n_days else 0.0
-        # attainment: coverage relative to the signal's own target cadence, so
-        # a perfect weekly weigh-in (14%) reads as done, not forever-missing.
-        attainment = min(1.0, coverage / (item["target_pct"] / 100))
-        ranked.append({**item, "days_with_data": have, "window_days": n_days,
-                       "coverage_pct": _rnd(100 * coverage, 1),
-                       "attainment_pct": _rnd(100 * attainment, 1),
-                       "score": _rnd((1 - attainment) * item["weight"] / item["effort"], 3)})
-    ranked.sort(key=lambda r: (-r["score"], r["field"]))
-    out({"meta": _meta(cov), "window_days": n_days, "ranked": ranked,
-         "note": "score = (1-attainment) * weight / effort; attainment = "
-                 "coverage vs the signal's target cadence; weight/effort/"
-                 "target are editorial constants, coverage is measured"})
+    out(daily_frames_commands.data_coverage(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 # =========================================================== §3e/§3c/§3d fitness
 
@@ -2187,8 +775,7 @@ def vtaper(a):
 # bridge-exposed.
 
 def _ensure_lab_tables(c):
-    """Require the Migration 001 labs catalog without altering schema."""
-    _require_schema(c, "lab_catalog")
+    return labs_domain._ensure_lab_tables(c)
 
 
 def import_lab_catalog(a):
@@ -2200,315 +787,50 @@ def import_lab_catalog(a):
 # ── labs: raw preservation + OCR-text ingestion + read ──────────────────────
 
 def lab_capture(a):
-    """Preserve a lab photo/PDF verbatim in raw/labs/ (the source of truth any
-    auto-accepted row can be re-checked against). Bytes arrive on stdin so a
-    binary image is never mangled; refuse-on-exists (raw/ is immutable — a
-    re-scan must pick a new name). Collector-only, NOT bridge-exposed."""
-    data = sys.stdin.buffer.read()
-    if not data:
-        sys.exit("empty capture — nothing on stdin")
-    if len(data) > 25_000_000:
-        sys.exit("capture too large (>25 MB)")
-    target = _vault_write_path("raw/labs", a.name)
-    if os.path.exists(target):
-        sys.exit(f"raw/labs/{a.name} already exists — raw files are immutable; "
-                 "save a re-scan under a new name")
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    with open(target, "xb") as f:
-        f.write(data)
-    out({"ok": True, "file": f"raw/labs/{a.name}", "bytes": len(data)})
+    out(labs_commands.lab_capture(_command_context(), a, stdin=sys.stdin))
 
 
 def _norm_lab_unit(u):
-    return insight_calculations._norm_lab_unit(u, superscripts=_SUP)
+    return labs_domain._norm_lab_unit(u)
 
 
 def _lab_report_ref(s):
-    """A report's own reference cell → (low, high).
-
-    Dot or comma decimals and open-ended bounds are accepted generically; the
-    report's interval wins over the catalog.
-    """
-    s = (s or "").strip().replace(",", ".")
-    if not s:
-        return (None, None)
-    if s.startswith("<"):
-        m = re.search(r"-?\d+(?:\.\d+)?", s)
-        return (None, float(m.group()) if m else None)
-    if s.startswith(">"):
-        m = re.search(r"-?\d+(?:\.\d+)?", s)
-        return (float(m.group()) if m else None, None)
-    m = re.search(r"(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)", s)
-    if m:
-        return (float(m.group(1)), float(m.group(2)))
-    return (None, None)
+    return labs_domain._lab_report_ref(s)
 
 
 def _lab_in_range(value, low, high):
-    return insight_calculations._lab_in_range(value, low, high)
+    return labs_domain._lab_in_range(value, low, high)
 
 
 def _parse_lab_report(text):
-    """Flat OCR/pdftotext text → candidate rows. Tabular reports are
-    column-aligned, so we split each line on runs of 2+
-    spaces: [name, value, unit, reference?, flag?]. A line whose 2nd column is
-    not a number is a header/blank and is skipped. Messy single-spaced OCR that
-    yields too few columns is surfaced (skipped), not mis-parsed — the owner
-    reviews the dry-run and the raw file is preserved."""
-    rows, skipped = [], []
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        cols = [c.strip() for c in re.split(r"\s{2,}", line.strip()) if c.strip()]
-        if len(cols) < 3 or not re.fullmatch(r"-?\d+(?:[.,]\d+)?", cols[1]):
-            skipped.append(line.strip())
-            continue
-        name, val_s, unit = cols[0], cols[1], cols[2]
-        ref_low, ref_high = _lab_report_ref(cols[3]) if len(cols) >= 4 else (None, None)
-        flag = cols[4] if len(cols) >= 5 else (cols[3] if len(cols) == 4
-                                               and ref_low is None and ref_high is None
-                                               else None)
-        rows.append({"raw_name": name, "value": float(val_s.replace(",", ".")),
-                     "unit": unit, "reference_low": ref_low,
-                     "reference_high": ref_high, "flag": flag})
-    return rows, skipped
+    return labs_domain._parse_lab_report(text)
 
 
 def _lab_catalog_index(c):
-    """canonical + alias (both lower-cased) → catalog row, for name resolution."""
-    idx = {}
-    for r in c.execute("SELECT * FROM lab_catalog"):
-        d = dict(r)
-        idx[d["canonical"].lower()] = d
-        for al in json.loads(d["aliases"] or "[]"):
-            idx.setdefault(al.lower(), d)
-    return idx
+    return labs_domain._lab_catalog_index(c)
 
 
 def _validate_lab_row(row, cat, last_value):
-    """Structural + physically-possible-plausibility + delta. Returns the row
-    enriched with canonical/panel/checks/reasons/tier. `cat` is the matched
-    catalog dict or None; `last_value` the most recent prior result or None."""
-    reasons, checks = [], {}
-    if cat is None:
-        checks["structural"] = "new_test"
-        reasons.append("new_test")
-        row.update({"canonical": row["raw_name"], "panel": None,
-                    "src_low": row["reference_low"], "src_high": row["reference_high"],
-                    "checks": checks, "reasons": reasons, "tier": "blocked",
-                    "last_value": last_value})
-        return row
-    canonical = cat["canonical"]
-    unit_ok = _norm_lab_unit(row["unit"]) == _norm_lab_unit(cat["unit"])
-    checks["structural"] = "ok" if unit_ok else "unit_mismatch"
-    if not unit_ok:
-        reasons.append("unit_mismatch")
-        checks["plausibility"] = checks["delta"] = "skipped_unit"   # bounds are unit-specific
-    else:
-        v = row["value"]
-        if v < cat["plaus_low"] or v > cat["plaus_high"]:
-            checks["plausibility"] = "implausible"
-            reasons.append("implausible_value")
-        else:
-            checks["plausibility"] = "ok"
-        if row.get("semi_quant"):
-            checks["delta"] = "semi_quant"     # a bound can't be delta-compared
-        elif cat["max_delta"] is None:
-            checks["delta"] = "no_gate"
-        elif last_value is None:
-            checks["delta"] = "no_prior"
-        else:
-            change = abs(v - last_value)
-            if cat["delta_kind"] == "frac":
-                change = change / abs(last_value) if last_value else float("inf")
-            if change > cat["max_delta"]:
-                checks["delta"] = "large_delta"
-                reasons.append("large_delta")
-            else:
-                checks["delta"] = "ok"
-    # The source's OWN interval is what we STORE (None for the overview matrix,
-    # which prints no reference). The EFFECTIVE interval used for the in/out
-    # flag is the source's if present, else the catalog's — computed here for
-    # display and RE-COMPUTED at read time. That's deliberate: because matrix
-    # rows store no reference, correcting a catalog range re-flags every stored
-    # row without a re-ingest (the report's own printed interval always wins).
-    src_low, src_high = row["reference_low"], row["reference_high"]
-    if src_low is None and src_high is None:
-        eff_low, eff_high = cat["ref_low"], cat["ref_high"]
-    else:
-        eff_low, eff_high = src_low, src_high
-    row["src_low"], row["src_high"] = src_low, src_high        # stored (report-only)
-    row["reference_low"], row["reference_high"] = eff_low, eff_high  # effective: display + in_range
-    row.update({"canonical": canonical, "panel": cat["panel"], "checks": checks,
-                "reasons": reasons, "tier": "auto" if not reasons else "blocked",
-                "last_value": last_value})
-    return row
+    return labs_domain._validate_lab_row(row, cat, last_value)
 
 
 def lab_ingest(a):
-    """Parse extracted lab text, pre-validate each row against lab_catalog, and
-    (with --commit) write the AUTO rows. DRY-RUN IS THE DEFAULT. Tiers:
-    known+unit-match+plausible+reasonable-delta → auto (always shown);
-    new/unit-mismatch/implausible/large-delta → blocked. A blocked row is
-    written only if the owner names it in --confirm (which, for a NEW test,
-    also grows the catalog from the report itself). Collector-only, NOT
-    bridge-exposed — the sandboxed panel never writes labs."""
-    d = valid_date(a.date) if a.date else today()
-    text = sys.stdin.read()
-    fmt, (parsed, skipped) = "detail", _parse_lab_report(text)
-    c = cx()
-    _ensure_lab_tables(c)
-    idx = _lab_catalog_index(c)
-    confirmed = set(a.confirm or [])
-    result = []
-    for row in parsed:
-        row["date"] = row.get("date") or d
-        cat = idx.get(row["raw_name"].lower())
-        last = None
-        if cat is not None:
-            pr = c.execute(
-                "SELECT value FROM labs WHERE test_name=? AND value IS NOT NULL"
-                " ORDER BY date DESC, id DESC LIMIT 1", (cat["canonical"],)).fetchone()
-            last = pr["value"] if pr else None
-        r = _validate_lab_row(row, cat, last)
-        r["in_range"] = _lab_in_range(r["value"], r["reference_low"], r["reference_high"])
-        result.append(r)
-    counts = {"auto": sum(r["tier"] == "auto" for r in result),
-              "blocked": sum(r["tier"] == "blocked" for r in result)}
-    base = {"dry_run": not a.commit, "date": d, "format": fmt, "rows": result,
-            "counts": counts, "skipped_lines": skipped, "confirm": sorted(confirmed),
-            "note": LAB_CATALOG_NOTE}
-    if not a.commit:
-        out(base)
-        return
-    panel_default = a.panel or "Uncategorized"
-    committed, confirmed_written, skipped_blocked = 0, [], 0
-    for r in result:
-        is_confirmed = r["canonical"] in confirmed or r["raw_name"] in confirmed
-        if r["tier"] == "blocked" and not is_confirmed:
-            skipped_blocked += 1
-            continue
-        # a confirmed NEW test grows the catalog from the report itself so the
-        # same test flows automatically next time (validated once, per §labs)
-        if "new_test" in r["reasons"]:
-            confirmed_written.append(r["canonical"])
-            c.execute(
-                "INSERT OR REPLACE INTO lab_catalog(canonical, display, panel,"
-                " unit, ref_low, ref_high, plaus_low, plaus_high, max_delta,"
-                " delta_kind, aliases, source, confidence) VALUES"
-                "(?,?,?,?,?,?,?,?,?, 'abs', '[]', 'user-confirmed', 'user-confirmed')",
-                (r["canonical"], r["canonical"], a.panel or panel_default, r["unit"],
-                 r["reference_low"], r["reference_high"], 0.0,
-                 max(r["value"], r["reference_high"] or 0) * 1000 + 1000, None))
-        # keep the raw name + (semi-quant) comparator in notes so an
-        # auto-accepted row is always re-checkable against the source
-        notes = f"ocr:{r['raw_name']}={r.get('comparator') or ''}{r['value']}{r['unit']}"
-        c.execute(
-            "INSERT INTO labs(date, panel, test_name, value, unit, reference_low,"
-            " reference_high, flag, notes, source) VALUES(?,?,?,?,?,?,?,?,?, 'labs-ocr')",
-            (r["date"], r["panel"] or a.panel or panel_default, r["canonical"], r["value"],
-             r["unit"], r.get("src_low"), r.get("src_high"), r["flag"], notes))
-        committed += 1
-    c.commit()
-    out({**base, "committed": committed, "skipped_blocked": skipped_blocked,
-         "confirmed": confirmed_written})
+    out(labs_commands.lab_ingest(_command_context(), a, stdin=sys.stdin))
 
 
 # A marker's CURRENT status is its single most-recent reading (never an average
 # or blend of older ones). A latest reading older than this is 'historical' —
 # shown in the view but not read as current, and current suggestions ignore it
 # (the recommendation path stays pull-only). configuration rule 2026-07-12.
-LABS_STALE_DAYS = 365
+LABS_STALE_DAYS = labs_domain.LABS_STALE_DAYS
 
 
 def _lab_age_days(date_str):
-    try:
-        return (_now().date() - date.fromisoformat(date_str)).days
-    except (TypeError, ValueError):
-        return None
+    return labs_domain._lab_age_days(date_str, clock=_now)
 
 
 def labs(a):
-    """Read-only labs view feed. Default: latest result per test, grouped by
-    panel (newest report first is a per-test 'latest wins' — CURRENT status is
-    the most recent reading only, never blended with older ones). --test
-    <canonical>: that test's series over time for a trend (insufficient_data
-    until 2 points). Range flags come from the stored (report) interval, catalog
-    as fallback. A latest reading older than LABS_STALE_DAYS is flagged
-    `historical`. This is the ONLY bridge-exposed labs command."""
-    c = cx()
-    _ensure_lab_tables(c)
-    cat = {r["canonical"]: dict(r) for r in c.execute("SELECT * FROM lab_catalog")}
-    days = int(a.days) if a.days else None
-    lo = days_ago(days) if days else None
-
-    def _row_range(r):
-        low, high = r["reference_low"], r["reference_high"]
-        if low is None and high is None and r["test_name"] in cat:
-            low, high = cat[r["test_name"]]["ref_low"], cat[r["test_name"]]["ref_high"]
-        return low, high
-
-    if a.test:
-        q = ("SELECT * FROM labs WHERE test_name=?"
-             + (" AND date>=?" if lo else "") + " ORDER BY date, id")
-        params = (a.test, lo) if lo else (a.test,)
-        # collapse exact re-ingest duplicates: for one (date, value) the newest
-        # row (max id, seen last) wins — a corrected re-ingest supersedes the
-        # older row in the view while the deletion law keeps it in the table.
-        by_dv = {}
-        for r in c.execute(q, params):
-            low, high = _row_range(r)
-            by_dv[(r["date"], r["value"])] = {
-                "date": r["date"], "value": r["value"], "flag": r["flag"],
-                "in_range": _lab_in_range(r["value"], low, high)}
-        series = sorted(by_dv.values(), key=lambda s: s["date"])
-        meta = cat.get(a.test, {})
-        latest_date = series[-1]["date"] if series else None
-        age = _lab_age_days(latest_date) if latest_date else None
-        base = {"canonical": a.test, "display": meta.get("display"),
-                "unit": meta.get("unit"), "ref_low": meta.get("ref_low"),
-                "ref_high": meta.get("ref_high"), "n": len(series),
-                "latest_date": latest_date, "latest_age_days": age,
-                "historical": age is not None and age > LABS_STALE_DAYS,
-                "stale_after_days": LABS_STALE_DAYS}
-        if len(series) < 2:
-            out({**base, "insufficient_data": True, "series": series})
-            return
-        out({**base, "series": series})
-        return
-
-    # latest row per test (max date, then id) — the table's headline values
-    q = ("SELECT * FROM labs" + (" WHERE date>=?" if lo else "")
-         + " ORDER BY test_name, date DESC, id DESC")
-    latest = {}
-    for r in c.execute(q, (lo,) if lo else ()):
-        if r["test_name"] not in latest:
-            latest[r["test_name"]] = dict(r)
-    if not latest:
-        out({"insufficient_data": True,
-             "reason": "no lab results ingested yet"})
-        return
-    panels = {}
-    for name, r in latest.items():
-        low, high = _row_range(r)
-        meta = cat.get(name, {})
-        panel = r["panel"] or meta.get("panel") or "Uncategorized"
-        age = _lab_age_days(r["date"])
-        panels.setdefault(panel, []).append({
-            "canonical": name, "display": meta.get("display") or name,
-            "value": r["value"], "unit": r["unit"], "date": r["date"],
-            "reference_low": low, "reference_high": high, "flag": r["flag"],
-            "in_range": _lab_in_range(r["value"], low, high),
-            "age_days": age,
-            "historical": age is not None and age > LABS_STALE_DAYS})
-    if a.panel:
-        panels = {k: v for k, v in panels.items() if k == a.panel}
-    # out-of-range tests sort to the top of each panel
-    out_panels = [{"panel": p, "tests": sorted(
-        ts, key=lambda t: (t["in_range"] is not False, t["display"]))}
-        for p, ts in sorted(panels.items())]
-    out({"panels": out_panels, "n_tests": len(latest),
-         "stale_after_days": LABS_STALE_DAYS})
+    out(labs_commands.labs(_command_context(), a))
 
 
 # =========================================================== owner profile / phase
@@ -4293,21 +2615,8 @@ def main():
             "analysis-job-status": analysis_job_cmd,
             "analysis-job-work": analysis_job_cmd,
             "analysis-job-execute": analysis_job_cmd,
-            "lab-capture": lab_capture,
-            "lab-ingest": lab_ingest,
-            "labs": labs,
             "query": query,
-            "bp-brief": bp_brief,
-            "summary": summary,
             "schema": schema,
-            "build-daily-frame": build_daily_frame,
-            "features": features,
-            "correlate": correlate,
-            "day-signature": day_signature,
-            "adherence": adherence,
-            "data-coverage": data_coverage,
-            "scores": scores,
-            "readiness": readiness,
             "schema-status": schema_status_cmd,
             "schema-plan": schema_plan_cmd,
             "migrate": migrate_cmd,

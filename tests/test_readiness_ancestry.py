@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import os
@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "toolkit"))
 
-import health  # noqa: E402
+from hermes_insights import recovery  # noqa: E402
 from hermes_insights.contracts import canonical_json  # noqa: E402
 from hermes_insights.readiness_ancestry import (  # noqa: E402
     ACCEPTED_V5_LANE,
@@ -111,7 +111,7 @@ def _v5_database(path: Path, *, note: str = "Legs mildly sore") -> Path:
 
 
 def _context() -> dict:
-    return health._readiness_calculation_context()
+    return recovery._readiness_calculation_context()
 
 
 def _file_sha256(path: Path) -> str:
@@ -148,11 +148,12 @@ def _result(database: Path, sidecar: Path):
         fixture_lane=ACCEPTED_V5_LANE,
         sidecar_path=str(sidecar),
     ) as (connection, attestation):
-        result = health._readiness_result(
+        result = recovery._readiness_result(
             connection,
             anchor=ANCHOR,
             range_start=RANGE_START,
             snapshot_attestation=attestation,
+            clock=lambda: datetime(2026, 6, 30, 12, tzinfo=timezone.utc),
         )
     return result, attestation
 
@@ -175,7 +176,7 @@ def test_private_v5_sidecar_verifies_without_exposing_private_identity(tmp_path)
 
     evidence = result["evidence"]
     assert evidence["contract"] == "readiness-evidence-v2"
-    assert evidence["policy_sha256"] == health.READINESS_POLICY_SHA256
+    assert evidence["policy_sha256"] == recovery.READINESS_POLICY_SHA256
     assert evidence["snapshot_integrity"] == {
         "contract": "openhealthatlas-readiness-ancestry-v2",
         "status": "verified",
