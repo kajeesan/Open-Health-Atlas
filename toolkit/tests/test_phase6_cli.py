@@ -13,9 +13,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from hermes_insights import migrations, orchestrator
+from hermes_insights import cli, migrations, orchestrator, runtime, ledger
 from hermes_insights.contracts import AdapterContext
-import health
+from hermes_insights.command_context import CommandContext
+from hermes_insights.commands import ledger as ledger_commands, scheduled_analysis
+from hermes_insights.settings import CANON_TZ
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +66,7 @@ def test_exact_phase6_command_surface_and_bridge_exclusion():
         "insight-notification-fail", "insight-notification-resolve",
         "insight-run-status",
     }
-    assert commands <= health.JSON_COMMANDS
+    assert commands <= cli.JSON_COMMANDS
 
 
 def test_nightly_empty_data_fans_out_and_is_idempotent_without_synthesis(health_db):
@@ -148,10 +150,10 @@ def test_monthly_has_three_independent_ranges_and_21_base_runs(health_db):
 
 
 def test_mixed_compute_failure_is_audited_as_partial_batch(
-    health_db, monkeypatch, capsys,
+    health_db, monkeypatch,
 ):
-    monkeypatch.setattr(health, "DB", str(health_db))
-    original = health.insight_ledger.compute_verified_analysis
+    command_context = CommandContext(str(health_db), lambda: datetime(2026, 7, 23, 6, 10, tzinfo=CANON_TZ), "Europe/Paris", str(health_db.parent / "vault"), str(HEALTH))
+    original = ledger.compute_verified_analysis
     calls = 0
 
     def fail_one_run(*args, **kwargs):
@@ -162,14 +164,13 @@ def test_mixed_compute_failure_is_audited_as_partial_batch(
         return original(*args, **kwargs)
 
     monkeypatch.setattr(
-        health.insight_ledger, "compute_verified_analysis", fail_one_run,
+        ledger, "compute_verified_analysis", fail_one_run,
     )
-    health.analysis_refresh_cmd(SimpleNamespace(
+    payload = ledger_commands.analysis_refresh(command_context, SimpleNamespace(
         kind="nightly", anchor="2026-07-22", outcome=[],
         from_date=None, to_date=None, days=None, all_dates=False,
         stdin=False,
     ))
-    payload = json.loads(capsys.readouterr().out)
     assert payload["batch"]["status"] == "partial"
     assert payload["batch"]["status_reason_code"] == "some_runs_failed"
     assert payload["batch"]["failed_count"] == 1
@@ -335,8 +336,8 @@ def test_completeness_proven_running_restart_enqueues_in_batch_transaction(
     )
     conn.commit()
     conn.close()
-    monkeypatch.setattr(health, "DB", str(health_db))
-    original_context = health._phase3_context()
+    command_context = CommandContext(str(health_db), lambda: datetime(2026, 7, 23, 6, 10, tzinfo=CANON_TZ), "Europe/Paris", str(health_db.parent / "vault"), str(HEALTH))
+    original_context = runtime.adapter_context(clock=command_context.clock, timezone=command_context.timezone)
     complete_context = AdapterContext(
         today=original_context.today,
         timezone=original_context.timezone,
@@ -346,12 +347,11 @@ def test_completeness_proven_running_restart_enqueues_in_batch_transaction(
         },
         functions=original_context.functions,
     )
-    monkeypatch.setattr(health, "_phase3_context", lambda: complete_context)
     plan = orchestrator.cadence_plan(
         "nightly", anchor="2026-07-22",
-        local_now=datetime(2026, 7, 23, 6, 10, tzinfo=health.CANON_TZ),
+        local_now=datetime(2026, 7, 23, 6, 10, tzinfo=CANON_TZ),
     )
-    prepared = health._phase6_prepare_batch("nightly", plan, None)
+    prepared = scheduled_analysis.prepare_batch(command_context, "nightly", plan, None, adapter_context=complete_context)
     assert prepared["producer_triggers"] == [{
         "ok": True,
         "trigger_id": prepared["producer_triggers"][0]["trigger_id"],
@@ -372,7 +372,14 @@ def test_completeness_proven_running_restart_enqueues_in_batch_transaction(
 def test_pain_producer_failure_rolls_back_capture_and_trigger(
     health_db, monkeypatch,
 ):
-    monkeypatch.setattr(health, "DB", str(health_db))
+    from hermes_insights.command_context import CommandContext
+    from hermes_insights.commands import physio
+
+    context = CommandContext(
+        database=str(health_db),
+        clock=lambda: datetime(2026, 7, 20, 12, tzinfo=timezone.utc),
+        timezone="Europe/Paris", vault=str(health_db.parent / "vault"), cli_path=str(HEALTH),
+    )
 
     def fail_enqueue(*_args, **_kwargs):
         raise orchestrator.OrchestrationError(
@@ -380,7 +387,7 @@ def test_pain_producer_failure_rolls_back_capture_and_trigger(
         )
 
     monkeypatch.setattr(
-        health.insight_orchestrator, "enqueue_internal_trigger", fail_enqueue,
+        orchestrator, "enqueue_internal_trigger", fail_enqueue,
     )
     args = SimpleNamespace(
         region="anterior-knee", intensity=3, side="left", quality=None,
@@ -389,7 +396,7 @@ def test_pain_producer_failure_rolls_back_capture_and_trigger(
         capture_id=None,
     )
     with pytest.raises(orchestrator.OrchestrationError):
-        health.pain_log(args)
+        physio.pain_log(context, args)
     conn = sqlite3.connect(health_db)
     assert conn.execute("SELECT COUNT(*) FROM pain_log").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM insight_triggers").fetchone()[0] == 0

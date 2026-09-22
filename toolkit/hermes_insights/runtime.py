@@ -147,3 +147,9 @@ def adapter_context(*, clock=now, bindings=None, timezone=None):
         today=clock().date(), timezone=TIMEZONE_NAME if timezone is None else timezone,
         constants=constants, functions=functions,
     )
+
+
+def table_exists(c, name):
+    """Report whether a table or view exists in the supplied database."""
+    return c.execute("SELECT 1 FROM sqlite_master WHERE type IN ('table','view') "
+                     "AND name=?", (name,)).fetchone() is not None

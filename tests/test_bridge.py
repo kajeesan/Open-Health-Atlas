@@ -99,17 +99,43 @@ def test_broker_sigterm_exits_without_deadlocking(tmp_path):
             "BRIDGE_SOCK": sock_path,
             "BRIDGE_ALLOWED_UID": str(os.getuid()),
             "BRIDGE_AUDIT": str(tmp_path / "audit.jsonl"),
+            "BRIDGE_HEALTH": str(tmp_path / "HEALTH_DB"),
+            "BRIDGE_HERMESCTL": str(tmp_path / "hermesctl"),
         },
     )
     try:
-        for _ in range(100):
-            if os.path.exists(sock_path):
-                break
+        readiness = b'{"subcmd":"__readiness__","args":[]}\n'
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
             if process.poll() is not None:
                 pytest.fail(f"broker exited early with {process.returncode}")
-            time.sleep(0.02)
+            if not os.path.exists(sock_path):
+                # Bound polling CPU; readiness still requires the response below.
+                time.sleep(0.01)
+                continue
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(max(0.01, deadline - time.monotonic()))
+                    probe.connect(sock_path)
+                    probe.sendall(readiness)
+                    with probe.makefile("rb") as response_stream:
+                        response = json.loads(
+                            response_stream.readline().decode("utf-8")
+                        )
+            except (ConnectionRefusedError, FileNotFoundError, TimeoutError,
+                    json.JSONDecodeError, OSError):
+                # The pathname can precede serve_forever(); retry the real probe.
+                time.sleep(0.01)
+                continue
+            if (
+                response.get("ok") is False
+                and response.get("code") == 2
+                and response.get("stderr")
+                == "subcommand not allowed via the bridge: __readiness__"
+            ):
+                break
         else:
-            pytest.fail("broker socket did not appear")
+            pytest.fail("broker did not return the harmless readiness response")
         process.terminate()
         assert process.wait(timeout=3) == 0
     finally:
@@ -347,27 +373,32 @@ def test_physio_writes_are_not_panel_reachable():
         assert w not in bridge.ALLOWED             # …but every §3g write is not
 
 
-def test_labs_read_allowed_writes_not_reachable():
+def test_labs_read_allowed_writes_not_reachable(tmp_path, monkeypatch):
     """§labs: the read is bridge-exposed; the three writers (capture / ingest /
     catalog seed) are collector-only and must never be panel-reachable.
 
     The subtle path (audit finding M2): the generic `log` writer IS bridge-
     reachable, and the labs table must not be writable through it either — so
-    `labs` must NOT be a LOGGABLE table in health.py. Without this, a bridge
+    `labs` must NOT be a LOGGABLE table. Without this, a bridge
     `log labs test_name=… value=…` would bypass the cited-catalog pipeline."""
     assert "labs" in bridge.ALLOWED                # read allowed
     for w in ("lab-capture", "lab-ingest", "import-lab-catalog"):
         assert w not in bridge.ALLOWED             # collector-only writers are not
 
-    import pathlib
-    import re
-    assert "log" in bridge.ALLOWED                 # the generic daily-loop writer IS reachable…
-    health_src = (pathlib.Path(__file__).resolve().parent.parent
-                  / "toolkit" / "health.py").read_text()
-    block = health_src.split("LOGGABLE = {", 1)[1].split("\n}", 1)[0]
-    loggable = set(re.findall(r'^\s*"([^"]+)"\s*:', block, re.M))
-    assert "labs" not in loggable                  # …but it cannot target the labs table
-    assert "vitals" in loggable                    # (sanity: the block parse actually found tables)
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent.parent / "toolkit"))
+    from hermes_insights.command_context import CommandContext
+    from hermes_insights.commands.daily_capture import log
+
+    database = tmp_path / "must-not-open.db"
+    context = CommandContext(str(database), lambda: datetime(2026, 7, 22, tzinfo=timezone.utc),
+                             "UTC", str(tmp_path), "health.py")
+    assert "log" in bridge.ALLOWED
+    with pytest.raises(SystemExit, match="not a loggable table"):
+        log(context, SimpleNamespace(table="labs", fields=["test_name=fictional", "value=1"]))
+    assert not database.exists()
 
 
 def test_import_recipes_stays_absent_and_set_batch_flags_pinned():

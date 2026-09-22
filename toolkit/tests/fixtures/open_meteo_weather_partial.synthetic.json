@@ -1,0 +1,49 @@
+{
+  "daily": {
+    "weather_code": [
+      0
+    ],
+    "temperature_2m_max": [
+      23.5
+    ],
+    "temperature_2m_min": [
+      0
+    ],
+    "apparent_temperature_max": [
+      22
+    ],
+    "daylight_duration": [
+      45000
+    ],
+    "sunshine_duration": [
+      9000
+    ],
+    "precipitation_sum": [
+      0
+    ],
+    "uv_index_max": [
+      4
+    ],
+    "wind_speed_10m_max": [
+      3.2
+    ]
+  },
+  "hourly": {
+    "relative_humidity_2m": [
+      40,
+      null,
+      50,
+      60
+    ],
+    "surface_pressure": [
+      1000,
+      1001,
+      null
+    ],
+    "cloud_cover": [
+      0,
+      null,
+      10
+    ]
+  }
+}

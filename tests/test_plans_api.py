@@ -138,14 +138,15 @@ def test_note_write_rejects_non_whitelisted(client):
     assert client.calls == []
 
 
-def test_note_whitelist_matches_health_py():
-    """Drift guard: the endpoint's editable-note set must equal health.py's."""
-    import re
+def test_note_whitelist_matches_toolkit_owner(monkeypatch):
+    """The panel and toolkit must expose the same four writable personal notes."""
     from app.routes.plans import EDITABLE_NOTES
-    hp = (ROOT / "toolkit" / "health.py").read_text()
-    block = hp.split("EDITABLE_NOTES = {", 1)[1].split("}", 1)[0]
-    names = set(re.findall(r'"([^"]+)"', block))
-    assert names == EDITABLE_NOTES
+    monkeypatch.syspath_prepend(str(ROOT / "toolkit"))
+    from hermes_insights.vault_notes import EDITABLE_NOTES as TOOLKIT_EDITABLE_NOTES
+
+    assert EDITABLE_NOTES == TOOLKIT_EDITABLE_NOTES == {
+        "personal/plan.md", "personal/habits.md", "personal/profile.md", "personal/goals.md",
+    }
 
 
 def test_plans_endpoints_require_auth(tmp_path):

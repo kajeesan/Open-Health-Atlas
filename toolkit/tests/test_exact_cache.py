@@ -468,9 +468,10 @@ def test_warm_result_refreshes_same_day_collector_freshness_without_recomputing_
 
 
 def test_cli_outcome_with_real_default_context_reuses_exact_calculation(
-    tmp_path, monkeypatch, capsys,
+    tmp_path, monkeypatch,
 ):
-    import health
+    from hermes_insights.command_context import CommandContext
+    from hermes_insights.commands import associations as association_commands
     from hermes_insights import associations, migrations
 
     database = tmp_path / "small-cli.db"
@@ -478,7 +479,7 @@ def test_cli_outcome_with_real_default_context_reuses_exact_calculation(
         writer.executescript((Path(__file__).resolve().parents[1] / "SCHEMA.sql").read_text())
     migrations.migrate(str(database), 3, 0, code_version="a" * 40)
     before = database.read_bytes()
-    monkeypatch.setattr(health, "DB", str(database))
+    context = CommandContext(str(database), lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), "Europe/Paris", str(tmp_path / "vault"), str(Path(__file__).resolve().parents[1] / "health.py"))
     original = associations.analyze_outcome
     calls = []
 
@@ -490,10 +491,8 @@ def test_cli_outcome_with_real_default_context_reuses_exact_calculation(
     options = SimpleNamespace(outcome="subjective.energy", mode="ordinal", min_n=30,
                               interactions="none", top=1, from_date="2026-06-24",
                               to_date="2026-06-30", days=None, all_dates=False)
-    health.outcome_associations_cmd(options)
-    first = json.loads(capsys.readouterr().out)
-    health.outcome_associations_cmd(options)
-    second = json.loads(capsys.readouterr().out)
+    first = association_commands.outcome_associations_cmd(context, options)
+    second = association_commands.outcome_associations_cmd(context, options)
     assert calls == [True]
     assert second == first
     assert database.read_bytes() == before

@@ -1,5 +1,27 @@
 # Refactoring checkpoint
 
+## Current toolkit project
+
+The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
+It owns scope, architecture, milestone order, acceptance and continuation policy.
+Older entries below are dated history, including superseded approval checkpoints.
+
+The approved toolkit plan is complete locally. Milestone 4's production commit
+is `17851cfca77b33369a22a04d97f7f0a72c0ac908`, with tested tree
+`a817fecead2567ea7956c1183f6dba51338b2954`. See
+[final acceptance](#final-toolkit-acceptance-22-september-2026) for verification,
+package sealing and remaining qualification limits.
+
+The branch remains `codex/health-toolkit-modularization`; accumulated commits
+are preserved. The plan ends with this milestone. Push, merge, hosted checks
+and release publication retain their separate authorization and review gates.
+
+The [corrected baseline record](#corrected-toolkit-baseline-22-september-2026)
+contains the inherited resampling and finding-ID tie-break caveat. Final
+acceptance preserves that caveat and the collector failure-path limitation.
+Machine-specific execution records and raw evidence remain outside public
+source. Older entries below are historical checkpoints.
+
 ## Agreed requirements
 
 The owner delegated selection of the most complete development branch. Every field and control already wired to collect or display data is required functionality. Report broken or unverified fields instead of deleting them. Telegram is the primary interaction path. Preserve useful health features and external Hermes integration. Company-specific work, the public website and portfolio redesign are deferred.
@@ -505,3 +527,884 @@ batch; the evaluated app remains source `5d18014`.
 - Independent review reproduced an authenticated malformed setup request stopping the helper without scheduling recovery. `desktop/server.py` now validates workspace fields before stopping the helper and schedules recovery after unexpected operation failures. Existing session, CSRF and data boundaries remain intact.
 - Added nine regression cases in `tests/test_desktop_server.py`. Before the fix, eight failed and one existing recovery behavior passed. After the fix, 34 desktop server/workspace/preference tests and 91 adjacent authentication, shell, MCP, packaging and privacy checks passed. Two scanner checks initially hit the host's Xcode license prompt. Both passed using the installed Command Line Tools Git. All tests used fictional records and temporary databases.
 - Independent review of the final patch found no actionable issue. Required GitHub checks must pass on the updated PR head before merging. This source repair does not rebuild or replace the published 0.2.5 installer.
+
+## Toolkit modularization conventions, 21 September 2026
+
+- Recovery point: public main `ef053a6de7ca61b1fc33d88b69da32dca04a2a24`.
+  Work uses `codex/health-toolkit-modularization`; the first milestone requires
+  owner review before merge or module extraction.
+- Adapted the reviewed Software Writer extensions to the current Flask,
+  SQLite, plain JavaScript and desktop source. Short agent instructions point
+  to contributor guidance, with explicit override delivery. Preserved the
+  development guide's setup and moved working safeguards into its conventions.
+- Updated testing guidance to the actual application, fictional end-to-end
+  and real MCP partitions, including Node/native prerequisites and macOS SDK
+  handling. Retired interpretation behavior and old audit test counts were
+  not imported. Temporary reports and indexes remain outside tracked source.
+- Read-only configuration review checked extension mechanisms, shared settings,
+  pointers, current helpers and links. Its native-library suffix, PR-link and
+  safeguard-preservation findings were corrected. The narrow prose review
+  requested no wording changes. Numerical corrections and their verification
+  are recorded separately below when complete.
+
+## Corrected toolkit baseline, 22 September 2026
+
+- Corrected baseline: `c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
+  Runtime corrections are in `562bd52`; `c427296` adds only reviewed replay
+  identity metadata and its release inventory. Working conventions are in
+  `9c45501`, based on public main `ef053a6`.
+- Excluded future records from current recovery baselines and nutrition weight
+  and activity inputs. Preserved inclusive association/interaction thresholds
+  with integer count arithmetic. Corrected extreme valid Wilson confidence
+  handling and percentile interpolation between finite opposite extremes.
+  No module extraction, schema, dependency or CLI interface change was made.
+- Added 17 focused regressions: unchanged production failed 13 while four
+  controls passed; corrected production passed all 17. Another 197 adjacent
+  tests passed. These focused runs are not added to complete-suite counts.
+
+Complete local verification used Python 3.11.14, the declared dependencies,
+Node, the native test library, fictional data and the CI civil timezone.
+Commands and prerequisites are in [Testing](TESTING.md#auditable-partitions).
+
+| Partition | Revision | Passed | Failed/skipped | Pytest duration |
+|---|---|---:|---|---:|
+| Root application, including toolkit | `562bd52` | 2,047 | 0/0 | 504.28 s |
+| Fictional end-to-end journeys | `c427296` | 15 | 0/0 | 199.81 s |
+| Actual optional MCP client/server | `562bd52` | 5 | 0/0 | 3.32 s |
+
+The disjoint total is 2,067 tests. Runtime source is identical between these
+verification revisions. Earlier interrupted socket checks, runner environment
+failures and stale replay-pin failures remain in local evidence; they are not
+represented as passing runs. Fixing the runner required no product changes.
+
+Independent numerical and configuration reviews found no blocking issue.
+The ten original traces reproduced exactly on the public baseline. Updated
+traces retain their inputs, expected statuses, assertions, notification
+decisions and database row counts. Their pins were refreshed only after
+comparison and independent review; no guard was removed or generalized.
+
+Engine identity changes also reseed statistical intervals and affect existing
+finding-ID tie-breaks. In the fictional reversal scenario, the prepared
+strongest-candidate slot changes from lag one/+0.6 to same-day/-0.6 among
+equally ranked findings. Both candidates and their numerical evidence remain
+present. Holding the old engine identity in an external diagnostic process
+reproduced all ten complete baseline traces byte for byte. This inherited
+selection behavior is a disclosed review caveat; ledger and synthesis rules
+were not changed.
+
+Paired timings used a fixed-date fictional database, one first launch and five
+repeated fresh processes per workload. The table records repeated medians;
+filesystem caches were not forcibly cleared and native acceleration was off.
+
+| Workload | Public baseline | Corrected baseline |
+|---|---:|---:|
+| CLI schema status | 142.68 ms | 146.27 ms |
+| Fixed-date recovery/readiness | 132.75 ms | 132.93 ms |
+| Nutrition targets | 124.81 ms | 125.75 ms |
+| Statistics, 120 observations with 2,000 permutation/bootstrap draws each | 286.38 ms | 282.92 ms |
+
+Outputs and database bytes were unchanged in these timing workloads. The
+initial first-launch gap did not recur in the paired follow-up. These small
+workloads establish a repeatable refactor baseline, not a general latency claim.
+
+An isolated ad hoc macOS app built from `562bd52` passed 14 lifecycle checks,
+nine bundled MCP checks, all 17 boundary regressions against packaged source,
+signature verification and a 3,080-file bundle audit. A synced-folder metadata
+failure was resolved by building into the system temporary directory. No
+installer was published or installed, and no GUI, notarization or clean-machine
+qualification is claimed. Its runtime bytes match the corrected baseline.
+
+Exact commands, logs, trace comparisons and timing samples are retained in the
+local milestone review package outside source. Release inventory and privacy
+checks remain required at the final review head. The branch remains local;
+hosted GitHub checks and owner review are required before merge. Milestone 2
+has not begun.
+
+## CLI and Hevy CSV extraction, 22 September 2026
+
+Milestone 2 is complete locally. Production commit `2d460ca1b006d23be37ef295689037cda8e4da5a`
+contains the extraction. Independent source review and the complete test partitions
+used immutable Git tree `7e1c743556ea13fba5c64ebb52b94fa5bcac8c53` before that commit.
+The commit resolves to that exact tree. No source changed during verification.
+
+The CLI now has explicit registration, parsing, dispatch and error formatting.
+Hevy CSV parsing and its transaction coordinator have separate owners. The stable
+executable and unconverted handlers remain in the compatibility facade. See
+[Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries) for owners
+and dependency contracts. Other importer formats remain for Milestone 3.
+
+Six added import cases characterize metric distance conversion, missing values,
+empty history and failed imports. All six also passed against unchanged baseline
+production. An existing isolated allowlist test failed because its import path
+depended on other collected tests. A scoped path setup fixed it without changing
+assertions. Registry tests now refer to the CLI module that owns their contract.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,053 | 0/0/0 | 531.46 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 198.15 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.48 s |
+
+The disjoint total is 2,073 tests. Focused checks and external comparison probes
+are not added to that count. Tests used the declared environment, native library,
+Node, fictional records and the configured civil timezone.
+
+Baseline and candidate retained all 269 CLI exit codes and standard outputs.
+Five legacy error traces changed file/function locations while retaining their
+terminal exception types and messages. The other standard-error outputs matched.
+All 52 database snapshot pairs preserved schema, records, identifiers and sequences
+apart from generated ingestion timestamps. Each changed timestamp was validated
+against its originating command's execution interval. Four real broker requests
+preserved allowed writes, bulk-import rejection and read-only query protection.
+
+Paired timings used one first launch and five repeated fresh processes per workload.
+Filesystem caches were not forcibly cleared, and native acceleration was disabled.
+Hevy used a fresh identical database for each timed import.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Hevy CSV, five sets | 132.87 ms | 135.54 ms |
+| Schema status | 148.84 ms | 149.66 ms |
+| Readiness | 139.81 ms | 137.26 ms |
+| Nutrition targets | 130.18 ms | 130.24 ms |
+| Statistics, 120 observations | 288.31 ms | 289.76 ms |
+
+All timed outputs matched, and the shared read-only database bytes were unchanged.
+No material unexplained slowdown appeared in these representative workloads.
+
+The isolated ad hoc macOS app built from `2d460ca` passed 14 lifecycle checks,
+nine bundled MCP checks, 269 packaged CLI cases and four actual broker requests.
+All extracted modules loaded exclusively from the bundle and matched committed
+source. The 3,086-file audit and strict signature verification passed after
+execution, with bundle file hashes unchanged.
+
+Packaged outputs and database effects matched the source baseline, with documented
+traceback movement and one Python-version-specific argument-error rendering change.
+That argument-error output matched the previous actual package exactly. The build
+used cached dependencies offline. Sandbox restrictions and two external probe
+configuration mistakes were resolved by unchanged-source retries. All attempts
+remain in the evidence. This is local package verification, without native GUI,
+minimum-OS, notarization or clean-customer-install qualification.
+
+The explicit Hermes inventory includes the extracted files. Recursive cache
+identity remains active, and the numerical provenance hash and replay pins are
+unchanged. All existing end-to-end traces replayed exactly. The earlier
+[resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains relevant to future numerical engine changes.
+
+Independent source and evidence review found no remaining blocker. Local release
+inventory, vendor/license and source/history privacy checks passed. Exact commands,
+revisions, comparisons and package limits remain in the local evidence package.
+Nothing was pushed, merged, published or connected to a live service.
+
+The next bounded family is remaining Hevy imports, Cronometer, Google Health,
+recipes and catalogs, following the [approved milestone order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Provider and catalog import extraction, 22 September 2026
+
+The first Milestone 3 family is complete locally. Production commit
+`ffb8d7aaa53107d400113e4ac96dc133c1081d17` contains the extraction. Source verification
+ran before the commit against frozen tree `a265a92e9b13a585ef067fbfb937c89eef14c2ec`.
+The commit contains that exact tree. All 496 source file hashes remained unchanged.
+
+The remaining Hevy formats, Cronometer, Google Health, recipes and both catalogs
+now have command and parser owners. Shared body/fitness bounds and routine snapshots
+have one owner each. The facade retains temporary compatibility and unconverted
+handlers. See [Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries)
+for the module map and transaction boundaries. No schema, numerical engine or broker
+allowlist changed.
+
+Five new characterization cases protect failed-import rollback and Hevy body updates.
+All five also passed against unchanged baseline production. One existing internal
+parser test now calls its owning module. The final focused run passed 182 tests.
+Those reruns are not added to the complete count below.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,058 | 0/0/0 | 492.83 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 191.05 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.35 s |
+
+The disjoint total is 2,078 tests. No prior Milestone 2 case was lost. Tests used
+the declared environment, native library, Node, fictional data and aligned civil
+clocks. Source and Git state stayed frozen through verification.
+
+All 345 source CLI invocations retained raw standard output and exit status.
+A separate parser diagnostic confirmed all 122 public command contracts. Only
+nine internal handler names changed. Sixteen error traces moved to extracted owners
+while preserving terminal exception types and messages. Thirteen real broker
+requests retained allowed dispatch, all bulk-import refusals and write restrictions.
+
+All 222 complete database comparisons preserved schema, records, references and
+sequence state after narrow validation of generated times and quarterly event IDs.
+Seeded timestamps remained exact. Each excluded timestamp was traced to its original
+write window. Every time-dependent quarterly event ID was independently rehashed
+from its complete material. Explicit second boundaries verified timestamp refresh
+versus preservation. These comparisons do not permit blanket timestamp or ID removal.
+
+Paired timing used seven workloads and 84 fresh processes, alternating revision
+order for each pair. Each workload had one first launch and five repetitions.
+Filesystem caches were not forcibly cleared and database copying was outside timing.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Hevy JSON | 121.18 ms | 120.65 ms |
+| Cronometer | 120.96 ms | 121.36 ms |
+| Recipes | 122.26 ms | 122.59 ms |
+| Schema status | 139.61 ms | 139.98 ms |
+| Readiness | 127.82 ms | 129.32 ms |
+| Nutrition targets | 120.13 ms | 121.27 ms |
+| Statistics | 280.50 ms | 280.59 ms |
+
+All timed outputs matched and read-only fixture bytes stayed unchanged. Median
+changes ranged from -0.44% to +1.17%, with no unexplained regression in this sample.
+
+The ad hoc macOS app built from `ffb8d7a` passed 14 lifecycle checks and nine
+actual MCP checks. All 23 selected modules loaded exclusively from the bundle
+and matched committed source. The final 3,101-file audit found no changes or
+findings, and the deep/strict signature passed after all package execution.
+
+The bundled interpreter retained all 345 CLI outputs and the candidate parser
+inventory, all 222 validated database comparisons and all 13 broker responses.
+Error traces include isolated-launcher and standard-library frame differences.
+One argument-error rendering difference comes from Python 3.11 versus 3.12.
+The prior actual app produced identical output under the same bundled interpreter.
+These differences remain recorded rather than discarded.
+
+Build and verifier retries addressed a copied Swift cache's absolute paths,
+restricted icon conversion, network-sandbox application and process inspection.
+The unchanged tools passed after correcting their execution environment. No check
+or runtime guard was weakened. This is local package verification, without native
+GUI, minimum-OS, notarization or clean-customer-install qualification.
+
+The explicit Hermes inventory includes all extracted runtime files. Recursive
+cache identity remains active. Numerical provenance and all replay pins remain
+unchanged. The inherited [resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+still applies to future numerical identity changes. Ledger and synthesis rules
+were not redesigned.
+
+Independent source, verification and package reviews found no remaining blocker.
+Release inventory, vendor/license and source/history privacy checks passed.
+Exact commands, immutable source linkage, comparisons and diagnostic attempts remain
+in the local evidence package outside source. Nothing was pushed, merged, published
+or connected to a live service.
+
+The next bounded family is daily logging, hydration, commitments, schedules, notes
+and collectors, following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Daily workflow extraction, 22 September 2026
+
+The second Milestone 3 family is complete locally. Production commit
+`97c838bfb81abe97bae695bc8fe30a293f495778` contains the extraction and exactly matches
+source-tested tree `6a7f0bb7d68e88af3d64b5fb1960797d7591c405`. All 510 source-file
+hashes and staged Git state remained unchanged during complete verification.
+
+Eighteen daily capture, commitment, schedule, note and collector commands now have
+explicit owners and direct CLI dispatch. All 122 public parser definitions,
+including handler-name metadata, remain exact. The facade retains 94 unconverted
+handlers and temporary compatibility exports. See
+[Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries) for owners
+and transaction contracts. `adherence` remains with the later daily-frame family.
+Governed supplement capture is already extracted.
+
+Five added provider characterization cases also passed unchanged baseline. Existing
+collector cases now exercise explicit transport and real SQLite. Generic labs-write
+refusal is behavioral, and note-whitelist parity uses its owning contract. A retained
+recovery test exposed a removed helper before final verification. Its shared guard
+was restored. Source-layout dependencies and mutable collector facade stubs were
+removed without widening write permissions.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,063 | 0/0/0 | 501.91 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 190.53 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.30 s |
+
+The disjoint total is 2,083 tests. Focused reruns and external comparison probes
+are not added to that count. Seven prior test identifiers were renamed or
+reparameterized with their behaviors preserved. Five characterization cases were
+added. Tests used the declared environment, native library, Node, fictional data
+and aligned civil clocks.
+
+All 394 source CLI invocations retained raw standard output and exit status.
+A separate parser diagnostic matched exactly. Eleven error traces moved to extracted
+owners while preserving terminal exception types and messages. All 21 actual broker
+responses matched, including allowed dispatch and table, column, path, flag and
+command refusals.
+
+All 336 complete database snapshot pairs matched after narrow generated-time
+validation. 208 were raw-equal. Every other schema, value, source, reference,
+sequence and identity remained exact. The independent audit traced 728 timestamp
+occurrences to their originating writes and reproduced six time-dependent event
+hashes, plus raw-capture/content and trigger/deduplication hashes. Explicit second
+boundaries verified timestamp preservation versus refresh. All 336 vault snapshots
+matched exact paths and bytes. No blanket timestamp or identity removal was used.
+
+Paired timing used nine workloads and 108 fresh launches, alternating revision
+order with one first observation and five repetitions. Fixture copying was outside
+timing and filesystem caches were not forcibly cleared. An intermediate eager HTTP
+import was restored to its original on-demand behavior before acceptance.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Schema status | 138.80 ms | 139.34 ms |
+| Readiness | 129.75 ms | 130.25 ms |
+| Nutrition targets | 121.90 ms | 122.31 ms |
+| Statistics | 279.05 ms | 279.17 ms |
+| Water addition | 122.43 ms | 122.60 ms |
+| Day rating | 123.90 ms | 124.53 ms |
+| Feedback status | 122.74 ms | 123.05 ms |
+| Timing adherence | 124.85 ms | 125.89 ms |
+| Note write | 122.62 ms | 123.00 ms |
+
+All timed outputs matched. Median changes were at most 1.04 ms, with no unexplained
+regression in this bounded sample.
+
+The offline ad hoc app built from `97c838b` passed 14 lifecycle and nine actual MCP
+checks. All 19 selected modules matched committed source, and all 148 loaded module
+files in the isolation probe stayed inside the bundle. The complete command
+collection verified 54 loaded product files against tested source.
+After all execution, deep/strict signature verification passed and all 3,111 audited
+file hashes remained identical, with zero findings.
+
+The package retained raw standard output and exit status for all 394 CLI invocations,
+exact parser metadata, 336 validated database comparisons, 336 vault comparisons and
+21 broker responses.
+Source-root traceback locations move into the bundle. Two JSON errors
+change standard-library frames under Python 3.12. The argument-error quoting
+difference was reproduced exactly with the actual preceding app. This qualifies
+local package behavior, without native GUI, minimum-OS, notarization, Gatekeeper
+or clean-customer-install acceptance.
+
+The explicit Hermes inventory includes all ten new runtime modules. Recursive cache
+identity remains active. Numerical provenance and replay pins are unchanged. The
+inherited [resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains. Schema, broker privileges and ledger/synthesis rules were not changed.
+
+Independent source, verification and package reviews found no remaining blocker.
+Inventory, vendor/license and source/history privacy checks passed. Earlier fixture,
+helper, socket, whitespace, eager-import and comparison-harness diagnostics remain
+in local evidence, with interrupted attempts separate from successful checks.
+Nothing was pushed, merged, published or connected to a live service.
+
+The next bounded family is nutrition, profiles, targets and food workflows,
+following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Nutrition and food extraction, 22 September 2026
+
+The third Milestone 3 family is complete locally. Production commit
+`f09f9fe34904837649e3e6ed7b478e2939b68820` exactly matches source-tested tree
+`d692d80f2b88a0687e9c5c58609454ef848a7dec`. All 516 file hashes and staged Git state
+remained unchanged during complete verification.
+
+Fourteen profile, phase, target, coverage, recipe, food, inventory and restock
+commands now have direct CLI owners. The facade retains 80 unconverted handlers.
+All 122 parser definitions and handler-name metadata remain exact. Nutrition
+coverage and retained scores share one calculation owner. Score bands and rounding
+also have one owner. See [Nutrition and food ownership](ARCHITECTURE.md#nutrition-and-food-ownership)
+for configuration, transaction and sidecar contracts.
+
+Nine new cases characterize rollback, oldest-batch behavior, current-day snoozes,
+sidecar replacement and independent configuration/clocks. Four existing nutrition
+date cases now use explicit dependencies. The recovery case retains its existing
+consumer. All fourteen relevant cases also passed unchanged baseline through an
+external adapter. No test-only production seam or weakened guard was introduced.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,072 | 0/0/0 | 508.75 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 193.58 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.32 s |
+
+The disjoint total is 2,092 tests. Focused repeats and external comparison
+assertions are not additional tests. Checks used fictional records, declared
+dependencies, Node, the native statistical library and aligned civil clocks.
+
+All 419 source CLI calls and the separate parser diagnostic retained raw stdout
+and exit status. All 15 actual broker responses matched. Of 420 stderr records,
+402 match raw bytes, two differ only by source roots, and sixteen relocate frames
+to new owners. Their full exception chains remain exact.
+
+All 374 complete database pairs agree. Of these, 289 match raw bytes. The remaining pairs
+differ only in six named generated timestamp fields. Each of 496 occurrences is
+traced to one of 74 revision-specific originating cells and its invocation interval.
+No IDs or arbitrary dates were normalized. All 374 vault comparisons match paths
+and bytes. Broker children use their actual civil date. The separate CLI fixture
+launcher supplies a fixed clock.
+
+Paired timing used ten workloads and 120 fresh launches, alternating revision
+order with one first observation and five repetitions. Fixture copying was outside
+timing. Filesystem caches were not forcibly cleared. All paired stdout and stderr
+bytes matched.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| schema-status | 144.86 ms | 144.06 ms |
+| readiness | 136.43 ms | 135.97 ms |
+| nutrition-targets | 126.84 ms | 128.16 ms |
+| stats | 283.03 ms | 285.09 ms |
+| nutrition-coverage | 130.22 ms | 131.04 ms |
+| scores | 124.07 ms | 125.73 ms |
+| menu | 122.28 ms | 123.60 ms |
+| eat | 124.63 ms | 124.69 ms |
+| log-food | 123.92 ms | 125.46 ms |
+| recipe-ingredients | 124.11 ms | 124.11 ms |
+
+Observed median changes ranged from -0.55% to +1.34%, with a maximum increase of
+2.06 ms. No material regression appeared in this bounded sample.
+
+
+The actual offline ad hoc app built from `f09f9fe` passed 14 lifecycle and nine
+bundled MCP checks. An isolated probe found all 153 loaded module files inside
+the bundle. Thirteen selected files matched Git, including all five new owners.
+The complete CLI collection checked 59 loaded product files against committed
+source. After explicit verifier release, deep/strict signature verification passed
+and all 3,116 audited file hashes remained unchanged, with zero findings.
+
+The package retained raw stdout and exit status for all 419 CLI calls, the exact
+parser diagnostic, 374 validated database comparisons, 374 exact vault comparisons
+and 15 actual broker responses against both source versions. Against the candidate,
+source-root normalization leaves two JSON standard-library traces and one argparse
+quoting difference. Actual preceding/current app diagnostics reproduce identical
+Python/argparse bytes and unknown-command output. Raw stderr equality is not claimed.
+
+The initial default-sandbox build failed at native icon generation. The unchanged
+builder passed with approved native tool access. No product repair was required.
+This qualifies local package behavior. Native GUI/charts, minimum OS, Developer ID,
+notarization, Gatekeeper and clean-customer installation remain unqualified. No
+installer archive was created or published.
+
+The explicit Hermes inventory includes all five new runtime modules. Recursive
+cache identity remains intact. Numerical provenance and golden replay pins are
+unchanged. The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains. Schema, broker privileges, existing import normalization and ledger/synthesis
+rules were not changed.
+
+Independent source, contract, suite, timing and package reviews found no remaining
+blocker. Inventory, license/vendor and source/history privacy checks passed. Earlier
+fixture, comparison, cache and execution-permission diagnostics remain in local
+evidence, separate from successful verification. Nothing was pushed, merged,
+published or connected to a live service.
+
+The owner changed main and successor tasks to Astra High. Independent review stays
+at Astra extra high. The [authoritative plan](TOOLKIT_MODULARIZATION.md#roles-and-ownership)
+records that override. The next bounded family covers training, fitness tests,
+muscle calculations, pain and mobility in the approved order.
+
+## Training and movement extraction, 22 September 2026
+
+The fourth Milestone 3 family is complete locally. Production commit
+`8e2b0894fa6d5b0f3c2c9bea1014a5a804d457af` matches source-tested tree
+`8a29ddec0c4a8039233439ea571b48f88fa0f3d0`. All 527 file hashes and staged Git
+state remained unchanged during final verification.
+
+Twenty training, fitness, muscle, pain and mobility commands now have direct
+CLI owners. Sixty unconverted handlers remain in the facade. All 122 parser
+definitions and handler names remain exact. The shared rollup has one owner;
+its anchored and legacy windows retain their distinct behavior. See
+[Training and movement ownership](ARCHITECTURE.md#training-and-movement-ownership)
+for dependencies, transaction boundaries and preserved asymmetries.
+
+Nine new cases characterize extra fitness fields, void behavior and rollback
+through actual SQLite/CLI paths. Two existing mobility and pain cases now use
+explicit owners and dependencies. The new cases passed unchanged baseline;
+the original two existing cases also passed baseline. No test-only production
+seam or weakened assertion was introduced.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,081 | 0/0/0 | 513.46 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 193.78 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.32 s |
+
+The disjoint total is 2,101 tests. Focused repeats and contract audit assertions
+are not additional tests. Final checks used fictional records, declared
+dependencies, Node, the native statistical library and aligned civil clocks.
+
+All 437 source CLI calls and the separate parser diagnostic retain raw stdout
+and exit status. All twenty actual broker responses match: thirteen exposed
+commands and seven refused writers. Of 438 stderr records, 433 match raw bytes;
+five relocate traceback frames while retaining complete exception chains.
+
+All 420 complete database comparisons agree, with 292 raw-equal. All 420 vault
+comparisons match exact paths and bytes. Generated-time exceptions cover eleven
+named columns: 2,692 occurrences trace to 164 originating revision/cell writes within captured UTC-second intervals.
+Enqueue audit-event IDs contain generated time. Each of 466 occurrences reproduces
+its complete canonical hash material, covering 26 revision-specific IDs; stable
+trigger IDs remain exact. No arbitrary identifier or date is stripped. CLI civil
+time is fixed; actual broker children use real civil time.
+
+Four injected trigger-failure corpus cases reach protected schema-inventory
+refusal, not late trigger/event insertion. The evidence states that limit. A
+separate durable fitness idempotency-conflict case and the retained pain boundary
+case prove enqueue rollback. Earlier variable seed timestamps were corrected in
+the input fixture before final collection, without adding a comparison exception.
+
+Paired timing used ten workloads and 120 fresh launches after complete suites,
+alternating revision order with one first observation and five repetitions.
+Every paired stdout/stderr stream matches. Fixture copying was outside timing,
+and filesystem caches were not forcibly cleared.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| scores | 126.79 ms | 125.88 ms |
+| readiness | 131.81 ms | 133.40 ms |
+| muscle-volume | 125.24 ms | 124.49 ms |
+| muscle-detail | 126.45 ms | 127.31 ms |
+| muscle-map | 126.23 ms | 125.04 ms |
+| fitness-tests | 124.27 ms | 124.97 ms |
+| athletic-radar | 124.75 ms | 125.23 ms |
+| strength-ratios | 125.89 ms | 125.70 ms |
+| pain-log | 147.80 ms | 150.60 ms |
+| routine-set | 137.92 ms | 138.57 ms |
+
+Observed median changes ranged from -0.94% to +1.89%, with a maximum increase
+of 2.80 ms. No material unexplained regression appeared in this bounded sample.
+The readiness workload returned its supported insufficient-data result, without
+a schema refusal. These timings do not establish general workload latency.
+
+The actual offline ad hoc app built from `8e2b089` passed fourteen
+lifecycle and nine bundled MCP checks. An isolated -I -B probe verified 22 Git-exact selected files, including all ten
+new owners, and 163 contained loaded module paths. The full CLI collection
+verified 69 contained product files across 437 traces.
+The corresponding-source ZIP has 529 entries: 527 exact project files and two
+pinned dependency sources. Its SHA-256 is
+`8c7bcf1c202839b3bb1e56a5e4054d74be9cc9fd7c474640f7dde18cb1c754d9`.
+The package preserves all 437 CLI outputs/exits, the parser diagnostic, 420
+complete database/vault pairs and twenty broker responses against both source
+versions. Of 438 stderr files, 432 are raw-equal. Against the candidate, source-root
+substitution leaves only Python standard-library strptime frames and argparse
+choice quoting. Actual preceding/current apps reproduce identical unknown-command
+output with identical Python/argparse bytes. Raw stderr equality is not claimed.
+Harness CLI/parser and broker server launches use -I -B; the unchanged broker
+child command does not forward those flags and retains bytecode suppression.
+After explicit execution release, final deep/strict signature verification passed
+and all 3,126 audited file hashes remained unchanged, with zero findings. The first
+default-sandbox build failed at icon generation; the unchanged native-access retry
+passed. No source or sealed-app repair was required.
+
+This qualifies local package behavior. Native GUI/charts, minimum OS, Developer
+ID, notarization, Gatekeeper and clean-customer installation remain unqualified.
+No installer archive was created or published. Pattern scans are not exhaustive
+privacy certification.
+
+The explicit Hermes inventory includes all ten new runtime modules. Recursive
+cache identity, narrow numerical provenance and golden replay pins remain
+unchanged. The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [daily collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain. Schema, broker privileges, existing import normalization and
+ledger/synthesis internals were not changed.
+
+Independent source, contract, suite, timing and package reviews found no
+remaining blocker. Inventory, vendor/license and source/history privacy checks
+passed. Initial name-shadowing and fixture failures remain separate diagnostics.
+Review caught three facade bindings removed too broadly; they were restored
+before final verification. The superseded suite was interrupted and is excluded
+from passing counts.
+
+The next family covers daily frames, scores, Recovery/readiness and laboratory
+workflows. Continue through the approved fresh-main relay on Astra High, with
+independent review on Astra extra high. Push, merge, release and live/private
+boundaries remain unchanged.
+
+## Daily frames, scores, Recovery and lab extraction, 22 September 2026
+
+The fifth Milestone 3 family is complete locally. Production commit
+`459d53f54e0b19b0b06910f43f0daf4ef5096399` matches source-tested tree
+`42ac98e32836ea11bab32ee7dc8e4aa85329b7bb`. Seventeen paths changed, including
+eight runtime owners and one new boundary-test file. All 536 source files
+remained exact during acceptance verification.
+
+Thirteen commands now register directly through the shared CLI, leaving 47
+unconverted registrations. All 122 parser contracts and handler names remain
+exact. See [Daily frames, scores, Recovery and labs ownership](ARCHITECTURE.md#daily-frames-scores-recovery-and-labs-ownership)
+for the calculation, transaction and ancestry owners. Existing numerical
+engines, schema, broker permissions and vendor bytes are unchanged.
+
+Eight new cases passed unchanged baseline. They cover lab batch/catalog
+rollback, stored-prior selection, intra-batch isolation, catalog reflagging,
+trend deduplication, frame history/zero-fill and Recovery range asymmetry.
+Two existing tests now call explicit owners with fixed clocks. Their original
+assertions remain, including dashboard recovery score 75 and fourteen baseline rows.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,089 | 0/0/0 | 550.51 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 204.32 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.42 s |
+
+The first complete run recorded zero process exits and 2,109 passes. A relative
+JUnit output path placed XML in an untracked source directory; cleanup deleted
+those original XML files. Complete raw logs, commands, process results and all
+before/after source hashes remain. Independent review verified these records
+and collected the same frozen partitions separately: 2,109 unique, disjoint
+test identities. This collection is not a replacement execution or recreated
+JUnit evidence. Interrupted redundant attempts and focused reruns are excluded
+from the passing total. Git's status difference was confined to that generated
+directory; the staged tree and all tracked bytes stayed exact.
+
+Source contract comparison covers 385 actual CLI calls, one parser diagnostic,
+306 complete database/vault snapshot pairs, and fifteen actual broker responses.
+All exits and stdout payloads match raw bytes. Of 386 stderr streams,
+385 are raw-equal; one lab
+failure traceback moves through the new owners and retains the same complete
+exception. Generated timestamps are limited to `labs.ingested_at` and
+`lab_catalog.created_at`: 736 occurrences trace to 68 revision-specific origin
+cells. Seed values, all other fields and identifiers stay literal. All vault
+paths and bytes match. The source CLI loaded 77 contained Git-exact product
+files, including every new owner.
+
+The broker exercised nine allowed reads, four refused commands and two
+allowed commands with invalid integer arguments. Positive Recovery has three
+known components and score 83. Its same-input source results and complete
+state agree. CLI clocks are controlled; ordinary broker children retain their
+real civil clock. Early collector defects and fixture errors remain diagnostic
+records; final collection and comparison use separately preserved corrected
+helpers and independent raw-evidence review.
+
+Paired timing used ten workloads and 120 fresh launches after source verification,
+with alternating revision order, one first observation and five repetitions.
+Every paired stdout/stderr stream matched; database/vault copies and audits
+were outside the timed process launch. Median changes ranged from -5.74% to
++1.39%, with a maximum increase of 2.34 ms. No material unexplained regression
+appeared in this bounded sample; caches were not forcibly evicted. The timing
+readiness case retained its supported insufficient-data response, while the
+separate source/broker corpus verified a positive composite result.
+
+The actual offline ad hoc app passed fourteen lifecycle checks and nine bundled
+MCP checks. Its isolated probe verifies seventeen selected Git-exact files,
+including all eight new owners, and 171 contained runtime/product module files.
+The external verification harness is separately identified. The CLI collection
+loads 77 contained Git-exact product files. All 385 CLI calls, the parser
+diagnostic, 306 database/vault snapshot pairs and fifteen broker responses
+match both source versions under the same explicit timestamp-origin rules.
+All stdout records are raw-equal; 384 of 386 stderr streams are raw-equal.
+The two reviewed differences are the lab traceback and inherited Python
+argparse choice quoting. The current and preceding bundled Python/argparse
+bytes are identical; the preceding sealed app was not executed.
+
+The corresponding-source archive contains 538 entries: all 536 exact project
+files and two pinned dependency sources. Its SHA-256 is
+`5368b4c7c27b6f8012c8465d5dd72c52d1fdca08f74035f98e1fc92124d955a7`.
+Package CLI/parser and server launches use bundled Python with `-I -B`; the
+unchanged broker child invocation does not forward these flags. Its inherited
+bytecode suppression remains. An initial corpus path incorrectly assumed
+test fixtures ship inside the app; final source/package collection uses one
+external hash-pinned fictional catalog instead. No product or bundle repair
+was needed. A preserved module receipt uses a 39-character commit prefix;
+an appended receipt resolves it to the exact production commit.
+
+After explicit execution release, the final deep/strict signature check passed
+and all 3,134 audited bundle file hashes remained unchanged, with zero findings.
+No app/runtime execution is permitted after that seal without renewed
+coordination and a repeated final audit.
+
+Initial review found omitted timed-checkin fields, lost timezone arguments,
+changed validation order and incorrect dependency forwarding in the draft.
+These were corrected before the source freeze. Independent review found no
+remaining source or evidence blocker. Inventory, license/vendor and current
+source/history scans passed after generated bytecode was moved outside source.
+Pattern scans remain bounded checks, not exhaustive privacy certification.
+
+The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain unchanged. Native GUI/charts, minimum OS, Developer ID, notarization,
+Gatekeeper and clean-customer installation remain unqualified. No installer
+was published.
+
+The next family extracts the remaining CLI coordination around existing
+feature, association, ledger, synthesis and orchestration engines, without
+redesigning those engines. Continue through the approved fresh-main relay;
+final compatibility cleanup and integrated acceptance follow. Publication,
+merge and live/private-data boundaries remain separate.
+
+## CLI coordination extraction, 22 September 2026
+
+The sixth Milestone 3 family is complete in the local tree. Production commit
+`fee48cc404cbaed566adb453e92c4127bf18651a` matches the tested source tree
+`02698d02ba0cac4c49dd1f905cd59bf17c9adb95`. Twenty-six paths changed, and the
+frozen tree contains 547 source files.
+
+The remaining 47 commands now register directly through the shared CLI. All
+122 parser contracts and handler names remain exact, and the legacy dispatch
+map is empty. Ten command modules own coordination for schema/query, events,
+features, associations, analysis jobs, ledger, synthesis, scheduled analysis
+and orchestration. The facade contains no SQL implementation. See
+[Feature, ledger and orchestration command ownership](ARCHITECTURE.md#feature-ledger-and-orchestration-command-ownership).
+Its remaining compatibility exports require the final Milestone 4 consumer
+audit.
+
+Existing numerical, ledger, synthesis, orchestration, runtime, cache and job
+engines remain unchanged. Schema-version asymmetries, transaction boundaries,
+JSON formatting and stable child launch paths are preserved. Six new durable
+tests cover medication event atomicity, synthesis durability/validation and
+the real analysis-job start/work/status path; they also pass the unchanged
+baseline.
+
+| Partition | Passed | Failures/errors/skips | JUnit duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,095 | 0/0/0 | 527.562 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 222.279 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.285 s |
+
+These are 2,115 distinct passing identities, with the original JUnit and raw
+execution evidence retained. Application/MCP ran on the initial freeze; all
+relevant runtime, test and substantive input bytes match the final freeze.
+Final E2E ran on the final tree. This is explicit cross-revision evidence, not
+three final-tree executions. The prior family's missing original XML remains a
+prior-family limit.
+
+The first E2E run failed two trace pins. Independent comparison proved that
+only relocated owner labels and one derived projection digest per trace
+differed. Reversing those labels and recomputing the digest reproduced both
+previous canonical traces exactly. Only those two pins, their fixture manifest
+and the release inventory changed before the passing final E2E run. Numerical
+outputs, selection, model inputs, lineage and notification status did not
+change.
+
+Source comparison covers 336 actual CLI invocations per version and a separate
+122-command parser diagnostic. Every exit and stderr stream matches; 334
+stdout streams match raw bytes. Two synthesis outputs differ only in their
+verified temporary vault root; relative paths and file bytes match. All 178
+complete canonical database snapshots and 672 vault snapshots match exactly.
+The 178 auxiliary snapshots retain complete SQLite logical state and physical
+digests; historical raw sidecar files are not claimed equal or retained.
+
+Cache/job identity differences are recomputed from exact code manifests, paths,
+Python/context and captured canonical hash material. Only verified identity
+and derived key fields differ; all other logical sidecar fields remain literal.
+The corpus positively exercises 46 family commands; actual broker children and
+the durable job test prove successful fenced `analysis-job-execute` behavior.
+
+Twenty non-job broker requests and full responses match raw bytes. Real jobs
+complete through unmodified child processes with equal requests and result
+bytes. Different poll counts reflect asynchronous progress; each generated
+job/attempt ID, timestamp and key is checked against its saved state and
+interval. Canonical databases remain physically unchanged, with exact empty
+vaults.
+
+Authenticated fictional evidence uses one audited fixture adaptation: an
+existing `change_conditions` sentence is encoded as a JSON string. Decoding
+recovers the same sentence. All other cells and restored trigger SQL remain
+exact; the SQLite schema-change counter increases by two. This is disclosed
+adapted test data, not an unmodified fixture or a ledger generated entirely
+through public writes.
+
+Clean paired timing covers ten workloads and 120 fresh launches, alternating
+revision order. Every paired stdout/stderr matches. Median increases range
+from 0.57% to 4.18%; the longest association workload increases 108.57 ms
+(0.81%). Short-command increases range from 0.97 to 6.06 ms. No material
+unexplained regression appears in this bounded comparison against the
+preceding checkpoint; Milestone 4 still compares final performance with the
+corrected baseline.
+
+An earlier timing attempt is diagnostic only: the baseline contained fifteen
+bytecode files while the candidate had none. Independent examination matched
+all 877 recursive code objects to fresh source compilation, preserving earlier
+source provenance. Timing was repeated from complete Git-exact exports that
+reject every bytecode file and cache directory before and after execution. No
+performance code change was needed. Filesystem caches were not forcibly
+evicted.
+
+The fresh offline ad hoc app passed fourteen lifecycle and nine bundled MCP
+checks. Its isolated probe verifies nineteen selected Git-exact product files
+and 182 contained module entries across 179 distinct bundle files. The external
+verification harness is identified separately. The packaged CLI loads 101
+contained Git-exact product files and preserves all 336 cases plus the separate
+parser inventory under the same state and identity checks. Only unknown-command
+stderr adds the inherited Python 3.11/3.12 difference in its quoting of all 122
+choices; 335 stderr streams remain raw-equal. The two verified vault-root stdout
+exceptions remain; 334 stdout streams match raw bytes.
+
+Twenty packaged non-job broker envelopes and the actual job request/result bytes
+match source. A read-only bundled Python probe independently reproduces both the
+unpatched broker and CLI cache identities. It performs no analytical calculation
+and preserves the fictional database and every bundle file. Package CLI/parser,
+module and identity probes use `-I -B`. The successful broker corpus launches
+bundled Python with `-B`; its unchanged child command forwards neither flag
+and inherits bytecode suppression.
+
+The corresponding-source ZIP contains 549 entries: all 547 exact project files
+and two pinned dependency sources. Its SHA-256 is
+`73aa28eb1353535fa6c517dba8b09b68e83c70c3b809e393ecc69521156baea1`.
+After explicit execution release, final deep/strict signature verification passed
+and all 3,144 audited regular-file hashes remained unchanged, with zero findings.
+The probe's larger file count includes two internal Python symlinks; its source
+count additionally includes the verified generated build-info file. No bundle
+execution is permitted after sealing without renewed coordination and audit.
+
+Initial native-build and socket/sandbox failures remain separate diagnostics.
+The unchanged builder and actual verifiers passed with the recorded bounded local
+permissions. No product or bundle repair was needed. Independent source, suite,
+contract, timing and package reviews found no remaining blocker. License/vendor
+and source/history checks passed; final checkpoint inventory verification is
+recorded separately from the production package.
+
+The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain. Native GUI/charts, minimum OS, Developer ID, notarization, Gatekeeper
+and clean-customer installation remain unqualified. Pattern scans are bounded
+checks, not exhaustive privacy certification. No installer was published.
+
+The next milestone audits the remaining compatibility consumers, removes only
+proven obsolete plumbing, completes documentation and integrated verification,
+and compares final performance with the corrected baseline. Continue through
+the approved fresh-main relay on the same branch. Push, merge, publication,
+credentials and live/private-data boundaries remain separate.
+
+## Final toolkit acceptance, 22 September 2026
+
+Production commit `17851cfca77b33369a22a04d97f7f0a72c0ac908` matches the
+verified tree `a817fecead2567ea7956c1183f6dba51338b2954`. The closing
+checkpoint changes only this documentation and its release inventory.
+
+Milestone 4 removes 43 obsolete internal dispatch delegates and the empty legacy-handler overlay. The shared CLI registers every executable command centrally and dispatches it to its owning module. The facade retains database and clock seams, read-only guards, configured catalogs and older Python delegates. It contains no SQL, importer or domain-calculation implementation. The consumer inventory records evidence of the removal and the limits of auditing undocumented external imports.
+
+[Architecture](ARCHITECTURE.md#toolkit-command-boundaries) describes retained compatibility and direct registration. Its [calculation and test index](ARCHITECTURE.md#calculation-and-test-navigation) connects domain owners, callers and relevant tests. Numerical engines, schemas, transactions, broker permissions, public licensing and vendor bytes are unchanged in this milestone.
+
+Complete source verification covers 2,115 distinct passing identities: 2,095 application tests, 15 fictional end-to-end tests and five actual MCP tests. The initial restricted runs passed 2,086 application tests, 14 journeys and all five MCP tests. Nine application checks and one journey then passed with local socket/process permission. Only those unsuccessful identities were retried. Source hashes remained unchanged; focused checks and retry overlap are excluded from the total. The evidence comes from split environments; it does not establish three uninterrupted green runs.
+
+Earlier family corpora remain accepted through independently checked revision links and comparisons of owner bytes, handler bodies, binding values and configuration expressions. The fresh final-family comparison exercises 336 CLI cases per version and a separate 122-command parser inventory against the corrected baseline. Every exit status and stderr stream matches. Two synthesis outputs differ only in verified temporary vault paths. The other 334 output streams match byte for byte. Ten internal importer callback names retain their previously approved owner changes. Reversing only those names recovers the complete baseline parser inventory.
+
+Both CLI versions receive the same explicit migration-label input,
+`HERMES_CODE_VERSION=c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
+Actual source identities are checked separately, and seeded fixture rows remain
+unchanged. The comparison does not claim default deployment-version equality.
+
+Comparisons between the source and packaged broker verify twenty non-job
+request/response envelopes byte for byte. Real child jobs complete with exact request and result
+bytes. Generated IDs, timestamps, cache keys and asynchronous poll sequences
+are checked against their own stored state and captured identity material.
+Canonical databases remain physically unchanged and vaults remain empty.
+Historical sidecar SQLite files are represented by complete logical snapshots
+and physical digests, without a claim of physical-byte equality.
+
+The fresh ad hoc app passed fourteen lifecycle checks and nine actual bundled
+MCP checks. Its isolated module probe and CLI traces verify that the runtime
+owners are contained and Git-exact. The packaged corpus preserves all 336 cases
+and the separate parser inventory. The single unknown-command stderr difference
+is the verified Python 3.11/3.12 change in quoting all 122 choices. Every other
+stderr stream matches. The two verified temporary-vault stdout differences remain.
+
+Package CLI/parser and module probes use bundled Python with `-I -B`. The
+broker runs with `-B` without `-I`. Its unchanged child inherits bytecode
+suppression. Read-only probes reproduce both the default broker and actual
+script CLI identities under bundled Python 3.12.13 before execution release.
+
+The corresponding-source ZIP contains all 547 Git-exact project files and two
+pinned dependency source archives. Its SHA-256 is
+`53ad3e8b0a8f1a36c179b010c1dcb76437c28c5fb54d6a81817689cf8c22f5e9`.
+After every execution owner released the app, final deep/strict signature
+verification passed. All 3,144 audited regular-file hashes remained unchanged,
+with zero findings. No bundle process ran after the seal.
+
+The corrected-baseline timing comparison uses 60 alternating fresh-process launches across five workloads, with cache-free Git exports, fixed fictional inputs and no native acceleration. All paired output streams and database/vault effects match. Median command times for schema, readiness and nutrition increase by approximately 5–6 milliseconds. Statistics and association medians decrease slightly in this sample. Independent review found no material unexplained regression. These measurements do not establish a general speed guarantee.
+
+The inherited readiness benchmark returns the same insufficient-data result, so its timing does not qualify populated readiness calculations. The statistical workload retains its 120 observations and fixed seeds. The association workload returns one finding. Filesystem caches were not forcibly cleared.
+
+The inherited engine-identity/resampling and tied-candidate caveat remains. Collector failure-provenance lock contention also remains. Current verification retains its original XML. The missing original XML in the earlier daily-frame family remains a limitation of that historical family. Source/history scans have bounded scope and do not provide exhaustive privacy certification.
+
+Push, merge, hosted checks and release publication remain separate gates. Local verification does not qualify GUI/charts, minimum OS, Developer ID, notarization, Gatekeeper or clean-customer installation.
+
+This closes Milestone 4 and the approved toolkit modularization plan. The
+feature branch and sealed local package remain unpublished.

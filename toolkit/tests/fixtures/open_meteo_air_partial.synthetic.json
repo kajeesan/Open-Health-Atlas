@@ -1,0 +1,26 @@
+{
+  "hourly": {
+    "european_aqi": [
+      10,
+      null,
+      20
+    ],
+    "pm2_5": [
+      0,
+      null,
+      3
+    ],
+    "pm10": [
+      2,
+      3
+    ],
+    "grass_pollen": [
+      0,
+      null,
+      6
+    ],
+    "birch_pollen": [
+      null
+    ]
+  }
+}

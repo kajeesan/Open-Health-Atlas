@@ -14,7 +14,7 @@ import uuid
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "toolkit"))
 
-import health  # noqa: E402
+from hermes_insights import recovery  # noqa: E402
 from hermes_insights.contracts import canonical_json  # noqa: E402
 from hermes_insights.readiness_ancestry import (  # noqa: E402
     ReadinessAncestryError,
@@ -91,7 +91,7 @@ def main() -> int:
             args.database,
             range_start=range_start,
             anchor=anchor,
-            calculation_context=health._readiness_calculation_context(),
+            calculation_context=recovery._readiness_calculation_context(),
         )
         _write_exclusive(output, (canonical_json(sidecar) + "\n").encode("utf-8"))
     except (ReadinessAncestryError, ValueError) as exc:

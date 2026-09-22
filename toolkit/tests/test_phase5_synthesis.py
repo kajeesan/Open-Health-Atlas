@@ -5,13 +5,16 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+HEALTH = ROOT / "health.py"
 sys.path.insert(0, str(ROOT))
 
 from hermes_insights.contracts import canonical_json
@@ -2509,6 +2512,94 @@ def test_synthesis_history_uses_stable_canonical_cursor_pagination(
     second = synthesis_history(conn, limit=2, before=first["next_before"])
     assert [item["synthesis_id"] for item in second["syntheses"]] == [ids[0]]
     assert second["next_before"] is None
+
+
+def _run_synthesis_cli(database, vault, payload):
+    environment = {
+        **os.environ,
+        "HEALTH_DB": str(database),
+        "HEALTH_VAULT": str(vault),
+        "HERMES_TIMEZONE": "Europe/Paris",
+        "TZ": "Europe/Paris",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    return subprocess.run(
+        [sys.executable, str(HEALTH), "synthesis-record", "--stdin"],
+        input=canonical_json(payload),
+        text=True,
+        capture_output=True,
+        env=environment,
+        check=False,
+        timeout=30,
+    )
+
+
+def test_cli_synthesis_retry_after_vault_append_failure_is_exactly_once(
+    conn: sqlite3.Connection,
+    tmp_path: Path,
+):
+    database = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    blocked_vault = tmp_path / "vault-file"
+    blocked_vault.write_text("a file cannot be used as the vault root", encoding="utf-8")
+    payload = _payload(conn)
+
+    failed = _run_synthesis_cli(database, blocked_vault, payload)
+
+    assert failed.returncode == 1
+    assert json.loads(failed.stdout)["error"]["code"] == "unsafe_path"
+    assert conn.execute("SELECT COUNT(*) FROM synthesis_runs").fetchone()[0] == 1
+
+    blocked_vault.unlink()
+    blocked_vault.mkdir()
+    retried = _run_synthesis_cli(database, blocked_vault, payload)
+
+    assert retried.returncode == 0
+    result = json.loads(retried.stdout)
+    assert result["created"] is False
+    target = Path(result["markdown_path"])
+    assert target.is_file()
+    assert list(target.parent.glob("*.md")) == [target]
+    stored = conn.execute(
+        "SELECT rendered_md FROM synthesis_runs WHERE synthesis_id=?",
+        (payload["synthesis_id"],),
+    ).fetchone()[0]
+    assert target.read_bytes() == stored.encode("utf-8")
+    assert result["rendered_sha256"] == (
+        "sha256:" + hashlib.sha256(stored.encode("utf-8")).hexdigest()
+    )
+    assert conn.execute("SELECT COUNT(*) FROM synthesis_runs").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT COUNT(*) FROM insight_notification_outbox"
+    ).fetchone()[0] == 0
+
+
+def test_cli_synthesis_precommit_validation_failure_leaves_no_record_or_file(
+    conn: sqlite3.Connection,
+    tmp_path: Path,
+):
+    database = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    payload = _payload(conn)
+    payload["notification"] = {
+        "channel_class": "telegram",
+        "destination_class": "owner_primary",
+        "payload": {"wrong": "payload"},
+        "dedupe_key": "sha256:" + "0" * 64,
+        "not_before": "2026-07-23T12:00:00+00:00",
+        "idempotency_mode": "none",
+        "provider_idempotency_key": None,
+    }
+
+    failed = _run_synthesis_cli(database, vault, payload)
+
+    assert failed.returncode == 2
+    assert json.loads(failed.stdout)["error"]["code"] == "identity_mismatch"
+    assert conn.execute("SELECT COUNT(*) FROM synthesis_runs").fetchone()[0] == 0
+    assert conn.execute(
+        "SELECT COUNT(*) FROM insight_notification_outbox"
+    ).fetchone()[0] == 0
+    assert list(vault.rglob("*")) == []
 
 
 def test_phase6_completed_synthesis_enqueues_exact_outbox_atomically(

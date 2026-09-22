@@ -12,8 +12,10 @@ import time
 import pytest
 
 from hermes_insights import analysis_jobs as jobs, exact_cache
+from hermes_insights.migrations import AUTONOMOUS_SCHEMA_VERSION, migrate
 
 TOOLKIT = Path(__file__).resolve().parents[1]
+HEALTH = TOOLKIT / "health.py"
 REQUEST = {"command": "outcome-associations", "args": [
     "--outcome", "subjective.day_rating", "--from", "2026-01-01", "--to", "2026-01-31",
 ]}
@@ -60,6 +62,91 @@ jobs.cli(sys.argv[1], os.environ["HEALTH_DB"], args,
          {"outcome-associations": analyze}, __file__)
 ''')
     return script
+
+
+@pytest.fixture
+def real_database(tmp_path, monkeypatch):
+    path = tmp_path / "health.db"
+    with sqlite3.connect(path) as connection:
+        connection.executescript((TOOLKIT / "SCHEMA.sql").read_text(encoding="utf-8"))
+    migrate(
+        str(path),
+        AUTONOMOUS_SCHEMA_VERSION,
+        0,
+        code_version="a" * 40,
+    )
+    monkeypatch.setenv("HEALTH_DB", str(path))
+    monkeypatch.setenv("OPENHEALTHATLAS_ANALYSIS_DIR", str(tmp_path / "private-analysis"))
+    monkeypatch.setenv("HERMES_TIMEZONE", "Europe/Paris")
+    monkeypatch.setenv("TZ", "Europe/Paris")
+    monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
+    return path
+
+
+def test_health_cli_analysis_job_completes_on_empty_real_schema(real_database):
+    request = {
+        "command": "outcome-associations",
+        "args": [
+            "--outcome", "subjective.day_rating",
+            "--from", "2026-01-01",
+            "--to", "2026-01-31",
+            "--min-n", "30",
+            "--top", "1",
+        ],
+    }
+    environment = {
+        **os.environ,
+        "HEALTH_DB": str(real_database),
+        "HERMES_TIMEZONE": "Europe/Paris",
+        "TZ": "Europe/Paris",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    before = real_database.read_bytes()
+
+    started = subprocess.run(
+        [sys.executable, str(HEALTH), "analysis-job-start"],
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        env=environment,
+        check=False,
+        timeout=30,
+    )
+
+    assert started.returncode == 0
+    queued = json.loads(started.stdout)
+    assert queued["status"] == "queued"
+    job_id = queued["job_id"]
+
+    worked = subprocess.run(
+        [sys.executable, str(HEALTH), "analysis-job-work"],
+        text=True,
+        capture_output=True,
+        env=environment,
+        check=False,
+        timeout=60,
+    )
+
+    assert worked.returncode == 0
+    assert json.loads(worked.stdout)["processed"] is True
+
+    status = subprocess.run(
+        [sys.executable, str(HEALTH), "analysis-job-status", job_id],
+        text=True,
+        capture_output=True,
+        env=environment,
+        check=False,
+        timeout=30,
+    )
+
+    assert status.returncode == 0
+    completed = json.loads(status.stdout)
+    assert completed["status"] == "completed"
+    result = completed["result"]
+    assert result["contract_version"] == "outcome-associations-v1"
+    assert result["meta"]["analysis_version"] == "outcome-v1"
+    assert result["findings"] == []
+    assert real_database.read_bytes() == before
 
 
 @pytest.mark.parametrize("payload", [

@@ -28,8 +28,8 @@ unless the optional SDK is installed. To include it:
 "$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider tests/test_local_mcp.py
 ```
 
-For a complete suite including MCP, install both requirements files before the
-full command. A base-only run must report the optional module's skip.
+For a complete suite, also follow the prerequisites below. A base-only run
+must report optional protocol, JavaScript or native-library skips accurately.
 
 The environment and all fixture data stay outside the release checkout. Disable
 pytest caches in focused runs too (`-p no:cacheprovider`).
@@ -43,17 +43,72 @@ sockets. They do not connect to a live broker, account, or health database.
 
 ## Auditable partitions
 
-The whole suite can be split without changing test semantics:
+Use the same three disjoint partitions as `.github/workflows/checks.yml`.
+Root discovery already includes `toolkit/tests`; do not run it again when
+summing complete-suite counts.
 
 ```bash
-# Panel, API, authentication, integrations, and browser-facing contracts.
-# The Unix-socket file is a separate platform-permission shard.
-"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider tests --ignore=tests/test_bridge.py
-"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider tests/test_bridge.py
+oha_test_root="$(mktemp -d /tmp/oha-tests.XXXXXX)"
 
-# Deterministic toolkit, evidence preparation and validated synthesis.
-"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider toolkit/tests
+# Application, toolkit and integration contracts, including local sockets.
+"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider --durations=10 \
+  --basetemp "$oha_test_root/application" \
+  --ignore=tests/e2e --ignore=tests/test_local_mcp.py
+
+# Fictional end-to-end journeys.
+"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider --durations=10 \
+  --basetemp "$oha_test_root/journeys" tests/e2e
+
+# Actual optional MCP SDK client and stdio server.
+"$oha_test_env/bin/python" -m pytest -q -p no:cacheprovider --durations=10 \
+  --basetemp "$oha_test_root/protocol" tests/test_local_mcp.py
 ```
+
+## Complete verification prerequisites
+
+Install both requirements files and provide Node and a C compiler. Node runs
+retained browser-code tests even though the panel needs no asset build.
+Build the native statistical test library outside source:
+
+```bash
+"$oha_test_env/bin/python" -m pip install -r requirements-dev.txt -r requirements-mcp.txt
+"$oha_test_env/bin/python" -m pip check
+node --version
+cc --version
+oha_native_dir="$(mktemp -d /tmp/oha-native.XXXXXX)"
+case "$(uname -s)" in
+  Darwin) oha_native_library="$oha_native_dir/liboha_stats.dylib" ;;
+  *) oha_native_library="$oha_native_dir/liboha_stats.so" ;;
+esac
+"$oha_test_env/bin/python" scripts/build_native_stats.py \
+  --output "$oha_native_library"
+export OHA_TEST_NATIVE_LIBRARY="$oha_native_library"
+export HEALTH_DB="$oha_native_dir/unused-health.db"
+export TZ=Europe/Paris HERMES_TIMEZONE=Europe/Paris
+export PYTHONDONTWRITEBYTECODE=1
+```
+
+Use these settings for either the full command or all partitions. A missing
+dependency is not a passing check. Desktop packaging has its own build and
+artifact checks in [Desktop release](DESKTOP_RELEASE.md).
+
+On macOS, if the compiler cannot locate SDK headers, pass
+`--sysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk` to the native
+build command when that installed SDK exists.
+
+## Calculation testing strategy
+
+Reproduce a defect against unchanged production code before applying its fix.
+Use independently worked expectations, controlled civil dates, fictional
+records and explicit configuration. Cover relevant missing-data, unit, date
+boundary and numerical-extreme behavior through the owning calculation or
+retained command. Avoid tests tied to incidental source layout.
+
+Separate numerical corrections from module moves. For extraction, compare
+outputs and database effects on the same input and clock; assess expected
+fingerprint changes separately. Retain a repeatable timing workload at the
+corrected revision for later refactor comparisons. Do not turn measurements
+into speculative optimization work.
 
 ## Clean initialization and demo
 

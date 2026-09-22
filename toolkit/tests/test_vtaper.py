@@ -179,3 +179,16 @@ def test_import_and_vtaper_refuse_missing_source_without_ddl(db, tmp_path):
     assert "source" not in cols
     assert con.execute("SELECT COUNT(*) FROM body_metrics").fetchone()[0] == 1
     con.close()
+
+
+def test_hevy_body_correction_clears_fields_absent_from_replacement(db, tmp_path):
+    run(db, "import-hevy-body", payload(tmp_path, [
+        {"date": "2026-07-01", "waist": 85, "chest_cm": 108}]))
+
+    run(db, "import-hevy-body", payload(tmp_path, [
+        {"date": "2026-07-01", "weight_kg": 82}]))
+
+    with sqlite3.connect(db) as con:
+        stored = con.execute("""SELECT weight_kg,waist_cm,chest_cm FROM body_metrics
+                                WHERE date='2026-07-01' AND source='hevy'""").fetchall()
+    assert stored == [(82, None, None)]

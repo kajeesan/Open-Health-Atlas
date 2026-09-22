@@ -344,7 +344,8 @@ def wilson_interval(
     confidence_value = finite_float(confidence, name="confidence")
     if not 0.0 < confidence_value < 1.0:
         raise StatsError("confidence must be strictly between zero and one")
-    z_value = NormalDist().inv_cdf(0.5 + confidence_value / 2.0)
+    # The lower tail remains representable when the upper tail rounds to one.
+    z_value = -NormalDist().inv_cdf((1.0 - confidence_value) / 2.0)
     proportion = successes / total
     z_squared = z_value * z_value
     denominator = 1.0 + z_squared / total
@@ -412,10 +413,14 @@ def percentile(values: Sequence[object], probability: float) -> float:
     upper = math.ceil(position)
     if lower == upper:
         return normalize_float(ordered[lower], name="percentile")
-    result = (
-        ordered[lower]
-        + (ordered[upper] - ordered[lower]) * (position - lower)
-    )
+    span = ordered[upper] - ordered[lower]
+    fraction = position - lower
+    if math.isfinite(span):
+        result = ordered[lower] + span * fraction
+    else:
+        # Opposite finite extremes can overflow their difference even though
+        # every interpolated value lies between the finite endpoints.
+        result = (1.0 - fraction) * ordered[lower] + fraction * ordered[upper]
     return normalize_float(result, name="percentile")
 
 

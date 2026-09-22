@@ -28,6 +28,7 @@ MAP_DOC = ROOT / "tests" / "fixtures" / "submuscle_map.synthetic.md"
 
 sys.path.insert(0, str(ROOT))
 import health  # noqa: E402
+from hermes_insights.importers.submuscle_map import parse_map  # noqa: E402
 
 
 def vendored_ids():
@@ -74,7 +75,7 @@ def test_every_bundled_fixture_sub_region_is_displayable():
     # without a display mapping would silently vanish from the figure (it IS
     # surfaced at runtime via unrepresented_sub_regions, but the shipped doc
     # should never be in that state)
-    sections = health._parse_submuscle_map(MAP_DOC.read_text())
+    sections = parse_map(MAP_DOC.read_text())
     subs = {r["sub_region"].strip().lower() for s in sections for r in s["rows"]}
     missing = subs - set(health.FIGURE_SUB_SVG)
     assert not missing, f"authored sub-regions with no display mapping: {missing}"
