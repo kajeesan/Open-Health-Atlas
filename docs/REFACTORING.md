@@ -6,11 +6,11 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-Milestone 2 is complete, with production commit
-`2d460ca1b006d23be37ef295689037cda8e4da5a` and the [extraction evidence](#cli-and-hevy-csv-extraction-22-september-2026)
-below. The next Milestone 3 family covers remaining Hevy imports, Cronometer,
-Google Health, recipes and catalogs. Continue on `codex/health-toolkit-modularization`
-and retain the accumulated local commits.
+The first Milestone 3 family is complete, with production commit
+`ffb8d7aaa53107d400113e4ac96dc133c1081d17` and the [import extraction evidence](#provider-and-catalog-import-extraction-22-september-2026)
+below. The next family covers daily logging, hydration, commitments, schedules,
+notes and collectors. Continue on `codex/health-toolkit-modularization` and retain
+the accumulated local commits.
 
 On 22 September 2026, the owner authorized fresh-main continuation after each
 milestone's verification and independent-review gates, replacing routine approval
@@ -705,3 +705,95 @@ Nothing was pushed, merged, published or connected to a live service.
 
 The next bounded family is remaining Hevy imports, Cronometer, Google Health,
 recipes and catalogs, following the [approved milestone order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Provider and catalog import extraction, 22 September 2026
+
+The first Milestone 3 family is complete locally. Production commit
+`ffb8d7aaa53107d400113e4ac96dc133c1081d17` contains the extraction. Source verification
+ran before the commit against frozen tree `a265a92e9b13a585ef067fbfb937c89eef14c2ec`.
+The commit contains that exact tree. All 496 source file hashes remained unchanged.
+
+The remaining Hevy formats, Cronometer, Google Health, recipes and both catalogs
+now have command and parser owners. Shared body/fitness bounds and routine snapshots
+have one owner each. The facade retains temporary compatibility and unconverted
+handlers. See [Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries)
+for the module map and transaction boundaries. No schema, numerical engine or broker
+allowlist changed.
+
+Five new characterization cases protect failed-import rollback and Hevy body updates.
+All five also passed against unchanged baseline production. One existing internal
+parser test now calls its owning module. The final focused run passed 182 tests.
+Those reruns are not added to the complete count below.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,058 | 0/0/0 | 492.83 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 191.05 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.35 s |
+
+The disjoint total is 2,078 tests. No prior Milestone 2 case was lost. Tests used
+the declared environment, native library, Node, fictional data and aligned civil
+clocks. Source and Git state stayed frozen through verification.
+
+All 345 source CLI invocations retained raw standard output and exit status.
+A separate parser diagnostic confirmed all 122 public command contracts. Only
+nine internal handler names changed. Sixteen error traces moved to extracted owners
+while preserving terminal exception types and messages. Thirteen real broker
+requests retained allowed dispatch, all bulk-import refusals and write restrictions.
+
+All 222 complete database comparisons preserved schema, records, references and
+sequence state after narrow validation of generated times and quarterly event IDs.
+Seeded timestamps remained exact. Each excluded timestamp was traced to its original
+write window. Every time-dependent quarterly event ID was independently rehashed
+from its complete material. Explicit second boundaries verified timestamp refresh
+versus preservation. These comparisons do not permit blanket timestamp or ID removal.
+
+Paired timing used seven workloads and 84 fresh processes, alternating revision
+order for each pair. Each workload had one first launch and five repetitions.
+Filesystem caches were not forcibly cleared and database copying was outside timing.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Hevy JSON | 121.18 ms | 120.65 ms |
+| Cronometer | 120.96 ms | 121.36 ms |
+| Recipes | 122.26 ms | 122.59 ms |
+| Schema status | 139.61 ms | 139.98 ms |
+| Readiness | 127.82 ms | 129.32 ms |
+| Nutrition targets | 120.13 ms | 121.27 ms |
+| Statistics | 280.50 ms | 280.59 ms |
+
+All timed outputs matched and read-only fixture bytes stayed unchanged. Median
+changes ranged from -0.44% to +1.17%, with no unexplained regression in this sample.
+
+The ad hoc macOS app built from `ffb8d7a` passed 14 lifecycle checks and nine
+actual MCP checks. All 23 selected modules loaded exclusively from the bundle
+and matched committed source. The final 3,101-file audit found no changes or
+findings, and the deep/strict signature passed after all package execution.
+
+The bundled interpreter retained all 345 CLI outputs and the candidate parser
+inventory, all 222 validated database comparisons and all 13 broker responses.
+Error traces include isolated-launcher and standard-library frame differences.
+One argument-error rendering difference comes from Python 3.11 versus 3.12.
+The prior actual app produced identical output under the same bundled interpreter.
+These differences remain recorded rather than discarded.
+
+Build and verifier retries addressed a copied Swift cache's absolute paths,
+restricted icon conversion, network-sandbox application and process inspection.
+The unchanged tools passed after correcting their execution environment. No check
+or runtime guard was weakened. This is local package verification, without native
+GUI, minimum-OS, notarization or clean-customer-install qualification.
+
+The explicit Hermes inventory includes all extracted runtime files. Recursive
+cache identity remains active. Numerical provenance and all replay pins remain
+unchanged. The inherited [resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+still applies to future numerical identity changes. Ledger and synthesis rules
+were not redesigned.
+
+Independent source, verification and package reviews found no remaining blocker.
+Release inventory, vendor/license and source/history privacy checks passed.
+Exact commands, immutable source linkage, comparisons and diagnostic attempts remain
+in the local evidence package outside source. Nothing was pushed, merged, published
+or connected to a live service.
+
+The next bounded family is daily logging, hydration, commitments, schedules, notes
+and collectors, following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
