@@ -168,22 +168,45 @@ and independently reviewed.
 ## Roles and ownership
 
 Use `gpt-6-astra` with `high` reasoning for the main and successor mains, as
-the owner directed on 22 September 2026. The independent reviewer remains on
-`gpt-6-astra` with `xhigh` reasoning. Report unavailability instead of silently
-changing these settings. Implementation uses the configured main model.
-A lower-cost runner may execute fixed checks, not make correctness decisions.
+the owner directed on 22 September 2026. The main is the technical lead for
+system inspection, architecture and preserved contracts, bounded assignments,
+ambiguity, actual diff and evidence review, integration and acceptance. Delegate
+well-specified implementation or execution, and take over difficult work when
+needed. Report unavailability instead of silently changing these settings.
 
-The main owns scope, sequencing, integration, evidence assessment and reporting.
-Assign each worker a base revision, bounded objective, exact files/responsibility,
-preserved contracts, checks and completion criteria. Workers preserve others'
-changes and know they are sharing the checkout.
+Use `gpt-5.6-luna` with `xhigh` reasoning by default for implementation,
+test-design, exploration, verification, build and evidence workers, including
+trivial or administrative checks. Select the model and reasoning effort
+explicitly for every worker; never run Luna below `xhigh`, and report
+unavailability without substitution. Use reusable scripts and Luna at `xhigh`
+for routine hashing, inventory and test execution; Astra assesses correctness
+and exceptions. The independent consequential-gate reviewer remains on
+`gpt-6-astra` with `xhigh` reasoning and stays independent of implementation.
 
-Use one production writer while files overlap `health.py`. At most two writers
-may work later on disjoint modules with settled interfaces. One integration owner
-controls registration, fingerprints, release inventory and workflows. Verification
-helpers cannot weaken tests or silently repair failures. Reviewers cannot approve
-their own implementation. Optional grandchildren perform bounded discovery or
-checks without further delegation. Reuse agents rather than filling slots.
+Brief each worker concisely and self-containedly with the base revision,
+bounded objective, owned files or responsibility, known callers, preserved
+behavior, checks and evidence paths, and escalation conditions. Workers preserve
+others' changes and know they are sharing the checkout. Report findings with
+exact commands, exit statuses and raw evidence; escalate unexpected behavior
+or ambiguity rather than weakening tests, broadening normalization or guessing
+repeatedly. Avoid wholesale accumulated-context forks; use a bounded brief
+instead of copying the full accumulated main conversation when it suffices.
+
+Parallelize independent work and reuse workers without maintaining a large
+standing roster or recursive orchestration. Use one production writer while
+files overlap, including `health.py`; at most two writers may work later on
+disjoint modules with settled interfaces. One integration owner controls
+registration, fingerprints, release inventory and workflows. Verification
+helpers cannot weaken tests or silently repair failures. Reviewers cannot
+approve their own implementation. The main must not edit worker-owned
+overlapping files concurrently; explicit ownership transfer is required before
+the main takes over.
+
+Run focused tests and compatibility review before full freeze. Repeat expensive
+checks only when changed bytes or unresolved concerns justify them. Do not claim
+guaranteed savings, precision or runtime improvements. These assignments retain
+the existing privacy, ordering, review, packaging, local-commit and publication
+boundaries.
 
 Apply Software Writer 2.2.0, its current project extensions, Extension Setup 2.1.0
 when configuration needs adaptation, and Sentry code-review for independent review.
