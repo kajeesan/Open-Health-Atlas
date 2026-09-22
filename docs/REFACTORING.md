@@ -6,10 +6,10 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-The fourth Milestone 3 family is complete, with production commit
-`8e2b0894fa6d5b0f3c2c9bea1014a5a804d457af` and the [training and movement evidence](#training-and-movement-extraction-22-september-2026)
-below. The next family covers daily frames, scores, Recovery/readiness and
-laboratory workflows.
+The fifth Milestone 3 family is complete, with production commit
+`459d53f54e0b19b0b06910f43f0daf4ef5096399` and the [daily frames, scores, Recovery and lab evidence](#daily-frames-scores-recovery-and-lab-extraction-22-september-2026)
+below. The next family covers remaining CLI coordination around existing
+feature, association, ledger, synthesis and orchestration engines.
 Continue on `codex/health-toolkit-modularization` and retain the accumulated local
 commits.
 
@@ -1113,3 +1113,114 @@ The next family covers daily frames, scores, Recovery/readiness and laboratory
 workflows. Continue through the approved fresh-main relay on Astra High, with
 independent review on Astra extra high. Push, merge, release and live/private
 boundaries remain unchanged.
+
+## Daily frames, scores, Recovery and lab extraction, 22 September 2026
+
+The fifth Milestone 3 family is complete locally. Production commit
+`459d53f54e0b19b0b06910f43f0daf4ef5096399` matches source-tested tree
+`42ac98e32836ea11bab32ee7dc8e4aa85329b7bb`. Seventeen paths changed, including
+eight runtime owners and one new boundary-test file. All 536 source files
+remained exact during acceptance verification.
+
+Thirteen commands now register directly through the shared CLI, leaving 47
+unconverted registrations. All 122 parser contracts and handler names remain
+exact. See [Daily frames, scores, Recovery and labs ownership](ARCHITECTURE.md#daily-frames-scores-recovery-and-labs-ownership)
+for the calculation, transaction and ancestry owners. Existing numerical
+engines, schema, broker permissions and vendor bytes are unchanged.
+
+Eight new cases passed unchanged baseline. They cover lab batch/catalog
+rollback, stored-prior selection, intra-batch isolation, catalog reflagging,
+trend deduplication, frame history/zero-fill and Recovery range asymmetry.
+Two existing tests now call explicit owners with fixed clocks. Their original
+assertions remain, including dashboard recovery score 75 and fourteen baseline rows.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,089 | 0/0/0 | 550.51 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 204.32 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.42 s |
+
+The first complete run recorded zero process exits and 2,109 passes. A relative
+JUnit output path placed XML in an untracked source directory; cleanup deleted
+those original XML files. Complete raw logs, commands, process results and all
+before/after source hashes remain. Independent review verified these records
+and collected the same frozen partitions separately: 2,109 unique, disjoint
+test identities. This collection is not a replacement execution or recreated
+JUnit evidence. Interrupted redundant attempts and focused reruns are excluded
+from the passing total. Git's status difference was confined to that generated
+directory; the staged tree and all tracked bytes stayed exact.
+
+Source contract comparison covers 385 actual CLI calls, one parser diagnostic,
+306 complete database/vault snapshot pairs, and fifteen actual broker responses.
+All exits and stdout payloads match raw bytes. Of 386 stderr streams,
+385 are raw-equal; one lab
+failure traceback moves through the new owners and retains the same complete
+exception. Generated timestamps are limited to `labs.ingested_at` and
+`lab_catalog.created_at`: 736 occurrences trace to 68 revision-specific origin
+cells. Seed values, all other fields and identifiers stay literal. All vault
+paths and bytes match. The source CLI loaded 77 contained Git-exact product
+files, including every new owner.
+
+The broker exercised nine allowed reads, four refused commands and two
+allowed commands with invalid integer arguments. Positive Recovery has three
+known components and score 83. Its same-input source results and complete
+state agree. CLI clocks are controlled; ordinary broker children retain their
+real civil clock. Early collector defects and fixture errors remain diagnostic
+records; final collection and comparison use separately preserved corrected
+helpers and independent raw-evidence review.
+
+Paired timing used ten workloads and 120 fresh launches after source verification,
+with alternating revision order, one first observation and five repetitions.
+Every paired stdout/stderr stream matched; database/vault copies and audits
+were outside the timed process launch. Median changes ranged from -5.74% to
++1.39%, with a maximum increase of 2.34 ms. No material unexplained regression
+appeared in this bounded sample; caches were not forcibly evicted. The timing
+readiness case retained its supported insufficient-data response, while the
+separate source/broker corpus verified a positive composite result.
+
+The actual offline ad hoc app passed fourteen lifecycle checks and nine bundled
+MCP checks. Its isolated probe verifies seventeen selected Git-exact files,
+including all eight new owners, and 171 contained runtime/product module files.
+The external verification harness is separately identified. The CLI collection
+loads 77 contained Git-exact product files. All 385 CLI calls, the parser
+diagnostic, 306 database/vault snapshot pairs and fifteen broker responses
+match both source versions under the same explicit timestamp-origin rules.
+All stdout records are raw-equal; 384 of 386 stderr streams are raw-equal.
+The two reviewed differences are the lab traceback and inherited Python
+argparse choice quoting. The current and preceding bundled Python/argparse
+bytes are identical; the preceding sealed app was not executed.
+
+The corresponding-source archive contains 538 entries: all 536 exact project
+files and two pinned dependency sources. Its SHA-256 is
+`5368b4c7c27b6f8012c8465d5dd72c52d1fdca08f74035f98e1fc92124d955a7`.
+Package CLI/parser and server launches use bundled Python with `-I -B`; the
+unchanged broker child invocation does not forward these flags. Its inherited
+bytecode suppression remains. An initial corpus path incorrectly assumed
+test fixtures ship inside the app; final source/package collection uses one
+external hash-pinned fictional catalog instead. No product or bundle repair
+was needed. A preserved module receipt uses a 39-character commit prefix;
+an appended receipt resolves it to the exact production commit.
+
+After explicit execution release, the final deep/strict signature check passed
+and all 3,134 audited bundle file hashes remained unchanged, with zero findings.
+No app/runtime execution is permitted after that seal without renewed
+coordination and a repeated final audit.
+
+Initial review found omitted timed-checkin fields, lost timezone arguments,
+changed validation order and incorrect dependency forwarding in the draft.
+These were corrected before the source freeze. Independent review found no
+remaining source or evidence blocker. Inventory, license/vendor and current
+source/history scans passed after generated bytecode was moved outside source.
+Pattern scans remain bounded checks, not exhaustive privacy certification.
+
+The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain unchanged. Native GUI/charts, minimum OS, Developer ID, notarization,
+Gatekeeper and clean-customer installation remain unqualified. No installer
+was published.
+
+The next family extracts the remaining CLI coordination around existing
+feature, association, ledger, synthesis and orchestration engines, without
+redesigning those engines. Continue through the approved fresh-main relay;
+final compatibility cleanup and integrated acceptance follow. Publication,
+merge and live/private-data boundaries remain separate.
