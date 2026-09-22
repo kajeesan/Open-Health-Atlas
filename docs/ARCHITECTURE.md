@@ -67,6 +67,7 @@ and UI state.
 | Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit legacy-handler wiring and temporary compatibility adapters |
 | CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
 | File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
+| Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -79,15 +80,15 @@ and UI state.
 ## Toolkit command boundaries
 
 `health.py:main` supplies an explicit mapping of unconverted handlers to
-`cli.run`. The CLI registers their arguments alongside the extracted import
-commands, then owns dispatch and error formatting. Other command families remain
+`cli.run`. The CLI registers their arguments alongside the extracted import and
+daily commands, then owns dispatch and error formatting. Other command families remain
 in the facade until their planned extraction.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
 and stable executable path. The facade resolves configuration at invocation.
 Analytical adapters continue using their separate `AdapterContext` contract.
-Import commands receive number parsing, configuration and input streams explicitly.
-None of their source modules imports the facade.
+Commands receive number parsing, configuration, input streams and provider transport
+explicitly where needed. None of their source modules imports the facade.
 
 | Import family | Command owner | Source owner |
 |---|---|---|
@@ -111,6 +112,34 @@ unconverted routine commands. The facade retains compatibility exports for those
 consumers. Quarterly Hevy configuration still resolves once at startup and supplies
 both imports and activation accounting. Shared calculations retain their existing
 owners.
+
+| Daily workflow | Command owner | Shared contract or source owner |
+|---|---|---|
+| Generic observations, day rating, hydration and supplement capture | `commands/daily_capture.py` | `capture_contracts.py`; existing event and trigger authorities |
+| Commitment configuration, logs, checkins and feedback status | `commands/followthrough.py` | `followthrough.py` |
+| Weekday schedules, planned times and timing adherence | `commands/schedules.py` | `schedules.py`, `routine_history.py`; existing calculations |
+| Editable notes, journal append and immutable transcripts | `commands/notes.py` | `vault_notes.py`, `importers/common.py` |
+| Weather, air quality and collector provenance | `commands/collectors.py` | `importers/open_meteo.py`; existing collector-record validation |
+
+Daily commands own database closure and preserve their original commit points.
+Generic-write restrictions and optional capture sources have one owner in
+`capture_contracts.py`. Labs remain outside the generic writer. The exact note
+allowlist and vault path guard live in `vault_notes.py`. Retained food and laboratory
+commands use compatibility aliases to these same contracts.
+
+Schedule history and versioned plan snapshots share the schedule transaction.
+Day-rating milestone triggers and supplement capture links likewise remain atomic
+with their observations. Timing reports use the configured medication aliases and
+existing time calculations. `adherence` remains with the unconverted daily-frame
+coordination until that family moves.
+
+Weather and air commands commit and emit the primary result before separately
+attempting best-effort provenance. A provenance failure cannot undo that result.
+On primary-write failure, the command retains the transaction through the provenance
+attempt, preserving the existing failure path when its separate write lock is
+unavailable. Rollback and closure follow. Explicit `collector-run-record` remains
+strict. Provider normalization receives its transport explicitly and neither writes
+the database nor emits output.
 
 Hevy CSV replaces only rows whose source is `hevy`. An empty export clears that
 history. JSON workout imports retain their separate shrink guard and explicit

@@ -1,0 +1,69 @@
+{
+  "hourly": {
+    "pm10": [
+      0,
+      null,
+      1
+    ],
+    "pm2_5": [
+      0,
+      null,
+      1
+    ],
+    "carbon_monoxide": [
+      0,
+      null,
+      1
+    ],
+    "nitrogen_dioxide": [
+      0,
+      null,
+      1
+    ],
+    "sulphur_dioxide": [
+      0,
+      null,
+      1
+    ],
+    "ozone": [
+      0,
+      null,
+      1
+    ],
+    "european_aqi": [
+      0,
+      null,
+      1
+    ],
+    "alder_pollen": [
+      0,
+      null,
+      1
+    ],
+    "birch_pollen": [
+      0,
+      null,
+      1
+    ],
+    "grass_pollen": [
+      0,
+      null,
+      1
+    ],
+    "mugwort_pollen": [
+      0,
+      null,
+      1
+    ],
+    "olive_pollen": [
+      0,
+      null,
+      1
+    ],
+    "ragweed_pollen": [
+      0,
+      null,
+      1
+    ]
+  }
+}

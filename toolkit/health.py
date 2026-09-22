@@ -14,7 +14,17 @@ from datetime import date, datetime, timedelta, timezone
 
 from hermes_insights import cli as insight_cli
 from hermes_insights.command_context import CommandContext
+from hermes_insights.capture_contracts import (
+    CAPTURE_SOURCES, DAYMAP, LOGGABLE, RATING, UPSERT_DATE_TABLES, capture_source,
+    require_soreness_note as _subjective_daily_has_soreness_note,
+)
+from hermes_insights.followthrough import CHECKIN_KINDS, COMMIT_STATUS
+from hermes_insights.schedules import TIMING_DEFAULT_TOL, WEEKDAYS
+from hermes_insights.vault_notes import EDITABLE_NOTES, vault_write_path
+from hermes_insights.runtime import table_exists as _table_exists
 from hermes_insights.commands import (
+    daily_capture as daily_capture_commands, followthrough as followthrough_commands,
+    schedules as schedule_commands, notes as note_commands, collectors as collector_commands,
     cronometer as cronometer_commands, google_health as google_health_commands,
     hevy as hevy_commands, lab_catalog as lab_catalog_commands,
     recipes as recipe_commands, submuscle_map as submuscle_commands,
@@ -102,28 +112,6 @@ def _require_schema(c, table, *columns):
     """Fail closed without DDL when an explicit migration has not run."""
     insight_migrations.require_table(c, table, tuple(columns))
 
-# ---- tables the coach may write to via `log`, with their allowed columns ----
-LOGGABLE = {
-  "meds_log": ["date","drug","dose_mg","time_taken","onset","peak_window","wear_off","rebound","side_effects","notes"],
-  "vitals": ["date","time","systolic","diastolic","resting_hr","notes"],
-  "body_metrics": ["date","weight_kg","waist_cm","chest_cm","arm_cm","thigh_cm","hip_cm","neck_cm","body_fat_pct","photo_ref","notes"],
-  "subjective_daily": ["date","day_rating","focus","energy","mood","emotional_regulation","anxiety","motivation","stress","caffeine_mg","alcohol_units","brain_dump","notes","soreness_note"],
-  "sleep_log": ["date","bedtime","wake_time","time_asleep_hours","time_in_bed_hours","deep_min","rem_min","light_min","awake_min","quality","awakenings","notes","provenance"],
-  "assessments": ["date","scale","part","score","max_score","subscores","notes"],
-  "habits_log": ["date","habit","done","streak","xp","notes"],
-  # NB: `labs` is deliberately NOT loggable — the labs table is written ONLY by
-  # the validated cited pipeline (lab-ingest/lab-capture against lab_catalog),
-  # never by the generic `log` writer (which does no catalog/plausibility check).
-  "intake": ["date","water_ml","notes"],
-  "supplements_log": ["date","supplement_id","taken","dose_taken","notes"],
-  "skincare_log": ["date","slot","product_id","used","notes"],
-  "supplement_products": ["name","brand","dose","unit","form","schedule","active","notes"],
-  "skincare_products": ["slot","brand","product_name","active_ingredients","active","notes"],
-}
-RATING = {"focus","energy","mood","emotional_regulation","anxiety","motivation","stress","quality"}
-# Loggable tables keyed by a single `date` PK: a second log the same day must
-# UPDATE that day's row, not raise a UNIQUE error (so re-logging mood/water works).
-UPSERT_DATE_TABLES = {"subjective_daily", "intake", "sleep_log"}
 
 # =========================================================== ingestion
 def _ensure_hevy_source(c):
@@ -499,7 +487,6 @@ def last_session(a):
          "sets": [dict(s) for s in sets]})
 
 # =========================================================== program editing
-WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
 def routine_set(a):
@@ -585,24 +572,8 @@ def routine_undo(a):
     out({"ok": True, "undid": {"op": h["op"], "routine": r, "exercise": e}})
 
 def schedule_set(a):
-    """Set a weekday's routine (Mon..Sun -> routine name, or 'Rest'). Journaled
-    to routines_history so `routine-undo` reverses schedule changes too."""
-    if a.weekday not in WEEKDAYS: sys.exit(f"weekday must be one of {', '.join(WEEKDAYS)}")
-    routine = (a.routine or "").strip()
-    if not routine: sys.exit("routine is required (use 'Rest' for a rest day)")
-    c = cx(); _ensure_routines_history(c)
-    prior = c.execute("SELECT routine_name FROM training_schedule WHERE weekday=?", (a.weekday,)).fetchone()
-    # reuse columns: routine_name=weekday, exercise_title=prior routine to restore
-    c.execute("INSERT INTO routines_history(op, routine_name, exercise_title, prior_existed) "
-              "VALUES('schedule',?,?,?)", (a.weekday, prior["routine_name"] if prior else None, 1 if prior else 0))
-    c.execute("INSERT INTO training_schedule(weekday,routine_name) VALUES(?,?) "
-              "ON CONFLICT(weekday) DO UPDATE SET routine_name=excluded.routine_name", (a.weekday, routine))
-    if insight_migrations.recorded_version(c) >= 3:
-        insight_migrations.require_version(c, 3)
-        insight_migrations.append_training_plan_revision(
-            c, effective_from=today(), source="schedule-set")
-    c.commit()
-    out({"ok": True, "weekday": a.weekday, "routine": routine})
+    """Compatibility entry point for the extracted daily command."""
+    out(schedule_commands.schedule_set(_command_context(), a))
 
 def import_recipes(a):
     """Compatibility entry point for the extracted import command."""
@@ -1025,177 +996,23 @@ def menu(a):
     out({"date": a.date or today(), "menu": items})
 
 # =========================================================== generic logging
-def _subjective_daily_has_soreness_note(c):
-    """Require Migration 001's soreness field without running DDL."""
-    _require_schema(c, "subjective_daily", "soreness_note")
-    return True
-
-
-def _validate_supplement_product(data):
-    """Validate the existing generic product-create path before opening the DB."""
-    name = data.get("name", "").strip()
-    if not name:
-        sys.exit("supplement name is required")
-    data["name"] = name
-    for field, maximum in (("name", 300), ("brand", 300), ("unit", 80),
-                           ("form", 100), ("schedule", 300), ("notes", 2000)):
-        value = data.get(field)
-        if value is not None and (len(value) > maximum or "\x00" in value):
-            sys.exit(f"supplement {field} must be at most {maximum} characters without NUL")
-    if "active" in data:
-        if data["active"] not in ("0", "1"):
-            sys.exit("supplement active must be 0 or 1")
-        data["active"] = int(data["active"])
-    if "dose" in data:
-        try:
-            dose = float(data["dose"])
-        except (TypeError, ValueError):
-            sys.exit("supplement dose must be a finite number between 0 and 1000000")
-        if not math.isfinite(dose) or not 0 <= dose <= 1_000_000:
-            sys.exit("supplement dose must be a finite number between 0 and 1000000")
-        if not data.get("unit", "").strip():
-            sys.exit("supplement unit is required when a dose is supplied")
-        data["dose"] = dose
 
 
 def log(a):
-    table = a.table
-    if table not in LOGGABLE: sys.exit(f"not a loggable table. allowed: {', '.join(LOGGABLE)}")
-    allowed = LOGGABLE[table]
-    data = {}
-    for pair in a.fields:
-        if "=" not in pair: sys.exit(f"bad field '{pair}', use key=value")
-        k, v = pair.split("=", 1)
-        if k not in allowed: sys.exit(f"'{k}' not allowed for {table}. allowed: {', '.join(allowed)}")
-        # validate ratings (day_rating is the 1-3 traffic light, others 1-5)
-        if k == "day_rating":
-            iv = int(v)
-            if not 1 <= iv <= 3: sys.exit("day_rating must be 1-3 (red/yellow/green)")
-            data[k] = iv
-        elif k in RATING:
-            iv = int(v)
-            if not 1 <= iv <= 5: sys.exit(f"{k} must be 1-5")
-            data[k] = iv
-        else:
-            data[k] = v
-    if "date" in allowed and "date" not in data: data["date"] = today()
-    if table == "supplement_products":
-        _validate_supplement_product(data)
-    c = cx()
-    # The generic writer may use, but never create, the migration-owned field.
-    if table == "subjective_daily":
-        _subjective_daily_has_soreness_note(c)
-    cols = ",".join(data); ph = ",".join("?" * len(data))
-    sql = f"INSERT INTO {table}({cols}) VALUES({ph})"
-    if table in UPSERT_DATE_TABLES and "date" in data:
-        # Re-logging the same day updates that day's row instead of erroring.
-        upd = ",".join(f"{k}=excluded.{k}" for k in data if k != "date")
-        sql += f" ON CONFLICT(date) DO UPDATE SET {upd}" if upd else " ON CONFLICT(date) DO NOTHING"
-    c.execute(sql, list(data.values()))
-    phase2_applied = insight_migrations.recorded_version(c) >= 2
-    if table == "meds_log" and phase2_applied:
-        key, _ = insight_events.resolve_identity(c, "medication", data.get("drug"))
-        insight_events.invalidate_explicit_none(
-            c, data.get("date", today()), "medication", key, "manual", None,
-        )
-    elif table == "supplements_log" and phase2_applied:
-        product = c.execute(
-            "SELECT name FROM supplement_products WHERE supplement_id=?",
-            (data.get("supplement_id"),),
-        ).fetchone()
-        key, _ = insight_events.resolve_identity(
-            c, "supplement", product["name"] if product else None)
-        insight_events.invalidate_explicit_none(
-            c, data.get("date", today()), "supplement", key, "manual", None,
-        )
-    c.commit()
-    out({"ok": True, "table": table, "inserted": data})
+    """Compatibility entry point for the extracted daily command."""
+    out(daily_capture_commands.log(_command_context(), a))
 
 def water_add(a):
-    """§4c frictionless water capture: ADD ml to today's intake.water_ml —
-    the Telegram preset taps (+250 / +500 / +bottle) land here. Incremental
-    by design: `log intake water_ml=X` REPLACES the day's value (upsert), which
-    is wrong for taps that must accumulate. Deliberately NOT in the bridge
-    allowlists (capture is Telegram/agent-path only, like fitness-test-log).
-    Echoes the running total vs target so the coach can confirm in one line.
-    Preset mapping is a generic interface convenience, not a personal target."""
-    ml = int(a.ml)
-    if not 1 <= ml <= 3000:
-        sys.exit("ml must be 1-3000 per tap (a bottle is a few hundred ml)")
-    d = valid_date(a.date) if a.date else today()
-    c = cx()
-    c.execute("""INSERT INTO intake(date, water_ml) VALUES(?,?)
-                 ON CONFLICT(date) DO UPDATE SET
-                   water_ml = COALESCE(intake.water_ml, 0) + excluded.water_ml""",
-              (d, ml))
-    c.commit()
-    total = c.execute("SELECT water_ml FROM intake WHERE date=?", (d,)).fetchone()["water_ml"]
-    out({"ok": True, "date": d, "added_ml": ml, "total_ml": total,
-         "target_ml": WATER_TARGET_ML,
-         "pct_of_target": round(100 * total / WATER_TARGET_ML)})
+    """Compatibility entry point for the extracted daily command."""
+    out(daily_capture_commands.water_add(_command_context(), a, water_target_ml=WATER_TARGET_ML))
 
-
-DAYMAP = {"red":1,"yellow":2,"green":3,"bad":1,"okay":2,"ok":2,"good":3,"1":1,"2":2,"3":3}
-# Optional provenance for owner-entered measurements. The legacy defaults
-# (manual/ui/chat) remain valid only so old calls and old rows keep their exact
-# behavior; trusted new surfaces use the three explicit *-panel/telegram tags.
-# `scheduler` is intentionally absent: a timer may ask, but it may never invent
-# an owner measurement.
-CAPTURE_SOURCES = {"manual", "ui", "chat", "chat-panel", "chat-telegram", "panel-ui"}
 
 def _capture_source(a):
-    source = getattr(a, "source", None)
-    if source is not None and source not in CAPTURE_SOURCES:
-        sys.exit(f"--source must be one of: {', '.join(sorted(CAPTURE_SOURCES))}")
-    return source
+    return capture_source(getattr(a, "source", None))
 
 def day_rating(a):
-    """One-tap end-of-day traffic light: green(3)/yellow(2)/red(1). The never-skip minimum capture."""
-    v = DAYMAP.get(str(a.rating).lower())
-    if v is None: sys.exit("rating must be green | yellow | red")
-    d = valid_date(a.date) if a.date else today()
-    source = _capture_source(a)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        existed = c.execute(
-            "SELECT 1 FROM subjective_daily WHERE date=? AND day_rating IS NOT NULL",
-            (d,),
-        ).fetchone() is not None
-        if source is None:
-            # Preserve the pre-Phase-1 SQL/default and response shape byte-for-byte.
-            c.execute("""INSERT INTO subjective_daily(date, day_rating) VALUES(?,?)
-                         ON CONFLICT(date) DO UPDATE SET day_rating=excluded.day_rating""", (d, v))
-        else:
-            c.execute("""INSERT INTO subjective_daily(date, day_rating, source) VALUES(?,?,?)
-                         ON CONFLICT(date) DO UPDATE SET
-                           day_rating=excluded.day_rating, source=excluded.source""",
-                      (d, v, source))
-        if not existed and insight_migrations.recorded_version(c) >= 4:
-            count = int(c.execute(
-                "SELECT COUNT(*) FROM subjective_daily WHERE day_rating IS NOT NULL"
-            ).fetchone()[0])
-            # The frozen statistical eligibility floor is 30; every new block
-            # of 30 observations is a deterministic count milestone.
-            if count >= 30 and count % 30 == 0:
-                insight_orchestrator.enqueue_internal_trigger(
-                    c,
-                    trigger_kind="outcome_milestone",
-                    source_table="subjective_daily",
-                    source_row_key=f"day_rating_count_{count}",
-                    event_date=d,
-                )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    result = {"ok": True, "date": d, "day_rating": v,
-              "meaning": {1:"red (bad day)",2:"yellow (okay day)",3:"green (good day)"}[v]}
-    if source is not None:
-        result["source"] = source
-    out(result)
+    """Compatibility entry point for the extracted daily command."""
+    out(daily_capture_commands.day_rating(_command_context(), a))
 
 # =========================================================== read
 SAFE = re.compile(r"^\s*SELECT\b", re.I)
@@ -1244,11 +1061,6 @@ def bp_brief(a):
          "vitals": vitals, "doses": doses})
 
 # =========================================================== vault notes
-# The ONLY vault Markdown files the panel may overwrite. An exact-match
-# whitelist (no globbing, no '..') is the whole safety boundary — CLAUDE.md,
-# health.py, the DB, wiki/, daily entries, etc. are all unreachable.
-EDITABLE_NOTES = {"personal/plan.md", "personal/habits.md",
-                  "personal/profile.md", "personal/goals.md"}
 
 
 def _vault_root():
@@ -1256,25 +1068,8 @@ def _vault_root():
 
 
 def write_note(a):
-    """Overwrite a whitelisted vault Markdown note with content read from stdin.
-    Atomic (temp + rename). Content is freeform text — never executed."""
-    rel = (a.path or "").strip()
-    if rel not in EDITABLE_NOTES:
-        sys.exit(f"not an editable note: {rel}")
-    content = sys.stdin.read()
-    if len(content) > 500_000:
-        sys.exit("note too large (>500k)")
-    vault = _vault_root()
-    target = os.path.join(vault, rel)
-    # Defense in depth: the resolved path must still live inside the vault.
-    if os.path.commonpath([os.path.abspath(target), vault]) != vault:
-        sys.exit("path escapes the vault")
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(content)
-    os.replace(tmp, target)
-    out({"ok": True, "wrote": rel, "bytes": len(content)})
+    """Compatibility entry point for the extracted daily command."""
+    out(note_commands.write_note(_command_context(), a, stdin=sys.stdin))
 
 # =========================================================== §6 qualitative
 # Raw text is PRESERVED VERBATIM before any extraction (vault law: raw/ is
@@ -1283,19 +1078,7 @@ def write_note(a):
 # Neither command below is in the bridge allowlists (Telegram/agent path only).
 
 def _vault_write_path(rel_dir, filename):
-    """Resolve <vault>/<rel_dir>/<filename> with the write-note escape guard.
-    filename is a single validated component — never a path. Must START with
-    an alphanumeric: an empty audio name would otherwise yield the hidden
-    file '.txt', and a leading '-' reads as a flag everywhere else."""
-    if (not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$", filename or "")
-            or ".." in filename):
-        sys.exit(f"bad filename: {filename!r} (letters, digits, . _ - only; "
-                 "must start with a letter or digit)")
-    vault = _vault_root()
-    target = os.path.abspath(os.path.join(vault, rel_dir, filename))
-    if os.path.commonpath([target, vault]) != vault:
-        sys.exit("path escapes the vault")
-    return target
+    return vault_write_path(_vault_root(), rel_dir, filename)
 
 
 def _stdin_text(what):
@@ -1304,39 +1087,13 @@ def _stdin_text(what):
 
 
 def journal_capture(a):
-    """§6 typed status: stdin lands VERBATIM in raw/journal/YYYY-MM-DD.md.
-    Append-only — same-day entries stack under '## HH:MM' separators, nothing
-    is ever overwritten. The agent extracts fields AFTERWARDS via the
-    validated `log subjective_daily` path (raw survives any extraction bug)."""
-    content = _stdin_text("journal entry")
-    d = valid_date(a.date) if a.date else today()
-    t = a.time or _now().strftime("%H:%M")
-    if _hhmm_min(t) is None:
-        sys.exit("--time must be HH:MM")
-    target = _vault_write_path("raw/journal", f"{d}.md")
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    new_file = not os.path.exists(target)
-    with open(target, "a", encoding="utf-8") as f:
-        if new_file:
-            f.write(f"# Journal {d}\n")
-        f.write(f"\n## {t}\n\n{content.rstrip()}\n")
-    out({"ok": True, "file": f"raw/journal/{d}.md", "date": d, "time": t,
-         "bytes": len(content), "created": new_file})
+    """Compatibility entry point for the extracted daily command."""
+    out(note_commands.journal_capture(_command_context(), a, stdin=sys.stdin))
 
 
 def transcript_capture(a):
-    """§6 voice memo: the whisper.cpp transcript (stdin) lands next to its
-    audio as raw/voice/<audio>.txt — verbatim, refuse-on-exists (raw/ is
-    immutable; a re-run must pick a new name, never silently replace)."""
-    content = _stdin_text("transcript")
-    target = _vault_write_path("raw/voice", f"{a.audio}.txt")
-    if os.path.exists(target):
-        sys.exit(f"raw/voice/{a.audio}.txt already exists — raw files are "
-                 "immutable; save a re-transcription under a new name")
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    with open(target, "x", encoding="utf-8") as f:
-        f.write(content)
-    out({"ok": True, "file": f"raw/voice/{a.audio}.txt", "bytes": len(content)})
+    """Compatibility entry point for the extracted daily command."""
+    out(note_commands.transcript_capture(_command_context(), a, stdin=sys.stdin))
 
 
 def schema(a):
@@ -1350,192 +1107,22 @@ def schema(a):
     out({"tables_and_views": {t: [r[1] for r in c.execute(f"PRAGMA table_info('{t}')")] for t in known}})
 
 # =========================================================== weather
-WMO = {0:"clear",1:"mainly clear",2:"partly cloudy",3:"overcast",45:"fog",48:"rime fog",
-       51:"light drizzle",53:"drizzle",55:"dense drizzle",56:"freezing drizzle",57:"freezing drizzle",
-       61:"light rain",63:"rain",65:"heavy rain",66:"freezing rain",67:"freezing rain",
-       71:"light snow",73:"snow",75:"heavy snow",77:"snow grains",80:"rain showers",81:"rain showers",
-       82:"violent showers",85:"snow showers",86:"snow showers",95:"thunderstorm",96:"thunderstorm+hail",99:"thunderstorm+hail"}
-WEATHER_PROVIDER_FIELDS = {
-    "weather_code", "temp_max_c", "temp_min_c", "feels_like_max_c",
-    "feels_like_min_c", "precipitation_mm", "rain_mm", "snowfall_cm",
-    "precipitation_hours", "wind_speed_max_ms", "wind_gusts_max_ms",
-    "wind_dir_deg", "sunrise", "sunset", "daylight_hours", "sunshine_hours",
-    "uv_index_max", "uv_index_clear_sky_max", "solar_radiation_mj", "et0_mm",
-    "humidity_mean_pct", "pressure_mean_hpa", "cloud_cover_mean_pct",
-}
-AIR_PROVIDER_FIELDS = {
-    "european_aqi_mean", "european_aqi_max", "pm2_5_ugm3", "pm10_ugm3",
-    "ozone_ugm3", "no2_ugm3", "so2_ugm3", "co_ugm3", "alder_pollen",
-    "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen",
-    "ragweed_pollen",
-}
 
 
-def _missing_provider_fields(row, expected):
-    return sorted(field for field in expected if row.get(field) is None)
-
-def _fetch_weather_impl(a):
+def _open_collector_url(url, *, timeout):
+    # Keep HTTP initialization off unrelated CLI startup paths.
     import urllib.request
-    d = a.date or today()
-    daily = ("weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,"
-             "sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,uv_index_clear_sky_max,"
-             "precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,wind_speed_10m_max,wind_gusts_10m_max,"
-             "wind_direction_10m_dominant,shortwave_radiation_sum,et0_fao_evapotranspiration")
-    hourly = "relative_humidity_2m,surface_pressure,cloud_cover"
-    url = ("https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&daily=%s&hourly=%s"
-           "&timezone=auto&temperature_unit=celsius&wind_speed_unit=ms&precipitation_unit=mm"
-           "&start_date=%s&end_date=%s" % (a.lat, a.lon, daily, hourly, d, d))
-    with urllib.request.urlopen(url, timeout=25) as r:
-        j = json.load(r)
-    dl = j["daily"]; hh = j.get("hourly", {})
-    def g(k):
-        v = dl.get(k); return v[0] if v else None
-    def hrs(k):
-        v = g(k); return round(v/3600, 2) if v is not None else None
-    def mean(k):
-        vals = [x for x in hh.get(k, []) if x is not None]
-        return round(sum(vals)/len(vals), 1) if vals else None
-    cond = WMO.get(g("weather_code"), str(g("weather_code")))
-    row = {
-        "date": d, "location": a.location, "weather_code": g("weather_code"), "condition": cond,
-        "temp_max_c": g("temperature_2m_max"), "temp_min_c": g("temperature_2m_min"),
-        "feels_like_max_c": g("apparent_temperature_max"), "feels_like_min_c": g("apparent_temperature_min"),
-        "precipitation_mm": g("precipitation_sum"), "rain_mm": g("rain_sum"), "snowfall_cm": g("snowfall_sum"),
-        "precipitation_hours": g("precipitation_hours"),
-        "wind_speed_max_ms": g("wind_speed_10m_max"), "wind_gusts_max_ms": g("wind_gusts_10m_max"),
-        "wind_dir_deg": g("wind_direction_10m_dominant"),
-        "sunrise": g("sunrise"), "sunset": g("sunset"),
-        "daylight_hours": hrs("daylight_duration"), "sunshine_hours": hrs("sunshine_duration"),
-        "uv_index_max": g("uv_index_max"), "uv_index_clear_sky_max": g("uv_index_clear_sky_max"),
-        "solar_radiation_mj": g("shortwave_radiation_sum"), "et0_mm": g("et0_fao_evapotranspiration"),
-        "humidity_mean_pct": mean("relative_humidity_2m"), "pressure_mean_hpa": mean("surface_pressure"),
-        "cloud_cover_mean_pct": mean("cloud_cover"), "source": "open-meteo",
-    }
-    cols = ",".join(row); ph = ",".join("?" * len(row))
-    c = cx(); c.execute(f"INSERT OR REPLACE INTO weather({cols}) VALUES({ph})", list(row.values())); c.commit()
-    result = {"ok": True, "date": d, "location": a.location, "condition": cond,
-         "temp_max_c": row["temp_max_c"], "feels_like_max_c": row["feels_like_max_c"],
-         "sunshine_hours": row["sunshine_hours"], "daylight_hours": row["daylight_hours"],
-         "uv_index_max": row["uv_index_max"], "wind_speed_max_ms": row["wind_speed_max_ms"],
-         "collected_fields": len(row)}
-    out(result)
-    return result, _missing_provider_fields(row, WEATHER_PROVIDER_FIELDS)
-
-def _fetch_air_impl(a):
-    """Air quality + pollen (Open-Meteo Air Quality API, hourly -> daily mean/max). All metric (ug/m3, grains/m3)."""
-    import urllib.request
-    d = a.date or today()
-    hourly = ("pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,european_aqi,"
-              "alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen")
-    url = ("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%s&longitude=%s&hourly=%s"
-           "&timezone=auto&start_date=%s&end_date=%s" % (a.lat, a.lon, hourly, d, d))
-    with urllib.request.urlopen(url, timeout=25) as r:
-        j = json.load(r)
-    hh = j.get("hourly", {})
-    def mean(k):
-        v = [x for x in hh.get(k, []) if x is not None]; return round(sum(v)/len(v), 1) if v else None
-    def mx(k):
-        v = [x for x in hh.get(k, []) if x is not None]; return round(max(v), 1) if v else None
-    row = {
-        "date": d, "location": a.location,
-        "european_aqi_mean": mean("european_aqi"), "european_aqi_max": mx("european_aqi"),
-        "pm2_5_ugm3": mean("pm2_5"), "pm10_ugm3": mean("pm10"), "ozone_ugm3": mean("ozone"),
-        "no2_ugm3": mean("nitrogen_dioxide"), "so2_ugm3": mean("sulphur_dioxide"), "co_ugm3": mean("carbon_monoxide"),
-        "alder_pollen": mean("alder_pollen"), "birch_pollen": mean("birch_pollen"), "grass_pollen": mean("grass_pollen"),
-        "mugwort_pollen": mean("mugwort_pollen"), "olive_pollen": mean("olive_pollen"), "ragweed_pollen": mean("ragweed_pollen"),
-        "source": "open-meteo-aqi",
-    }
-    cols = ",".join(row); ph = ",".join("?" * len(row))
-    c = cx(); c.execute(f"INSERT OR REPLACE INTO air_quality({cols}) VALUES({ph})", list(row.values())); c.commit()
-    result = {"ok": True, "date": d, "european_aqi_mean": row["european_aqi_mean"], "european_aqi_max": row["european_aqi_max"],
-         "pm2_5_ugm3": row["pm2_5_ugm3"], "grass_pollen": row["grass_pollen"], "birch_pollen": row["birch_pollen"],
-         "collected_fields": len(row)}
-    out(result)
-    return result, _missing_provider_fields(row, AIR_PROVIDER_FIELDS)
-
-
-def _best_effort_collector_record(payload):
-    """Record operational provenance without changing a collector's truth.
-
-    During package-before-migration deployment, or if provenance recording has
-    its own incident, the primary collection result remains authoritative.
-    """
-    try:
-        insight_goals.validate_collector_run(payload)
-        c = cx()
-        try:
-            c.execute("BEGIN IMMEDIATE")
-            insight_migrations.require_version(c, 3)
-            insight_goals.record_collector_run(c, payload)
-            c.commit()
-        except Exception:
-            c.rollback()
-            raise
-        finally:
-            c.close()
-    except Exception:
-        return False
-    return True
-
-
-def _collector_coverage_date(value):
-    try:
-        return insight_events.iso_date(value, "date")
-    except insight_events.CaptureError:
-        return None
-
-
-def _direct_collector_payload(source, started_at, status, coverage_date,
-                              *, rows_seen, rows_written, error_code=None,
-                              warning_codes=()):
-    return {
-        "source": source,
-        "started_at": started_at,
-        "completed_at": _now().isoformat(),
-        "status": status,
-        "coverage_from": coverage_date,
-        "coverage_to": coverage_date,
-        "rows_seen": rows_seen,
-        "rows_written": rows_written,
-        "error_code": error_code,
-        "warning_codes": list(warning_codes),
-    }
+    return urllib.request.urlopen(url, timeout=timeout)
 
 
 def fetch_weather(a):
-    started = _now().isoformat()
-    coverage = _collector_coverage_date(a.date or today())
-    try:
-        result, missing = _fetch_weather_impl(a)
-    except Exception:
-        _best_effort_collector_record(_direct_collector_payload(
-            "weather", started, "failed", coverage,
-            rows_seen=0, rows_written=0, error_code="collection_failed"))
-        raise
-    status = "partial" if missing else "success"
-    warnings = ("missing_provider_fields",) if missing else ()
-    _best_effort_collector_record(_direct_collector_payload(
-        "weather", started, status, coverage,
-        rows_seen=1, rows_written=1, warning_codes=warnings))
-    return result
+    """Compatibility entry point for the extracted collector command."""
+    return collector_commands.fetch_weather(_command_context(), a, open_url=_open_collector_url, output=out)
 
 
 def fetch_air(a):
-    started = _now().isoformat()
-    coverage = _collector_coverage_date(a.date or today())
-    try:
-        result, missing = _fetch_air_impl(a)
-    except Exception:
-        _best_effort_collector_record(_direct_collector_payload(
-            "air", started, "failed", coverage,
-            rows_seen=0, rows_written=0, error_code="collection_failed"))
-        raise
-    status = "partial" if missing else "success"
-    warnings = ("missing_provider_fields",) if missing else ()
-    _best_effort_collector_record(_direct_collector_payload(
-        "air", started, status, coverage,
-        rows_seen=1, rows_written=1, warning_codes=warnings))
-    return result
+    """Compatibility entry point for the extracted collector command."""
+    return collector_commands.fetch_air(_command_context(), a, open_url=_open_collector_url, output=out)
 
 # =========================================================== follow-through
 # The self-integrity layer: "did I keep my word to myself today?" Commitments
@@ -1544,195 +1131,27 @@ def fetch_air(a):
 # whole-day one-tap uses commitment_id=0. checkins are timed 1-5 spot readings
 # (energy/focus/mood) so dose-timing effects become correlatable within a day.
 
-COMMIT_STATUS = {"kept", "partly", "broke"}
-CHECKIN_KINDS = {"energy", "focus", "mood"}
-
-def _ensure_followthrough(c):
-    """Require migration-owned follow-through tables without DDL."""
-    _require_schema(c, "commitments")
-    _require_schema(c, "commitments_log")
-    _require_schema(c, "checkins")
 
 def commitment_set(a):
-    """Create or edit a commitment (upsert by name; config, not logged data)."""
-    name = (a.name or "").strip()
-    if not name: sys.exit("name is required")
-    if a.active is not None and a.active not in (0, 1): sys.exit("--active must be 0 or 1")
-    c = cx(); _ensure_followthrough(c)
-    prior = c.execute("SELECT * FROM commitments WHERE name=?", (name,)).fetchone()
-    if prior:
-        vals = {f: getattr(a, f) if getattr(a, f) is not None else prior[f]
-                for f in ("identity", "trigger", "floor", "reward", "active")}
-        c.execute("UPDATE commitments SET identity=?,trigger=?,floor=?,reward=?,active=? "
-                  "WHERE name=?", (*vals.values(), name))
-    else:
-        c.execute("INSERT INTO commitments(name,identity,trigger,floor,reward,active,created) "
-                  "VALUES(?,?,?,?,?,?,?)",
-                  (name, a.identity, a.trigger, a.floor, a.reward,
-                   a.active if a.active is not None else 1, today()))
-    c.commit()
-    row = c.execute("SELECT * FROM commitments WHERE name=?", (name,)).fetchone()
-    out({"ok": True, "was_new": prior is None, "commitment": dict(row)})
+    """Compatibility entry point for the extracted daily command."""
+    out(followthrough_commands.commitment_set(_command_context(), a))
 
 def commitment_list(a):
-    c = cx(); _ensure_followthrough(c)
-    q = "SELECT * FROM commitments" + ("" if a.all else " WHERE active=1") + " ORDER BY id"
-    out({"commitments": [dict(r) for r in c.execute(q)]})
+    """Compatibility entry point for the extracted daily command."""
+    out(followthrough_commands.commitment_list(_command_context(), a))
 
 def log_commitment(a):
-    """Nightly kept/partly/broke. Without --id it's the whole-day 'did I keep
-    my word?' one-tap; with --id it scores one commitment. Re-logging the same
-    day updates (never duplicates, never deletes)."""
-    status = (a.status or "").strip().lower()
-    if status not in COMMIT_STATUS:
-        sys.exit("status must be kept | partly | broke")
-    source = _capture_source(a)
-    c = cx(); _ensure_followthrough(c)
-    cid = a.id or 0
-    name = None
-    if cid:
-        row = c.execute("SELECT name FROM commitments WHERE id=?", (cid,)).fetchone()
-        if not row: sys.exit(f"no commitment with id {cid}")
-        name = row["name"]
-    d = valid_date(a.date) if a.date else today()
-    # On re-log: a new why always wins; the old why survives only if the status
-    # is unchanged — a "broke" excuse must never annotate a later "kept" (review).
-    if source is None:
-        c.execute("""INSERT INTO commitments_log(date, commitment_id, status, why)
-                     VALUES(?,?,?,?) ON CONFLICT(date, commitment_id)
-                     DO UPDATE SET status=excluded.status,
-                       why=CASE WHEN excluded.why IS NOT NULL THEN excluded.why
-                                WHEN commitments_log.status=excluded.status THEN commitments_log.why
-                                ELSE NULL END""",
-                  (d, cid, status, a.why))
-    else:
-        c.execute("""INSERT INTO commitments_log(date, commitment_id, status, why, source)
-                     VALUES(?,?,?,?,?) ON CONFLICT(date, commitment_id)
-                     DO UPDATE SET status=excluded.status, source=excluded.source,
-                       why=CASE WHEN excluded.why IS NOT NULL THEN excluded.why
-                                WHEN commitments_log.status=excluded.status THEN commitments_log.why
-                                ELSE NULL END""",
-                  (d, cid, status, a.why, source))
-    c.commit()
-    result = {"ok": True, "date": d, "scope": name or "whole-day", "status": status,
-              "why": a.why}
-    if source is not None:
-        result["source"] = source
-    out(result)
+    """Compatibility entry point for the extracted daily command."""
+    out(followthrough_commands.log_commitment(_command_context(), a))
 
 def checkin(a):
-    """Timed 1-5 spot reading (energy/focus/mood) — makes within-day timing
-    effects (dose onset/peak/wear-off) correlatable."""
-    kind = (a.kind or "").strip().lower()
-    if kind not in CHECKIN_KINDS: sys.exit("kind must be energy | focus | mood")
-    if not 1 <= a.value <= 5: sys.exit("value must be 1-5")
-    t = a.time or _now().strftime("%H:%M")
-    if _hhmm_min(t) is None: sys.exit("--time must be HH:MM")
-    d = valid_date(a.date) if a.date else today()
-    source = _capture_source(a)
-    c = cx(); _ensure_followthrough(c)
-    if source is None:
-        c.execute("INSERT INTO checkins(date, time, kind, value, note) VALUES(?,?,?,?,?)",
-                  (d, t, kind, a.value, a.note))
-    else:
-        c.execute("INSERT INTO checkins(date, time, kind, value, note, source) VALUES(?,?,?,?,?,?)",
-                  (d, t, kind, a.value, a.note, source))
-    c.commit()
-    result = {"ok": True, "date": d, "time": t, "kind": kind, "value": a.value}
-    if source is not None:
-        result["source"] = source
-    out(result)
+    """Compatibility entry point for the extracted daily command."""
+    out(followthrough_commands.checkin(_command_context(), a))
 
 
 def feedback_status(a):
-    """Read-only evening-feedback completeness for one configured timezone date.
-
-    Silence is never converted into an answer. Energy/focus stay in the
-    existing daytime pings; the evening prompt asks only for a missing day
-    rating, whole-day word, mood, and at most two still-positive recent pain
-    regions without an observation today.
-    """
-    try:
-        d = valid_date(a.date)
-    except SystemExit as exc:
-        out({"ok": False, "error": {"code": "validation_error", "message": str(exc)}})
-        raise SystemExit(2)
-    requested = date.fromisoformat(d)
-    cutoff = (requested - timedelta(days=13)).isoformat()  # 14 inclusive dates
-    c = cx_ro()
-
-    rating = None
-    if _table_exists(c, "subjective_daily"):
-        rating = c.execute(
-            "SELECT day_rating FROM subjective_daily WHERE date=?", (d,)).fetchone()
-    rating_value = rating["day_rating"] if rating else None
-    day_state = {"present": rating_value in (1, 2, 3), "value": rating_value}
-
-    word = None
-    if _table_exists(c, "commitments_log"):
-        word = c.execute(
-            "SELECT status FROM commitments_log WHERE date=? AND commitment_id=0",
-            (d,)).fetchone()
-    word_value = word["status"] if word else None
-    word_state = {"present": word_value in COMMIT_STATUS, "value": word_value}
-
-    missing_commitments = []
-    if _table_exists(c, "commitments"):
-        if _table_exists(c, "commitments_log"):
-            missing_commitments = [dict(r) for r in c.execute(
-                """SELECT cm.id, cm.name FROM commitments cm
-                   LEFT JOIN commitments_log cl
-                     ON cl.commitment_id=cm.id AND cl.date=?
-                   WHERE cm.active=1 AND cl.id IS NULL ORDER BY cm.id""", (d,))]
-        else:
-            missing_commitments = [dict(r) for r in c.execute(
-                "SELECT id, name FROM commitments WHERE active=1 ORDER BY id")]
-
-    checkin_states = {}
-    for kind in ("energy", "focus", "mood"):
-        rows = []
-        if _table_exists(c, "checkins"):
-            rows = c.execute(
-                """SELECT time, value FROM checkins
-                   WHERE date=? AND kind=? ORDER BY time, id""", (d, kind)).fetchall()
-        latest = rows[-1] if rows else None
-        checkin_states[kind] = {
-            "count": len(rows),
-            "latest_time": latest["time"] if latest else None,
-            "latest_value": latest["value"] if latest else None,
-            "missing_today": latest is None,
-        }
-
-    latest_pain = {}
-    if _table_exists(c, "pain_log"):
-        for row in c.execute(
-                """SELECT id, date, region, side, intensity FROM pain_log
-                   WHERE voided=0 AND date>=? AND date<=?
-                   ORDER BY date, id""", (cutoff, d)):
-            latest_pain[(row["region"], row["side"])] = row
-    due = [{"region": key[0], "side": key[1],
-            "latest_intensity": row["intensity"], "latest_date": row["date"]}
-           for key, row in latest_pain.items()
-           if row["date"] != d and row["intensity"] is not None and row["intensity"] > 0]
-    due.sort(key=lambda item: (-item["latest_intensity"], -date.fromisoformat(
-        item["latest_date"]).toordinal(), item["region"], item["side"]))
-    due = due[:2]
-
-    prompt_fields = []
-    if not day_state["present"]:
-        prompt_fields.append("day_rating")
-    if not word_state["present"]:
-        prompt_fields.append("whole_day_word")
-    if checkin_states["mood"]["missing_today"]:
-        prompt_fields.append("mood")
-    if due:
-        prompt_fields.append("pain_change")
-    out({"ok": True, "date": d, "day_rating": day_state,
-         "whole_day_word": word_state,
-         "active_commitments_missing_log": missing_commitments,
-         "checkins": checkin_states, "pain_followup_due": due,
-         "prompt_fields": prompt_fields,
-         "complete_for_prompt": not prompt_fields})
+    """Compatibility entry point for the extracted daily command."""
+    out(followthrough_commands.feedback_status(_command_context(), a, output=out))
 
 # conditions contrasted between kept and broken days by `adherence`
 CONDITION_FIELDS = ("medication_dose_mg", "medication_first_dose_min", "sleep_hours",
@@ -1807,36 +1226,11 @@ def adherence(a):
              f"insufficient data (need >= 3 kept AND >= 3 broke days; have {len(kept_d)}/{len(broke_d)})"})
 
 # =========================================================== §4b timing adherence
-# Default tolerance windows (minutes) — owner-configurable per metric via
-# planned-time-set. Generous BY DESIGN (no-guilt margins, redesign brief §9f):
-# on-time rewards the rhythm; a 10-minute slip still counts as kept.
-TIMING_DEFAULT_TOL = {"wake": 30, "bed": 30, "workout": 60, "dose": 30}
-
-
-def _ensure_planned_times(c):
-    """Require migration-owned planned-time config without DDL."""
-    _require_schema(c, "planned_times")
 
 
 def planned_time_set(a):
-    """Set/replace the user's planned time (+ tolerance) for one §4b metric.
-    Config command — NOT in the bridge allowlists (agent/SSH path only)."""
-    metric = (a.metric or "").strip().lower()
-    if metric not in TIMING_DEFAULT_TOL:
-        sys.exit(f"metric must be one of: {', '.join(TIMING_DEFAULT_TOL)}")
-    if _hhmm_min(a.time) is None:
-        sys.exit("time must be HH:MM (24h)")
-    tol = a.tolerance if a.tolerance is not None else TIMING_DEFAULT_TOL[metric]
-    if not 5 <= tol <= 240:
-        sys.exit("--tolerance must be 5-240 minutes")
-    c = cx(); _ensure_planned_times(c)
-    c.execute("""INSERT INTO planned_times(metric, planned, tolerance_min, updated)
-        VALUES(?,?,?,datetime('now'))
-        ON CONFLICT(metric) DO UPDATE SET planned=excluded.planned,
-          tolerance_min=excluded.tolerance_min, updated=datetime('now')""",
-        (metric, a.time.strip(), tol))
-    c.commit()
-    out({"ok": True, "metric": metric, "planned": a.time.strip(), "tolerance_min": tol})
+    """Compatibility entry point for the extracted daily command."""
+    out(schedule_commands.planned_time_set(_command_context(), a))
 
 
 def _circ_diff_min(a_min, b_min):
@@ -1848,126 +1242,9 @@ def _start_hhmm(s):
 
 
 def timing_adherence(a):
-    """§4b: done AND on time. A task is 'on time' when its actual time falls
-    within the metric's tolerance window of the user's planned time; the
-    report carries BOTH the done-rate and the on-time-rate, plus an on-time
-    streak per metric. Complete days only (today is still in progress).
-    Actuals: wake/bed <- sleep_log, first configured medication dose <- meds_log, workout start
-    <- hevy_sets (only weekdays scheduled non-Rest count as expected).
-    insufficient_data wherever a plan or the actuals are missing — and the
-    margins are generous on purpose (no-guilt): a small slip still counts."""
-    c = cx(); _ensure_planned_times(c)
-    days = max(int(a.days), 7)
-    end = date.fromisoformat(today()) - timedelta(days=1)       # complete days only
-    start = end - timedelta(days=days - 1)
-    dates = [(start + timedelta(days=i)).isoformat() for i in range(days)]
-    lo = dates[0]
-    plans = {r["metric"]: r for r in c.execute("SELECT * FROM planned_times")}
-
-    def gather(metric):
-        """{date: minutes-from-midnight} of actuals + unparseable count."""
-        actuals, unparsed = {}, 0
-        if metric in ("wake", "bed") and _table_exists(c, "sleep_log"):
-            col = "wake_time" if metric == "wake" else "bedtime"
-            for r in c.execute(f"SELECT date, {col} v FROM sleep_log "
-                               f"WHERE date>=? AND {col} IS NOT NULL", (lo,)):
-                v = _hhmm_min(r["v"])
-                if v is None:
-                    unparsed += 1
-                else:
-                    actuals[r["date"]] = v
-        elif metric == "dose" and _table_exists(c, "meds_log"):
-            ph = ",".join("?" * len(MEDICATION_ALIASES))
-            per = {}
-            for r in c.execute(f"SELECT date, time_taken v FROM meds_log "
-                               f"WHERE LOWER(drug) IN ({ph}) AND date>=? "
-                               f"AND time_taken IS NOT NULL", (*sorted(MEDICATION_ALIASES), lo)):
-                v = _hhmm_min(r["v"])           # min() in MINUTES — '8:00' vs '12:30'
-                if v is None:                   # sorts wrong as text
-                    unparsed += 1
-                elif r["date"] not in per or v < per[r["date"]]:
-                    per[r["date"]] = v
-            actuals = per
-        elif metric == "workout" and _table_exists(c, "hevy_sets"):
-            per = {}
-            for r in c.execute("""SELECT date, MIN(start_time) v FROM hevy_sets
-                WHERE date>=? AND COALESCE(set_type,'normal')!='warmup'
-                GROUP BY date""", (lo,)):
-                v = _start_hhmm(r["v"])
-                if v is None:
-                    per[r["date"]] = None       # trained, but no usable time
-                    unparsed += 1
-                else:
-                    per[r["date"]] = _hhmm_min(v)
-            actuals = per
-        return actuals, unparsed
-
-    # workout is only EXPECTED on scheduled (non-Rest) weekdays
-    sched_days = set()
-    if _table_exists(c, "training_schedule"):
-        sched_days = {r["weekday"] for r in c.execute(
-            "SELECT weekday, routine_name FROM training_schedule")
-            if (r["routine_name"] or "Rest") != "Rest"}
-
-    metrics = {}
-    for metric in ("wake", "bed", "workout", "dose"):
-        plan = plans.get(metric)
-        if plan is None:
-            metrics[metric] = {"status": "insufficient_data",
-                               "reason": "no planned time set (planned-time-set)",
-                               "default_tolerance_min": TIMING_DEFAULT_TOL[metric]}
-            continue
-        planned_min = _hhmm_min(plan["planned"])
-        tol = plan["tolerance_min"]
-        actuals, unparsed = gather(metric)
-        # complete days only: gather reads date>=lo, so today's (in-progress)
-        # rows can be present — drop them before the insufficiency check
-        actuals = {d: v for d, v in actuals.items() if d <= dates[-1]}
-        if metric == "workout":
-            expected = [d for d in dates
-                        if WEEKDAYS[date.fromisoformat(d).weekday()] in sched_days]
-        else:
-            expected = dates
-        if not actuals or not expected:
-            metrics[metric] = {"status": "insufficient_data",
-                               "planned": plan["planned"], "tolerance_min": tol,
-                               "reason": ("no scheduled training days" if not expected
-                                          else "no actual times logged in the window")}
-            continue
-        done_days = [d for d in expected if d in actuals]
-        timed = {d: v for d, v in actuals.items() if v is not None and d in expected}
-        on_time = {d: _circ_diff_min(v, planned_min) <= tol for d, v in timed.items()}
-        deltas = sorted(_circ_diff_min(v, planned_min) for v in timed.values())
-        # streak: walk back from the most recent expected day; on-time extends,
-        # a miss or an off-window day breaks, a day with an unusable time (or a
-        # non-expected day, e.g. a rest day) is skipped — neither way.
-        streak = 0
-        for d in reversed(expected):
-            if d not in actuals:
-                break                            # expected but not done
-            if actuals[d] is None:
-                continue                         # done, time unknown — skip
-            if on_time[d]:
-                streak += 1
-            else:
-                break
-        metrics[metric] = {
-            "planned": plan["planned"], "tolerance_min": tol,
-            "days_expected": len(expected),
-            "done": {"days": len(done_days),
-                     "rate": _rnd(len(done_days) / len(expected), 3)},
-            "on_time": {"days": sum(on_time.values()),
-                        "of_timed_days": len(timed),
-                        "rate": _rnd(sum(on_time.values()) / len(timed), 3) if timed else None},
-            "median_abs_delta_min": deltas[len(deltas) // 2] if deltas else None,
-            "streak_on_time": streak,
-            "unparsed_times": unparsed,
-        }
-    out({"window_days": days, "window": {"from": dates[0], "to": dates[-1]},
-         "metrics": metrics,
-         "note": ("on-time = within the tolerance window of the planned time "
-                  "(generous by design — a small slip still counts; rates are "
-                  "rhythm information, never a grade)")})
+    """Compatibility entry point for the extracted daily command."""
+    out(schedule_commands.timing_adherence(
+        _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 
 # =========================================================== insight engine
@@ -2018,9 +1295,6 @@ FEATURE_BASE = ("sleep_hours", "resting_hr", "hrv_ms", "steps", "mood", "energy"
 LAG1_FIELDS = ("tr_volume_kg", "tr_session", "medication_dose_mg", "alcohol_units",
                "caffeine_mg", "cardio_min", "sl_bedtime_min", "sleep_hours", "word_kept")
 
-def _table_exists(c, name):
-    return c.execute("SELECT 1 FROM sqlite_master WHERE type IN ('table','view') "
-                     "AND name=?", (name,)).fetchone() is not None
 
 def _hhmm_min(s):
     return insight_calculations._hhmm_min(s)
@@ -6292,76 +5566,8 @@ def entity_alias_history_cmd(a):
 
 
 def supplement_log(a):
-    """Append one explicitly sourced supplement observation with nullable time."""
-    supplement = insight_events.bounded_text(
-        a.supplement, "supplement", 300, nullable=False, preserve=False)
-    try:
-        d = insight_events.iso_date(a.date) if a.date else today()
-    except insight_events.CaptureError:
-        raise
-    if a.time is not None:
-        insight_events.hhmm(a.time, "--time", nullable=False)
-    if a.taken is not None and a.taken not in (0, 1):
-        raise insight_events.CaptureError(
-            "validation_error", "--taken must be 0 or 1", validation=True)
-    if a.dose is not None and not (math.isfinite(a.dose) and 0 <= a.dose <= 1_000_000):
-        raise insight_events.CaptureError(
-            "validation_error", "--dose must be a finite number between 0 and 1000000",
-            validation=True)
-    if a.taken == 0 and a.dose not in (None, 0):
-        raise insight_events.CaptureError(
-            "validation_error", "--taken 0 cannot include a positive dose", validation=True)
-    if a.note is not None and (not a.note.strip() or len(a.note) > 2000):
-        raise insight_events.CaptureError(
-            "validation_error", "--note must contain 1-2000 characters", validation=True)
-    source = insight_events.event_source(a.source)
-    insight_events.validate_capture_id(a.capture_id, nullable=True)
-    if source in {"chat-panel", "chat-telegram"} and a.capture_id is None:
-        raise insight_events.CaptureError(
-            "validation_error", f"--source {source} requires --capture-id", validation=True)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 2)
-        _require_schema(c, "supplements_log", "time_taken")
-        rows = []
-        if supplement.isdigit():
-            rows = c.execute("SELECT * FROM supplement_products WHERE supplement_id=?",
-                             (int(supplement),)).fetchall()
-        if not rows:
-            rows = c.execute("SELECT * FROM supplement_products WHERE name=?",
-                             (supplement,)).fetchall()
-        if not rows:
-            raise insight_events.CaptureError(
-                "not_found", f"supplement not found: {supplement}")
-        if len(rows) != 1:
-            raise insight_events.CaptureError(
-                "validation_error", "supplement name is ambiguous; use its numeric ID",
-                validation=True)
-        product = rows[0]
-        c.execute("""INSERT INTO supplements_log(
-            date,supplement_id,taken,dose_taken,time_taken,notes,source)
-            VALUES(?,?,?,?,?,?,?)""",
-            (d, product["supplement_id"], a.taken, a.dose, a.time, a.note, source))
-        row_id = str(c.execute("SELECT last_insert_rowid()").fetchone()[0])
-        insight_events.link_capture(
-            c, a.capture_id, source, "supplements_log", row_id,
-            event_date=d, event_time=a.time, check_time=True,
-        )
-        entity_key_value, _ = insight_events.resolve_identity(
-            c, "supplement", product["name"])
-        insight_events.invalidate_explicit_none(
-            c, d, "supplement", entity_key_value, source, a.capture_id,
-        )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out({"ok": True, "id": int(row_id), "date": d, "supplement_id": product["supplement_id"],
-         "supplement": product["name"], "taken": a.taken, "dose": a.dose,
-         "time": a.time, "source": source, "capture_id": a.capture_id})
+    """Compatibility entry point for the extracted daily command."""
+    out(daily_capture_commands.supplement_log(_command_context(), a))
 
 
 # =========================================================== Phase 3 feature integration
@@ -6563,20 +5769,8 @@ def goal_set_cmd(a):
 
 
 def collector_run_record_cmd(a):
-    payload = _stdin_json()
-    insight_goals.validate_collector_run(payload)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 3)
-        result = insight_goals.record_collector_run(c, payload)
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out(result)
+    """Compatibility entry point for the extracted daily command."""
+    out(collector_commands.collector_run_record(_command_context(), a, stdin=sys.stdin))
 
 
 # =========================================================== Phase 5 ledger/synthesis
@@ -7914,7 +7108,6 @@ def main():
             "routine-set": routine_set,
             "routine-remove": routine_remove,
             "routine-undo": routine_undo,
-            "schedule-set": schedule_set,
             "fitness-test-log": fitness_test_log,
             "fitness-tests": fitness_tests,
             "fitness-test-void": fitness_test_void,
@@ -7931,9 +7124,6 @@ def main():
             "lab-capture": lab_capture,
             "lab-ingest": lab_ingest,
             "labs": labs,
-            "write-note": write_note,
-            "journal-capture": journal_capture,
-            "transcript-capture": transcript_capture,
             "recipe-ingredients-set": recipe_ingredients_set,
             "nutrition-target-set": nutrition_target_set,
             "profile-set": profile_set,
@@ -7948,9 +7138,6 @@ def main():
             "menu": menu,
             "restock-check": restock_check,
             "restock-mark": restock_mark,
-            "log": log,
-            "day-rating": day_rating,
-            "water-add": water_add,
             "query": query,
             "bp-brief": bp_brief,
             "summary": summary,
@@ -7959,14 +7146,7 @@ def main():
             "features": features,
             "correlate": correlate,
             "day-signature": day_signature,
-            "commitment-set": commitment_set,
-            "commitment-list": commitment_list,
-            "log-commitment": log_commitment,
-            "checkin": checkin,
-            "feedback-status": feedback_status,
             "adherence": adherence,
-            "planned-time-set": planned_time_set,
-            "timing-adherence": timing_adherence,
             "data-coverage": data_coverage,
             "scores": scores,
             "readiness": readiness,
@@ -7984,7 +7164,6 @@ def main():
             "entity-alias-set": entity_alias_set_cmd,
             "entity-alias-retire": entity_alias_retire_cmd,
             "entity-alias-history": entity_alias_history_cmd,
-            "supplement-log": supplement_log,
             "feature-registry": feature_registry_cmd,
             "feature-frame": feature_frame_cmd,
             "data-readiness": data_readiness_cmd,
@@ -8012,15 +7191,14 @@ def main():
             "insight-run-status": insight_run_status_cmd,
             "goal-list": goal_list_cmd,
             "goal-set": goal_set_cmd,
-            "collector-run-record": collector_run_record_cmd,
-            "fetch-weather": fetch_weather,
-            "fetch-air": fetch_air,
         },
         argv=sys.argv[1:], output=out, parse_number=num,
         meal_types=MEAL_TYPES, restock_actions=RESTOCK_ACTIONS,
         scores_default_days=SCORES_DEFAULT_DAYS,
         quarterly_routines=HEVY_QUARTERLY_ROUTINES, stdin=sys.stdin,
         slug=slug, figure_sub_svg=FIGURE_SUB_SVG,
+        water_target_ml=WATER_TARGET_ML, open_url=_open_collector_url,
+        medication_aliases=MEDICATION_ALIASES,
     )
 
 

@@ -18,7 +18,10 @@ from . import readiness_ancestry as insight_readiness_ancestry
 from . import registry as insight_registry
 from . import synthesis as insight_synthesis
 from .catalogs import PRIMARY_MEDICATION
-from .commands import cronometer, google_health, hevy, lab_catalog, recipes, submuscle_map
+from .commands import (
+    collectors, cronometer, daily_capture, followthrough, google_health, hevy,
+    lab_catalog, notes, recipes, schedules, submuscle_map,
+)
 from .commands.hevy import import_csv
 
 
@@ -356,7 +359,8 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
 
 def run(context, legacy_handlers, *, argv, output, parse_number,
         meal_types, restock_actions, scores_default_days,
-        quarterly_routines, stdin, slug, figure_sub_svg):
+        quarterly_routines, stdin, slug, figure_sub_svg, water_target_ml, open_url,
+        medication_aliases):
     """Dispatch converted commands and explicitly wired compatibility handlers."""
     def hevy_csv(arguments):
         output(import_csv(context, arguments.csv, parse_number=parse_number))
@@ -407,6 +411,61 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
             context, arguments.md_file, seed=arguments.seed,
         ))
 
+    def log(arguments):
+        output(daily_capture.log(context, arguments))
+
+    def day_rating(arguments):
+        output(daily_capture.day_rating(context, arguments))
+
+    def water_add(arguments):
+        output(daily_capture.water_add(context, arguments, water_target_ml=water_target_ml))
+
+    def supplement_log(arguments):
+        output(daily_capture.supplement_log(context, arguments))
+
+    def commitment_set(arguments):
+        output(followthrough.commitment_set(context, arguments))
+
+    def commitment_list(arguments):
+        output(followthrough.commitment_list(context, arguments))
+
+    def log_commitment(arguments):
+        output(followthrough.log_commitment(context, arguments))
+
+    def checkin(arguments):
+        output(followthrough.checkin(context, arguments))
+
+    def feedback_status(arguments):
+        output(followthrough.feedback_status(context, arguments, output=output))
+
+    def schedule_set(arguments):
+        output(schedules.schedule_set(context, arguments))
+
+    def planned_time_set(arguments):
+        output(schedules.planned_time_set(context, arguments))
+
+    def timing_adherence(arguments):
+        output(schedules.timing_adherence(context, arguments,
+                                         medication_aliases=medication_aliases))
+
+    def write_note(arguments):
+        output(notes.write_note(context, arguments, stdin=stdin))
+
+    def journal_capture(arguments):
+        output(notes.journal_capture(context, arguments, stdin=stdin))
+
+    def transcript_capture(arguments):
+        output(notes.transcript_capture(context, arguments, stdin=stdin))
+
+    def fetch_weather(arguments):
+        collectors.fetch_weather(context, arguments, open_url=open_url, output=output)
+
+    def fetch_air(arguments):
+        collectors.fetch_air(context, arguments, open_url=open_url, output=output)
+
+    def collector_run_record_cmd(arguments):
+        output(collectors.collector_run_record(context, arguments, stdin=stdin))
+
     handlers = {
         **legacy_handlers,
         "import-hevy": hevy_csv,
@@ -419,6 +478,24 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
         "import-recipes": recipes_csv,
         "import-submuscle-map": submuscle_catalog,
         "import-lab-catalog": laboratory_catalog,
+        "log": log,
+        "day-rating": day_rating,
+        "water-add": water_add,
+        "supplement-log": supplement_log,
+        "commitment-set": commitment_set,
+        "commitment-list": commitment_list,
+        "log-commitment": log_commitment,
+        "checkin": checkin,
+        "feedback-status": feedback_status,
+        "schedule-set": schedule_set,
+        "planned-time-set": planned_time_set,
+        "timing-adherence": timing_adherence,
+        "write-note": write_note,
+        "journal-capture": journal_capture,
+        "transcript-capture": transcript_capture,
+        "fetch-weather": fetch_weather,
+        "fetch-air": fetch_air,
+        "collector-run-record": collector_run_record_cmd,
     }
     p = build_parser(
         handlers, json_errors=bool(argv and argv[0] in JSON_COMMANDS), output=output,
