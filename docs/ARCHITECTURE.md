@@ -64,7 +64,7 @@ and UI state.
 | Area | Location | Responsibility |
 |---|---|---|
 | Web application | `app/` | Authentication, security middleware, HTML, JSON APIs, read models, bridge client |
-| Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit command configuration and temporary compatibility adapters |
+| Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit command configuration and retained Python compatibility delegates |
 | CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
 | File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
@@ -87,11 +87,25 @@ command and owns argument parsing, dispatch and error formatting. The facade
 retains compatibility delegates for older Python callers; registration calls the
 owning modules directly.
 
+Retained Python compatibility covers database and clock rebinding, read-only
+connection guards, configured catalogs, shared calculation delegates and older
+command entry points. These delegates call the same owners as direct commands.
+`_now` remains a call-time clock seam, including when callers replace
+`datetime`. `_phase3_context` uses only the binding names declared by
+`runtime.adapter_context`. New Python callers should use the owning module and
+its explicit context or configuration parameters.
+
+The CLI has no legacy-handler overlay. Its schema, event, feature, association,
+ledger, synthesis, orchestration and job handlers register directly. The
+facade's unused parser-only delegates are removed. The executable commands and
+parser contracts remain unchanged.
+
 `CommandContext` carries the database path, civil clock, timezone, vault path
 and stable executable path. The facade resolves configuration at invocation.
 Analytical adapters continue using their separate `AdapterContext` contract.
-Commands receive number parsing, configuration, input streams and provider transport
-explicitly where needed. None of their source modules imports the facade.
+Commands receive number parsing, configuration, input streams and provider
+transport explicitly where needed. None of the command source modules imports
+the facade.
 
 | Import family | Command owner | Source owner |
 |---|---|---|
@@ -310,6 +324,30 @@ The job command keeps the configured stable CLI path and fixed association/findi
 handler map. Its existing engine retains child fencing, inherited lock descriptors,
 bounded output and error serialization. Canonical analytical JSON and legacy query
 output remain distinct; broker permissions are unchanged.
+
+### Calculation and test navigation
+
+Start with the domain owner listed below, then trace its command or adapter caller.
+Function docstrings and the linked ownership sections describe local contracts;
+[System design](SYSTEM_DESIGN.md#time-and-identity) owns shared time and identity
+semantics. Domain paths below are relative to `toolkit/hermes_insights/`, and
+test paths are relative to `toolkit/tests/`.
+
+| Calculation or boundary | Authoritative owner | Main callers | Relevant tests |
+|---|---|---|---|
+| Shared strength, muscle weighting, timing and score formulas | `calculations.py` | `fitness.py`, `muscles.py`, `scores.py`, `recovery.py`, analytical adapters through `runtime.py` | `test_fitness.py`, `test_muscle_groups.py`, `test_timing.py`, `test_scores.py` |
+| Nutrition targets and daily nutrition scores | `nutrition.py`, `score_contracts.py` | `commands/nutrition.py`, `scores.py` | `test_nutrition_targets.py`, `test_nutrition_coverage.py`, `test_calculation_date_boundaries.py` |
+| Recipe quantities, food capture and inventory guards | `food.py` | `commands/food.py` | `test_phase2_nutrition.py`, `test_nutrition_workflow_boundaries.py` |
+| Fitness reports, muscle volume and figure lenses | `fitness.py`, `muscles.py`, `muscle_figure.py`, `physio.py` | Corresponding `commands/` modules | `test_fitness.py`, `test_muscle_detail.py`, `test_muscle_map.py`, `test_mobility.py`, `test_physio.py` |
+| Legacy daily frames, correlations and coverage | `daily_frames.py` | `commands/daily_frames.py`, `scores.py` | `test_engine.py`, `test_daily_frame_lab_boundaries.py` |
+| Dashboard scores and verified Recovery | `scores.py`, `recovery.py` | `commands/scores.py`, `commands/recovery.py` | `test_scores.py`, `test_readiness.py`, `test_calculation_date_boundaries.py` |
+| Laboratory parsing, validation and latest/trend selection | `labs.py` | `commands/labs.py` | `test_labs.py`, `test_daily_frame_lab_boundaries.py` |
+| Feature definitions, frames and readiness | `registry.py`, `frame.py`, `readiness.py`, `adapters/` | `commands/features.py`, analytical engines and local/Hermes surfaces | `test_feature_registry.py`, `test_phase3_adapters.py`, `test_feature_frame_readiness.py` |
+| Statistical inference, associations and interactions | `stats.py`, `associations.py`, `interactions.py` | Association commands, ledger coordination and local/Hermes surfaces | `test_statistical_boundaries.py`, `test_outcome_associations.py`, `test_interactions.py`, `test_native_stats.py` |
+| Evidence identity and durable analytical state | `provenance.py`, `ledger.py`, `synthesis.py`, `orchestrator.py` | [Analytical command owners](#feature-ledger-and-orchestration-command-ownership) | `test_provenance.py`, `test_phase5_ledger.py`, `test_phase5_synthesis.py`, `test_phase6_orchestrator.py`, `test_cli_coordination_boundaries.py` |
+
+Use these rows as navigation starting points. [Testing](TESTING.md#auditable-partitions)
+defines the complete application, fictional journey and actual MCP suites.
 
 ## Data ownership and writes
 

@@ -367,12 +367,12 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
     return p
 
 
-def run(context, legacy_handlers, *, argv, output, parse_number,
+def run(context, *, argv, output, parse_number,
         meal_types, restock_actions, scores_default_days,
         quarterly_routines, quarterly_unilateral_titles, mobility_norm,
         stdin, slug, figure_sub_svg, water_target_ml, open_url,
         medication_aliases, nutrition_config):
-    """Dispatch converted commands and explicitly wired compatibility handlers."""
+    """Dispatch the explicitly registered command handlers."""
     def hevy_csv(arguments):
         output(import_csv(context, arguments.csv, parse_number=parse_number))
 
@@ -764,7 +764,6 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
 
 
     handlers = {
-        **legacy_handlers,
         'analysis-job-execute': analysis_job_cmd,
         'analysis-job-start': analysis_job_cmd,
         'analysis-job-status': analysis_job_cmd,

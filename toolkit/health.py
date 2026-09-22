@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
-health.py — the deterministic command layer for a Hermes health database.
+health.py — the stable executable and compatibility facade for a Hermes health database.
 
-The LLM coach NEVER writes raw numbers. It only maps intent -> a call here,
-and this script validates inputs, does all math, and inserts. Every write
-prints a confirmation so a wrong match is caught immediately.
+The shared CLI parses commands and dispatches to domain owners that validate
+inputs, compute deterministic results and perform validated writes.
 
 DB path: $HEALTH_DB or $HERMES_DATA_DIR/health.db
 Run `python3 health.py --help` for commands.
 """
-import csv, io, itertools, json, math, os, re, sqlite3, statistics as st, sys
-from datetime import date, datetime, timedelta, timezone
+import os, re, sys
+from datetime import date, datetime
 
 from hermes_insights import cli as insight_cli
 from hermes_insights.command_context import CommandContext
 from hermes_insights.commands import (
     analytical as analytical_commands, schema as schema_commands,
-    events as event_commands, features as feature_commands,
-    associations as association_commands, analysis_jobs as analysis_job_commands,
-    ledger as ledger_commands, synthesis as synthesis_commands,
+    events as event_commands, ledger as ledger_commands,
     orchestration as orchestration_commands, scheduled_analysis,
 )
 from hermes_insights import muscles as muscles_domain, fitness as fitness_domain
@@ -103,19 +100,8 @@ from hermes_insights.catalogs import (
     PRIMARY_MEDICATION, RATIO_SEED, REHAB_CATALOG, RUN_TYPE_KEYS,
     SELF_TEST_CATALOG, SIT_REACH_NORMAL_CM, _SUP,
 )
-from hermes_insights import events as insight_events
-from hermes_insights import frame as insight_frame
-from hermes_insights import goals as insight_goals
 from hermes_insights import migrations as insight_migrations
-from hermes_insights import readiness as insight_readiness
-from hermes_insights import readiness_ancestry as insight_readiness_ancestry
-from hermes_insights import registry as insight_registry
-from hermes_insights import associations as insight_associations
-from hermes_insights import ledger as insight_ledger
-from hermes_insights import orchestrator as insight_orchestrator
-from hermes_insights import provenance as insight_provenance
-from hermes_insights import synthesis as insight_synthesis
-from hermes_insights.contracts import AdapterContext, DateRange, canonical_json
+from hermes_insights.contracts import canonical_json
 from hermes_insights.settings import CANON_TZ, TIMEZONE_NAME, resolve_vault_root
 
 DATA_DIR = insight_runtime.DATA_DIR
@@ -482,10 +468,9 @@ def timing_adherence(a):
         _command_context(), a, medication_aliases=MEDICATION_ALIASES))
 
 
-# =========================================================== insight engine
-# Every statistic lives HERE, pure stdlib (repo determinism law): the LLM only
-# reasons over this JSON and never computes a number itself. Sparse data comes
-# out as explicit nulls / "insufficient data" — never a fabricated value.
+# =========================================================== insight compatibility
+# Domain modules own deterministic calculations; these aliases preserve the
+# established Python seams while the CLI delegates directly to those owners.
 
 
 PILLARS = daily_frames_domain.PILLARS
@@ -906,62 +891,6 @@ def _stdin_json():
     return event_commands._stdin_json(sys.stdin)
 
 
-def schema_status_cmd(a):
-    out(schema_commands.schema_status_cmd(_command_context(), a))
-
-
-def schema_plan_cmd(a):
-    out(schema_commands.schema_plan_cmd(_command_context(), a))
-
-
-def migrate_cmd(a):
-    out(schema_commands.migrate_cmd(_command_context(), a))
-
-
-def capture_raw_cmd(a):
-    out(event_commands.capture_raw_cmd(_command_context(), a, stdin=sys.stdin))
-
-
-def capture_resolve_cmd(a):
-    out(event_commands.capture_resolve_cmd(_command_context(), a, stdin=sys.stdin))
-
-
-def event_log_cmd(a):
-    out(event_commands.event_log_cmd(_command_context(), a, stdin=sys.stdin))
-
-
-def event_correct_cmd(a):
-    out(event_commands.event_correct_cmd(_command_context(), a, stdin=sys.stdin))
-
-
-def event_void_cmd(a):
-    out(event_commands.event_void_cmd(_command_context(), a))
-
-
-def events_cmd(a):
-    out(event_commands.events_cmd(_command_context(), a))
-
-
-def capture_completeness_set_cmd(a):
-    out(event_commands.capture_completeness_set_cmd(_command_context(), a))
-
-
-def capture_completeness_cmd(a):
-    out(event_commands.capture_completeness_cmd(_command_context(), a))
-
-
-def entity_alias_set_cmd(a):
-    out(event_commands.entity_alias_set_cmd(_command_context(), a))
-
-
-def entity_alias_retire_cmd(a):
-    out(event_commands.entity_alias_retire_cmd(_command_context(), a))
-
-
-def entity_alias_history_cmd(a):
-    out(event_commands.entity_alias_history_cmd(_command_context(), a))
-
-
 def supplement_log(a):
     """Compatibility entry point for the extracted daily command."""
     out(daily_capture_commands.supplement_log(_command_context(), a))
@@ -986,39 +915,6 @@ _phase3_range = analytical_commands.requested_range
 
 
 _phase3_definitions = analytical_commands.definitions
-
-
-def feature_registry_cmd(a):
-    out(feature_commands.feature_registry_cmd(_command_context(), a))
-
-
-def feature_frame_cmd(a):
-    out(feature_commands.feature_frame_cmd(_command_context(), a))
-
-
-def data_readiness_cmd(a):
-    out(feature_commands.data_readiness_cmd(_command_context(), a))
-
-
-def outcome_associations_cmd(a):
-    print(canonical_json(association_commands.outcome_associations_cmd(_command_context(), a)))
-
-
-def finding_evidence_cmd(a):
-    print(canonical_json(association_commands.finding_evidence_cmd(_command_context(), a)))
-
-
-def goal_list_cmd(a):
-    out(feature_commands.goal_list_cmd(_command_context(), a))
-
-
-def goal_set_cmd(a):
-    out(feature_commands.goal_set_cmd(_command_context(), a))
-
-
-def collector_run_record_cmd(a):
-    """Compatibility entry point for the extracted daily command."""
-    out(collector_commands.collector_run_record(_command_context(), a, stdin=sys.stdin))
 
 
 # =========================================================== Phase 5 ledger/synthesis
@@ -1081,44 +977,8 @@ def _phase6_analysis_refresh(a):
     )))
 
 
-def analysis_refresh_cmd(a):
-    print(canonical_json(ledger_commands.analysis_refresh(_command_context(), a, stdin=sys.stdin)))
-
-
-def hypothesis_promote_cmd(a):
-    print(canonical_json(ledger_commands.hypothesis_promote(_command_context(), a)))
-
-
-def hypothesis_refresh_cmd(a):
-    print(canonical_json(ledger_commands.hypothesis_refresh(_command_context(), a)))
-
-
 def _phase5_annotation_payload():
     return ledger_commands.annotation_payload(sys.stdin)
-
-
-def hypothesis_annotate_cmd(a):
-    print(canonical_json(ledger_commands.hypothesis_annotate(_command_context(), a, stdin=sys.stdin)))
-
-
-def hypotheses_cmd(a):
-    print(canonical_json(ledger_commands.hypotheses(_command_context(), a)))
-
-
-def hypothesis_brief_cmd(a):
-    print(canonical_json(ledger_commands.hypothesis_brief(_command_context(), a)))
-
-
-def synthesis_record_cmd(a):
-    print(canonical_json(synthesis_commands.synthesis_record(_command_context(), a, stdin=sys.stdin)))
-
-
-def synthesis_prepare_cmd(a):
-    print(canonical_json(synthesis_commands.synthesis_prepare(_command_context(), a)))
-
-
-def synthesis_history_cmd(a):
-    print(canonical_json(synthesis_commands.synthesis_history(_command_context(), a)))
 
 
 # =========================================================== Phase 6 orchestration
@@ -1130,65 +990,11 @@ def _orchestration_write(fn, *args):
     print(canonical_json(orchestration_commands.write(_command_context(), fn, *args)))
 
 
-def insight_trigger_enqueue_cmd(a):
-    print(canonical_json(orchestration_commands.insight_trigger_enqueue(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_trigger_claim_cmd(a):
-    print(canonical_json(orchestration_commands.insight_trigger_claim(_command_context(), a)))
-
-
-def insight_trigger_renew_cmd(a):
-    print(canonical_json(orchestration_commands.insight_trigger_renew(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_trigger_complete_cmd(a):
-    print(canonical_json(orchestration_commands.insight_trigger_complete(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_trigger_fail_cmd(a):
-    print(canonical_json(orchestration_commands.insight_trigger_fail(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_notification_claim_cmd(a):
-    print(canonical_json(orchestration_commands.insight_notification_claim(_command_context(), a)))
-
-
-def insight_notification_begin_dispatch_cmd(a):
-    print(canonical_json(orchestration_commands.insight_notification_begin_dispatch(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_notification_ack_cmd(a):
-    print(canonical_json(orchestration_commands.insight_notification_ack(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_notification_fail_cmd(a):
-    print(canonical_json(orchestration_commands.insight_notification_fail(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_notification_resolve_cmd(a):
-    print(canonical_json(orchestration_commands.insight_notification_resolve(_command_context(), a, stdin=sys.stdin)))
-
-
-def insight_run_status_cmd(a):
-    print(canonical_json(orchestration_commands.insight_run_status(_command_context(), a)))
-
-
 # =========================================================== cli
-def analysis_job_cmd(a):
-    analysis_job_commands.analysis_job_cmd(
-            _command_context(), a, {
-                "outcome-associations": outcome_associations_cmd,
-                "finding-evidence": finding_evidence_cmd,
-            },
-        )
-
-
 def main():
     """Launch the shared CLI with explicit command configuration."""
     insight_cli.run(
         _command_context(),
-        {},
         argv=sys.argv[1:], output=out, parse_number=num,
         meal_types=MEAL_TYPES, restock_actions=RESTOCK_ACTIONS,
         scores_default_days=SCORES_DEFAULT_DAYS,
