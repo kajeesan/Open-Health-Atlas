@@ -6,9 +6,10 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-The second Milestone 3 family is complete, with production commit
-`97c838bfb81abe97bae695bc8fe30a293f495778` and the [daily workflow evidence](#daily-workflow-extraction-22-september-2026)
-below. The next family covers nutrition, profiles, targets and food workflows.
+The third Milestone 3 family is complete, with production commit
+`f09f9fe34904837649e3e6ed7b478e2939b68820` and the [nutrition and food evidence](#nutrition-and-food-extraction-22-september-2026)
+below. The next family covers training, fitness tests, muscle calculations, pain
+and mobility.
 Continue on `codex/health-toolkit-modularization` and retain the accumulated local
 commits.
 
@@ -895,3 +896,104 @@ Nothing was pushed, merged, published or connected to a live service.
 
 The next bounded family is nutrition, profiles, targets and food workflows,
 following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Nutrition and food extraction, 22 September 2026
+
+The third Milestone 3 family is complete locally. Production commit
+`f09f9fe34904837649e3e6ed7b478e2939b68820` exactly matches source-tested tree
+`d692d80f2b88a0687e9c5c58609454ef848a7dec`. All 516 file hashes and staged Git state
+remained unchanged during complete verification.
+
+Fourteen profile, phase, target, coverage, recipe, food, inventory and restock
+commands now have direct CLI owners. The facade retains 80 unconverted handlers.
+All 122 parser definitions and handler-name metadata remain exact. Nutrition
+coverage and retained scores share one calculation owner. Score bands and rounding
+also have one owner. See [Nutrition and food ownership](ARCHITECTURE.md#nutrition-and-food-ownership)
+for configuration, transaction and sidecar contracts.
+
+Nine new cases characterize rollback, oldest-batch behavior, current-day snoozes,
+sidecar replacement and independent configuration/clocks. Four existing nutrition
+date cases now use explicit dependencies. The recovery case retains its existing
+consumer. All fourteen relevant cases also passed unchanged baseline through an
+external adapter. No test-only production seam or weakened guard was introduced.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,072 | 0/0/0 | 508.75 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 193.58 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.32 s |
+
+The disjoint total is 2,092 tests. Focused repeats and external comparison
+assertions are not additional tests. Checks used fictional records, declared
+dependencies, Node, the native statistical library and aligned civil clocks.
+
+All 419 source CLI calls and the separate parser diagnostic retained raw stdout
+and exit status. All 15 actual broker responses matched. Of 420 stderr records,
+402 match raw bytes, two differ only by source roots, and sixteen relocate frames
+to new owners. Their full exception chains remain exact.
+
+All 374 complete database pairs agree. Of these, 289 match raw bytes. The remaining pairs
+differ only in six named generated timestamp fields. Each of 496 occurrences is
+traced to one of 74 revision-specific originating cells and its invocation interval.
+No IDs or arbitrary dates were normalized. All 374 vault comparisons match paths
+and bytes. Broker children use their actual civil date. The separate CLI fixture
+launcher supplies a fixed clock.
+
+Paired timing used ten workloads and 120 fresh launches, alternating revision
+order with one first observation and five repetitions. Fixture copying was outside
+timing. Filesystem caches were not forcibly cleared. All paired stdout and stderr
+bytes matched.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| schema-status | 144.86 ms | 144.06 ms |
+| readiness | 136.43 ms | 135.97 ms |
+| nutrition-targets | 126.84 ms | 128.16 ms |
+| stats | 283.03 ms | 285.09 ms |
+| nutrition-coverage | 130.22 ms | 131.04 ms |
+| scores | 124.07 ms | 125.73 ms |
+| menu | 122.28 ms | 123.60 ms |
+| eat | 124.63 ms | 124.69 ms |
+| log-food | 123.92 ms | 125.46 ms |
+| recipe-ingredients | 124.11 ms | 124.11 ms |
+
+Observed median changes ranged from -0.55% to +1.34%, with a maximum increase of
+2.06 ms. No material regression appeared in this bounded sample.
+
+
+The actual offline ad hoc app built from `f09f9fe` passed 14 lifecycle and nine
+bundled MCP checks. An isolated probe found all 153 loaded module files inside
+the bundle. Thirteen selected files matched Git, including all five new owners.
+The complete CLI collection checked 59 loaded product files against committed
+source. After explicit verifier release, deep/strict signature verification passed
+and all 3,116 audited file hashes remained unchanged, with zero findings.
+
+The package retained raw stdout and exit status for all 419 CLI calls, the exact
+parser diagnostic, 374 validated database comparisons, 374 exact vault comparisons
+and 15 actual broker responses against both source versions. Against the candidate,
+source-root normalization leaves two JSON standard-library traces and one argparse
+quoting difference. Actual preceding/current app diagnostics reproduce identical
+Python/argparse bytes and unknown-command output. Raw stderr equality is not claimed.
+
+The initial default-sandbox build failed at native icon generation. The unchanged
+builder passed with approved native tool access. No product repair was required.
+This qualifies local package behavior. Native GUI/charts, minimum OS, Developer ID,
+notarization, Gatekeeper and clean-customer installation remain unqualified. No
+installer archive was created or published.
+
+The explicit Hermes inventory includes all five new runtime modules. Recursive
+cache identity remains intact. Numerical provenance and golden replay pins are
+unchanged. The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains. Schema, broker privileges, existing import normalization and ledger/synthesis
+rules were not changed.
+
+Independent source, contract, suite, timing and package reviews found no remaining
+blocker. Inventory, license/vendor and source/history privacy checks passed. Earlier
+fixture, comparison, cache and execution-permission diagnostics remain in local
+evidence, separate from successful verification. Nothing was pushed, merged,
+published or connected to a live service.
+
+The owner changed main and successor tasks to Astra High. Independent review stays
+at Astra extra high. The [authoritative plan](TOOLKIT_MODULARIZATION.md#roles-and-ownership)
+records that override. The next bounded family covers training, fitness tests,
+muscle calculations, pain and mobility in the approved order.
