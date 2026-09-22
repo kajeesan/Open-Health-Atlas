@@ -99,17 +99,43 @@ def test_broker_sigterm_exits_without_deadlocking(tmp_path):
             "BRIDGE_SOCK": sock_path,
             "BRIDGE_ALLOWED_UID": str(os.getuid()),
             "BRIDGE_AUDIT": str(tmp_path / "audit.jsonl"),
+            "BRIDGE_HEALTH": str(tmp_path / "HEALTH_DB"),
+            "BRIDGE_HERMESCTL": str(tmp_path / "hermesctl"),
         },
     )
     try:
-        for _ in range(100):
-            if os.path.exists(sock_path):
-                break
+        readiness = b'{"subcmd":"__readiness__","args":[]}\n'
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
             if process.poll() is not None:
                 pytest.fail(f"broker exited early with {process.returncode}")
-            time.sleep(0.02)
+            if not os.path.exists(sock_path):
+                # Bound polling CPU; readiness still requires the response below.
+                time.sleep(0.01)
+                continue
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(max(0.01, deadline - time.monotonic()))
+                    probe.connect(sock_path)
+                    probe.sendall(readiness)
+                    with probe.makefile("rb") as response_stream:
+                        response = json.loads(
+                            response_stream.readline().decode("utf-8")
+                        )
+            except (ConnectionRefusedError, FileNotFoundError, TimeoutError,
+                    json.JSONDecodeError, OSError):
+                # The pathname can precede serve_forever(); retry the real probe.
+                time.sleep(0.01)
+                continue
+            if (
+                response.get("ok") is False
+                and response.get("code") == 2
+                and response.get("stderr")
+                == "subcommand not allowed via the bridge: __readiness__"
+            ):
+                break
         else:
-            pytest.fail("broker socket did not appear")
+            pytest.fail("broker did not return the harmless readiness response")
         process.terminate()
         assert process.wait(timeout=3) == 0
     finally:
