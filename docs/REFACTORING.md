@@ -6,11 +6,11 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-The first Milestone 3 family is complete, with production commit
-`ffb8d7aaa53107d400113e4ac96dc133c1081d17` and the [import extraction evidence](#provider-and-catalog-import-extraction-22-september-2026)
-below. The next family covers daily logging, hydration, commitments, schedules,
-notes and collectors. Continue on `codex/health-toolkit-modularization` and retain
-the accumulated local commits.
+The second Milestone 3 family is complete, with production commit
+`97c838bfb81abe97bae695bc8fe30a293f495778` and the [daily workflow evidence](#daily-workflow-extraction-22-september-2026)
+below. The next family covers nutrition, profiles, targets and food workflows.
+Continue on `codex/health-toolkit-modularization` and retain the accumulated local
+commits.
 
 On 22 September 2026, the owner authorized fresh-main continuation after each
 milestone's verification and independent-review gates, replacing routine approval
@@ -797,3 +797,101 @@ or connected to a live service.
 
 The next bounded family is daily logging, hydration, commitments, schedules, notes
 and collectors, following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
+
+## Daily workflow extraction, 22 September 2026
+
+The second Milestone 3 family is complete locally. Production commit
+`97c838bfb81abe97bae695bc8fe30a293f495778` contains the extraction and exactly matches
+source-tested tree `6a7f0bb7d68e88af3d64b5fb1960797d7591c405`. All 510 source-file
+hashes and staged Git state remained unchanged during complete verification.
+
+Eighteen daily capture, commitment, schedule, note and collector commands now have
+explicit owners and direct CLI dispatch. All 122 public parser definitions,
+including handler-name metadata, remain exact. The facade retains 94 unconverted
+handlers and temporary compatibility exports. See
+[Toolkit command boundaries](ARCHITECTURE.md#toolkit-command-boundaries) for owners
+and transaction contracts. `adherence` remains with the later daily-frame family.
+Governed supplement capture is already extracted.
+
+Five added provider characterization cases also passed unchanged baseline. Existing
+collector cases now exercise explicit transport and real SQLite. Generic labs-write
+refusal is behavioral, and note-whitelist parity uses its owning contract. A retained
+recovery test exposed a removed helper before final verification. Its shared guard
+was restored. Source-layout dependencies and mutable collector facade stubs were
+removed without widening write permissions.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,063 | 0/0/0 | 501.91 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 190.53 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.30 s |
+
+The disjoint total is 2,083 tests. Focused reruns and external comparison probes
+are not added to that count. Seven prior test identifiers were renamed or
+reparameterized with their behaviors preserved. Five characterization cases were
+added. Tests used the declared environment, native library, Node, fictional data
+and aligned civil clocks.
+
+All 394 source CLI invocations retained raw standard output and exit status.
+A separate parser diagnostic matched exactly. Eleven error traces moved to extracted
+owners while preserving terminal exception types and messages. All 21 actual broker
+responses matched, including allowed dispatch and table, column, path, flag and
+command refusals.
+
+All 336 complete database snapshot pairs matched after narrow generated-time
+validation. 208 were raw-equal. Every other schema, value, source, reference,
+sequence and identity remained exact. The independent audit traced 728 timestamp
+occurrences to their originating writes and reproduced six time-dependent event
+hashes, plus raw-capture/content and trigger/deduplication hashes. Explicit second
+boundaries verified timestamp preservation versus refresh. All 336 vault snapshots
+matched exact paths and bytes. No blanket timestamp or identity removal was used.
+
+Paired timing used nine workloads and 108 fresh launches, alternating revision
+order with one first observation and five repetitions. Fixture copying was outside
+timing and filesystem caches were not forcibly cleared. An intermediate eager HTTP
+import was restored to its original on-demand behavior before acceptance.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| Schema status | 138.80 ms | 139.34 ms |
+| Readiness | 129.75 ms | 130.25 ms |
+| Nutrition targets | 121.90 ms | 122.31 ms |
+| Statistics | 279.05 ms | 279.17 ms |
+| Water addition | 122.43 ms | 122.60 ms |
+| Day rating | 123.90 ms | 124.53 ms |
+| Feedback status | 122.74 ms | 123.05 ms |
+| Timing adherence | 124.85 ms | 125.89 ms |
+| Note write | 122.62 ms | 123.00 ms |
+
+All timed outputs matched. Median changes were at most 1.04 ms, with no unexplained
+regression in this bounded sample.
+
+The offline ad hoc app built from `97c838b` passed 14 lifecycle and nine actual MCP
+checks. All 19 selected modules matched committed source, and all 148 loaded module
+files in the isolation probe stayed inside the bundle. The complete command
+collection verified 54 loaded product files against tested source.
+After all execution, deep/strict signature verification passed and all 3,111 audited
+file hashes remained identical, with zero findings.
+
+The package retained raw standard output and exit status for all 394 CLI invocations,
+exact parser metadata, 336 validated database comparisons, 336 vault comparisons and
+21 broker responses.
+Source-root traceback locations move into the bundle. Two JSON errors
+change standard-library frames under Python 3.12. The argument-error quoting
+difference was reproduced exactly with the actual preceding app. This qualifies
+local package behavior, without native GUI, minimum-OS, notarization, Gatekeeper
+or clean-customer-install acceptance.
+
+The explicit Hermes inventory includes all ten new runtime modules. Recursive cache
+identity remains active. Numerical provenance and replay pins are unchanged. The
+inherited [resampling and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+remains. Schema, broker privileges and ledger/synthesis rules were not changed.
+
+Independent source, verification and package reviews found no remaining blocker.
+Inventory, vendor/license and source/history privacy checks passed. Earlier fixture,
+helper, socket, whitespace, eager-import and comparison-harness diagnostics remain
+in local evidence, with interrupted attempts separate from successful checks.
+Nothing was pushed, merged, published or connected to a live service.
+
+The next bounded family is nutrition, profiles, targets and food workflows,
+following the [approved order](TOOLKIT_MODULARIZATION.md#milestone-3-remaining-command-families).
