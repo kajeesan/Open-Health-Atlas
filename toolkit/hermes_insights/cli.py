@@ -18,6 +18,7 @@ from . import readiness_ancestry as insight_readiness_ancestry
 from . import registry as insight_registry
 from . import synthesis as insight_synthesis
 from .catalogs import PRIMARY_MEDICATION
+from .commands import cronometer, google_health, hevy, lab_catalog, recipes, submuscle_map
 from .commands.hevy import import_csv
 
 
@@ -354,12 +355,71 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
 
 
 def run(context, legacy_handlers, *, argv, output, parse_number,
-        meal_types, restock_actions, scores_default_days):
+        meal_types, restock_actions, scores_default_days,
+        quarterly_routines, stdin, slug, figure_sub_svg):
     """Dispatch converted commands and explicitly wired compatibility handlers."""
     def hevy_csv(arguments):
         output(import_csv(context, arguments.csv, parse_number=parse_number))
 
-    handlers = {**legacy_handlers, "import-hevy": hevy_csv}
+    def hevy_json(arguments):
+        output(hevy.import_json(
+            context, arguments.json_file, force=arguments.force,
+            parse_number=parse_number, quarterly_routines=quarterly_routines,
+        ))
+
+    def hevy_templates(arguments):
+        output(hevy.import_templates(context, arguments.json_file))
+
+    def hevy_routines(arguments):
+        output(hevy.import_routines(
+            context, arguments.json_file, parse_number=parse_number,
+        ))
+
+    def hevy_body(arguments):
+        output(hevy.import_body(
+            context, arguments.json_file, parse_number=parse_number,
+        ))
+
+    def cronometer_csv(arguments):
+        output(cronometer.import_csv(
+            context, arguments.csv, parse_number=parse_number,
+        ))
+
+    def google_health_json(arguments):
+        output(google_health.import_json(
+            context, arguments.json_file, parse_number=parse_number, stdin=stdin,
+        ))
+
+    def recipes_csv(arguments):
+        output(recipes.import_csv(
+            context, arguments, parse_number=parse_number, slug=slug,
+            meal_types=meal_types,
+        ))
+
+    def submuscle_catalog(arguments):
+        output(submuscle_map.import_map(
+            context, arguments.md_file, seed=arguments.seed,
+            seed_all=arguments.seed_all, figure_sub_svg=figure_sub_svg,
+        ))
+
+    def laboratory_catalog(arguments):
+        output(lab_catalog.import_catalog(
+            context, arguments.md_file, seed=arguments.seed,
+        ))
+
+    handlers = {
+        **legacy_handlers,
+        "import-hevy": hevy_csv,
+        "import-hevy-json": hevy_json,
+        "import-hevy-templates": hevy_templates,
+        "import-hevy-routines": hevy_routines,
+        "import-hevy-body": hevy_body,
+        "import-cronometer": cronometer_csv,
+        "import-google-health": google_health_json,
+        "import-recipes": recipes_csv,
+        "import-submuscle-map": submuscle_catalog,
+        "import-lab-catalog": laboratory_catalog,
+    }
     p = build_parser(
         handlers, json_errors=bool(argv and argv[0] in JSON_COMMANDS), output=output,
         meal_types=meal_types, restock_actions=restock_actions,

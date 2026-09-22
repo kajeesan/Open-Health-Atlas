@@ -66,7 +66,7 @@ and UI state.
 | Web application | `app/` | Authentication, security middleware, HTML, JSON APIs, read models, bridge client |
 | Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit legacy-handler wiring and temporary compatibility adapters |
 | CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
-| Hevy CSV import | `toolkit/hermes_insights/commands/hevy.py`, `importers/hevy_csv.py` | Transaction coordination and source-specific metric normalization |
+| File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -79,27 +79,45 @@ and UI state.
 ## Toolkit command boundaries
 
 `health.py:main` supplies an explicit mapping of unconverted handlers to
-`cli.run`. The CLI registers their arguments and the extracted `import-hevy`
-handler, then owns dispatch and error formatting. Other imports and domain
-handlers remain in `health.py` until their planned extraction.
+`cli.run`. The CLI registers their arguments alongside the extracted import
+commands, then owns dispatch and error formatting. Other command families remain
+in the facade until their planned extraction.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
 and stable executable path. The facade resolves configuration at invocation.
 Analytical adapters continue using their separate `AdapterContext` contract.
-Legacy handlers retain their compatibility bindings. The Hevy importer receives
-the existing permissive number parser explicitly, without importing the facade.
+Import commands receive number parsing, configuration and input streams explicitly.
+None of their source modules imports the facade.
 
-`commands.hevy.import_csv` opens the configured database, requires the migrated
-source column, commits a successful replacement and rolls back a failed import.
-It closes the connection before returning a result or propagating an error.
-`importers.hevy_csv.replace_history` owns CSV normalization and row replacement.
-It neither commits nor emits CLI output. Its date parser also serves the legacy
-Hevy API date fallback.
+| Import family | Command owner | Source owner |
+|---|---|---|
+| Hevy CSV | `commands/hevy.py` | `importers/hevy_csv.py` |
+| Hevy workouts, quarterly observations, templates, routines and body measurements | `commands/hevy.py` | `importers/hevy_json.py` |
+| Cronometer daily nutrition | `commands/cronometer.py` | `importers/cronometer.py` |
+| Google Health normalized records | `commands/google_health.py` | `importers/google_health.py` |
+| Recipe nutrients and batch metadata | `commands/recipes.py` | `importers/recipes.py` |
+| Authored exercise subregions | `commands/submuscle_map.py` | `importers/submuscle_map.py` |
+| Laboratory catalog | `commands/lab_catalog.py` | `importers/lab_catalog.py` |
 
-CSV imports replace only rows whose source is `hevy`. Empty exports clear that
-history. Manually logged rows survive. Invalid optional numbers and unknown
-dates retain the legacy missing-value behavior, while invalid integer fields
-raise. Bulk CSV imports remain excluded from both broker allowlists.
+Paths in this table are relative to `toolkit/hermes_insights/`. Command owners
+validate workflow prerequisites, open the configured database and own commit,
+rollback and connection closure. Source owners parse and normalize provider files.
+They neither commit nor emit CLI output. Existing schema guards remain mandatory.
+Catalog dry runs retain their reports without writing records.
+
+Shared fitness and body bounds live in `fitness_contracts.py` and
+`body_contracts.py`. Routine snapshots live in `routine_history.py`, shared with
+unconverted routine commands. The facade retains compatibility exports for those
+consumers. Quarterly Hevy configuration still resolves once at startup and supplies
+both imports and activation accounting. Shared calculations retain their existing
+owners.
+
+Hevy CSV replaces only rows whose source is `hevy`. An empty export clears that
+history. JSON workout imports retain their separate shrink guard and explicit
+force option. Manual records, provider-specific update rules and ingestion-time
+behavior are preserved. Routine import snapshots and quarterly observation triggers
+remain in their import transaction. Bulk imports remain excluded from both broker
+allowlists.
 
 The explicit Hermes engine inventory includes the extracted runtime modules.
 Recursive exact-cache identity still covers toolkit Python source.

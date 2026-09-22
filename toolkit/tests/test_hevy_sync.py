@@ -451,3 +451,44 @@ def test_routine_undo_skips_hevy_sync_snapshots(db, tmp_path):
     # a second undo finds no owner edit left — hevy-sync rows are not candidates
     r = run(db, "routine-undo", expect_ok=False)
     assert r.returncode != 0
+
+
+def test_quarterly_failure_restores_workouts_and_prior_observations(db, tmp_path):
+    path = write_json(tmp_path, "quarterly.json", QUARTERLY_LOWER)
+    run(db, "import-hevy-json", path)
+    prior_sets = rows(db, "SELECT * FROM hevy_sets ORDER BY id")
+    prior_tests = rows(db, "SELECT * FROM fitness_tests ORDER BY id")
+    with sqlite3.connect(db) as con:
+        con.execute("""CREATE TRIGGER reject_corrected_curl
+            BEFORE INSERT ON fitness_tests
+            WHEN NEW.movement='leg-curl' AND NEW.load_kg=30
+            BEGIN SELECT RAISE(ABORT, 'fictional write failure'); END""")
+    corrected = json.loads(json.dumps(QUARTERLY_LOWER))
+    corrected["workouts"][0]["exercises"][0]["sets"][2]["weight_kg"] = 52.5
+    corrected["workouts"][0]["exercises"][1]["sets"][0]["weight_kg"] = 30
+
+    result = run(db, "import-hevy-json",
+                 write_json(tmp_path, "corrected.json", corrected), expect_ok=False)
+
+    assert result.returncode == 1
+    assert "fictional write failure" in result.stderr
+    assert rows(db, "SELECT * FROM hevy_sets ORDER BY id") == prior_sets
+    assert rows(db, "SELECT * FROM fitness_tests ORDER BY id") == prior_tests
+
+
+def test_invalid_routine_restores_prior_configuration_and_journal(db, tmp_path):
+    seed(db, """INSERT INTO routines(routine_name,exercise_title,target_sets)
+                VALUES(?,?,?)""", [("Existing plan", "Front Squat", 3)])
+    prior = rows(db, "SELECT * FROM routines")
+    invalid = {"routines": [{"title": "Replacement plan", "exercises": [
+        {"title": "Front Squat", "sets": [{"reps": 8}]},
+        {"title": "Cable Row", "sets": [{"reps": "not-an-integer"}]},
+    ]}]}
+
+    result = run(db, "import-hevy-routines",
+                 write_json(tmp_path, "invalid-routine.json", invalid), expect_ok=False)
+
+    assert result.returncode == 1
+    assert "not-an-integer" in result.stderr
+    assert rows(db, "SELECT * FROM routines") == prior
+    assert rows(db, "SELECT * FROM routines_history") == []

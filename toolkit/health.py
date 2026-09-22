@@ -14,6 +14,19 @@ from datetime import date, datetime, timedelta, timezone
 
 from hermes_insights import cli as insight_cli
 from hermes_insights.command_context import CommandContext
+from hermes_insights.commands import (
+    cronometer as cronometer_commands, google_health as google_health_commands,
+    hevy as hevy_commands, lab_catalog as lab_catalog_commands,
+    recipes as recipe_commands, submuscle_map as submuscle_commands,
+)
+from hermes_insights.fitness_contracts import KIND_FIELDS, FT_CLAMPS
+from hermes_insights.importers.common import stdin_text, valid_date
+from hermes_insights.importers.cronometer import MICRO_CITATION_STATUS
+from hermes_insights.importers.hevy_json import load_quarterly_config
+from hermes_insights.importers.lab_catalog import LAB_CATALOG_NOTE
+from hermes_insights.routine_history import (
+    require_history as _ensure_routines_history, snapshot as _snap,
+)
 from hermes_insights.commands.hevy import import_csv as import_hevy_csv
 from hermes_insights.importers.hevy_csv import parse_date as _hevy_date
 from hermes_insights import calculations as insight_calculations
@@ -78,13 +91,6 @@ def today():
 def days_ago(n):
     return insight_runtime.days_ago(n, clock=_now)
 
-def valid_date(s, flag="--date"):
-    """Reject non-ISO dates loudly: a write stamped '07/07/2026' would be
-    acknowledged but never join the ISO-keyed frame — invisible data loss."""
-    try:
-        return date.fromisoformat(s).isoformat()
-    except (TypeError, ValueError):
-        sys.exit(f"{flag} must be ISO YYYY-MM-DD, got: {s!r}")
 def num(x):
     try: return float(x) if x not in (None, "", "null", "NaN") else None
     except: return None
@@ -136,307 +142,19 @@ def import_hevy(a):
     out(import_hevy_csv(_command_context(), a.csv, parse_number=num))
 
 
-# ---- §5a/§5b Hevy API sync (collector-only; NOT in the bridge allowlists) ----
-def _hevy_api_date(s):
-    """Date of an ISO-8601 UTC timestamp in CANON_TZ — the API returns e.g.
-    '2026-07-06T23:30:00Z', which is already the 7th in configured timezone."""
-    if not s:
-        return None
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return _hevy_date(s)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(CANON_TZ).date().isoformat()
-
-
-def _load_hevy_json(path, key):
-    with open(path) as f:
-        data = json.load(f)
-    return data.get(key, []) if isinstance(data, dict) else data
-
-
-def _trunc(s, n=300):
-    """Clamp cloud-sourced strings — a hostile Hevy account must not be able
-    to stuff megabyte titles into the DB."""
-    return s[:n] if isinstance(s, str) else s
-
-
 # Exact Hevy routine/template identities are external account configuration.
 # Title-only fuzzy matching remains forbidden because ordinary workouts can
 # contain the same exercises as the fixed quarterly measurement protocol.
-def _load_hevy_quarterly_config():
-    path = os.environ.get("HERMES_HEVY_QUARTERLY_CONFIG")
-    if not path:
-        return {}, frozenset()
-    with open(path, encoding="utf-8") as handle:
-        payload = json.load(handle)
-    if not isinstance(payload, dict) or set(payload) != {
-        "routines", "unilateral_titles"
-    }:
-        raise ValueError(
-            "HERMES_HEVY_QUARTERLY_CONFIG must contain routines and unilateral_titles"
-        )
-    routines = payload["routines"]
-    unilateral = payload["unilateral_titles"]
-    if not isinstance(routines, dict) or not isinstance(unilateral, list):
-        raise ValueError("invalid Hevy quarterly configuration types")
-    clean = {}
-    for routine_id, item in routines.items():
-        if not isinstance(routine_id, str) or not routine_id.strip():
-            raise ValueError("Hevy quarterly routine IDs must be non-empty strings")
-        if not isinstance(item, dict) or set(item) != {"title", "templates"}:
-            raise ValueError("each Hevy quarterly routine needs title and templates")
-        title, templates = item["title"], item["templates"]
-        if not isinstance(title, str) or not title.strip() or not isinstance(templates, dict):
-            raise ValueError("invalid Hevy quarterly routine definition")
-        if not templates or not all(
-            isinstance(key, str) and key.strip()
-            and isinstance(value, str) and value.strip()
-            for key, value in templates.items()
-        ):
-            raise ValueError("Hevy quarterly template mappings must be non-empty strings")
-        clean[routine_id] = {"title": title, "templates": dict(templates)}
-    if not all(isinstance(title, str) and title.strip() for title in unilateral):
-        raise ValueError("Hevy quarterly unilateral titles must be non-empty strings")
-    return clean, frozenset(unilateral)
-
-
 HEVY_QUARTERLY_ROUTINES, HEVY_QUARTERLY_UNILATERAL_TITLES = (
-    _load_hevy_quarterly_config()
+    load_quarterly_config(os.environ.get("HERMES_HEVY_QUARTERLY_CONFIG"))
 )
 
 
-def _quarterly_routine(workout):
-    """Return a quarterly config only when the immutable routine identity
-    matches. Title fallback is limited to the exact configured title because
-    some historical Hevy workout payloads omit routine_id."""
-    routine_id = workout.get("routine_id")
-    if routine_id in HEVY_QUARTERLY_ROUTINES:
-        return HEVY_QUARTERLY_ROUTINES[routine_id]
-    title = workout.get("title")
-    matches = [v for v in HEVY_QUARTERLY_ROUTINES.values()
-               if title == v["title"]]
-    return matches[0] if len(matches) == 1 else None
-
-
-def _quarterly_value(spec, raw_set, fallback_load_kg=None):
-    """Translate one Hevy working set into the catalog's native value fields.
-    Missing/incompatible measurements are rejected; no bodyweight or load is
-    ever guessed."""
-    vals = {field: None for field in
-            ("load_kg", "reps", "seconds", "rating", "cm", "degrees", "passed")}
-    kind = spec["kind"]
-    used_fallback_load = False
-    if kind == "strength":
-        vals["load_kg"] = num(raw_set.get("weight_kg"))
-        if vals["load_kg"] is None and fallback_load_kg is not None:
-            vals["load_kg"] = fallback_load_kg
-            used_fallback_load = True
-        reps = num(raw_set.get("reps"))
-        if reps is not None and float(reps).is_integer():
-            vals["reps"] = int(reps)
-    elif kind in ("hold", "timed"):
-        vals["seconds"] = num(raw_set.get("duration_seconds"))
-    elif kind == "control":
-        rating = num(raw_set.get("reps"))
-        if rating is not None and float(rating).is_integer():
-            vals["rating"] = int(rating)
-    required = KIND_FIELDS[kind]
-    missing = [field for field in required if vals[field] is None]
-    if missing:
-        return None, f"missing {', '.join(missing)}", False
-    for field in required:
-        lo, hi = FT_CLAMPS[field]
-        if not lo <= vals[field] <= hi:
-            return None, f"{field} outside [{lo}, {hi}]", False
-    return vals, None, used_fallback_load
-
-
-def _import_quarterly_fitness_tests(c, workouts):
-    """Append quarterly observations derived from recognized Hevy routines.
-
-    Warmups do not participate in side assignment: working set 1 is left and
-    working set 2 is right. A deterministic source key makes full-history Hevy
-    reloads idempotent. If Hevy later corrects a set, the prior row is
-    soft-voided and a revision is appended, preserving the audit trail.
-    """
-    _ensure_fitness_tables(c)
-    result = {"quarterly_tests_inserted": 0, "quarterly_tests_unchanged": 0,
-              "quarterly_tests_superseded": 0, "quarterly_tests_rejected": 0,
-              "quarterly_warnings": []}
-
-    def warn(code, workout, exercise, movement, side=None, detail=None):
-        result["quarterly_warnings"].append({
-            "code": code, "workout_id": workout.get("id"),
-            "exercise": _trunc(exercise.get("title")),
-            "movement": movement, "side": side, "detail": detail,
-        })
-
-    value_fields = ("date", "movement", "side", "load_kg", "reps", "seconds",
-                    "rating", "cm", "degrees", "passed")
-    for workout in workouts:
-        config = _quarterly_routine(workout)
-        if config is None:
-            continue
-        workout_id = workout.get("id")
-        workout_date = _hevy_api_date(workout.get("start_time"))
-        if not workout_id or not workout_date:
-            result["quarterly_tests_rejected"] += 1
-            warn("invalid_workout_identity", workout, {}, None,
-                 detail="quarterly workout needs id and valid start_time")
-            continue
-        body_weight = c.execute(
-            """SELECT date,weight_kg FROM body_metrics
-               WHERE date<=? AND weight_kg IS NOT NULL
-               ORDER BY date DESC LIMIT 1""", (workout_date,)).fetchone()
-        for exercise in (workout.get("exercises") or []):
-            template_id = exercise.get("exercise_template_id")
-            movement = config["templates"].get(template_id)
-            if movement is None:
-                continue
-            spec = CATALOG[movement]
-            working = [s for s in (exercise.get("sets") or [])
-                       if (s.get("type") or "normal") != "warmup"]
-            expected = 2 if spec["unilateral"] else 1
-            if len(working) < expected:
-                for ordinal in range(len(working), expected):
-                    side = ("left", "right")[ordinal] if spec["unilateral"] else "bilateral"
-                    result["quarterly_tests_rejected"] += 1
-                    warn("missing_working_set", workout, exercise, movement, side)
-            if len(working) > expected:
-                result["quarterly_tests_rejected"] += len(working) - expected
-                warn("extra_working_sets", workout, exercise, movement,
-                     detail=f"expected {expected}, got {len(working)}; extras ignored")
-            for ordinal, raw_set in enumerate(working[:expected]):
-                side = ("left", "right")[ordinal] if spec["unilateral"] else "bilateral"
-                # The exact quarterly calf template is a bodyweight movement.
-                # Hevy correctly leaves external weight empty; its system load
-                # is the latest measured body mass on/before the test date.
-                # This mirrors the protocol's bodyweight-system-load rule and
-                # is recorded in the note rather than silently inferred.
-                fallback_load = (
-                    body_weight["weight_kg"]
-                    if movement == "calf-raise" and body_weight is not None
-                    else None)
-                vals, error, used_body_weight = _quarterly_value(
-                    spec, raw_set, fallback_load)
-                if error:
-                    result["quarterly_tests_rejected"] += 1
-                    warn("incompatible_measurement", workout, exercise, movement,
-                         side, error)
-                    continue
-                if spec["kind"] == "strength" and not 6 <= vals["reps"] <= 8:
-                    warn("outside_protocol_rep_range", workout, exercise, movement,
-                         side, f"{vals['reps']} reps; protocol is 6–8")
-                base_source = (
-                    f"hevy-quarterly:{workout_id}:{template_id}:{ordinal + 1}")
-                payload = {
-                    "date": workout_date, "movement": movement, "side": side,
-                    **vals,
-                }
-                active = c.execute(
-                    """SELECT * FROM fitness_tests
-                       WHERE voided=0 AND (source=? OR source LIKE ?)
-                       ORDER BY id DESC LIMIT 1""",
-                    (base_source, base_source + ":r%")).fetchone()
-                if active is not None and all(active[field] == payload[field]
-                                              for field in value_fields):
-                    result["quarterly_tests_unchanged"] += 1
-                    continue
-                if active is not None:
-                    c.execute("""UPDATE fitness_tests
-                                 SET voided=1, void_reason=?
-                                 WHERE id=?""",
-                              ("superseded by corrected Hevy sync", active["id"]))
-                    result["quarterly_tests_superseded"] += 1
-                revision_count = c.execute(
-                    """SELECT COUNT(*) FROM fitness_tests
-                       WHERE source=? OR source LIKE ?""",
-                    (base_source, base_source + ":r%")).fetchone()[0]
-                source = (base_source if revision_count == 0
-                          else f"{base_source}:r{revision_count + 1}")
-                note = f"Hevy {config['title']} · {_trunc(exercise.get('title'), 120)}"
-                if used_body_weight:
-                    note += (f" · bodyweight system load {body_weight['weight_kg']:g} kg"
-                             f" (measured {body_weight['date']})")
-                if spec["kind"] == "hold" and num(raw_set.get("weight_kg")) is not None:
-                    note += f" · {num(raw_set.get('weight_kg')):g} kg"
-                c.execute("""INSERT INTO fitness_tests(
-                    date,movement,side,load_kg,reps,seconds,rating,cm,degrees,
-                    passed,equipment_note,source)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (payload["date"], payload["movement"], payload["side"],
-                     payload["load_kg"], payload["reps"], payload["seconds"],
-                     payload["rating"], payload["cm"], payload["degrees"],
-                     payload["passed"], note, source))
-                row_id = str(c.execute("SELECT last_insert_rowid()").fetchone()[0])
-                if insight_migrations.recorded_version(c) >= 4:
-                    insight_orchestrator.enqueue_internal_trigger(
-                        c, trigger_kind="quarterly_observation",
-                        source_table="fitness_tests", source_row_key=row_id,
-                        event_date=workout_date)
-                result["quarterly_tests_inserted"] += 1
-    return result
-
-
 def import_hevy_json(a):
-    """Full workout history as Hevy API JSON ({"workouts": [...]} — the
-    collector concatenates pages). Same semantics as the CSV import:
-    source-scoped delete + reload, so panel/chat-logged sets survive.
-    Dates are the workout's start_time in CANON_TZ. Guards: an empty or
-    <50%-of-existing payload is REFUSED (an API incident must never wipe
-    history through the reload) unless --force; sets outside sane numeric
-    ranges are skipped and counted; unparseable dates are kept but counted
-    (they're invisible to every windowed consumer, so silence would hide a
-    data hole). API set index is 0-based — normalized to 1-based to match
-    log-set's allocation."""
-    c = cx()
-    _ensure_hevy_source(c)
-    workouts = _load_hevy_json(a.json_file, "workouts")
-    incoming = sum(len(ex.get("sets") or [])
-                   for w in workouts for ex in (w.get("exercises") or []))
-    existing = c.execute(
-        "SELECT COUNT(*) n FROM hevy_sets WHERE source='hevy'").fetchone()["n"]
-    if existing and incoming < existing / 2 and not a.force:
-        sys.exit(f"refusing reload: payload has {incoming} sets vs {existing} existing "
-                 "hevy rows (API incident / response-shape drift?) — --force to override")
-    c.execute("DELETE FROM hevy_sets WHERE source='hevy'")
-    n = skipped = null_dates = 0
-    for w in workouts:
-        d = _hevy_api_date(w.get("start_time"))
-        for ex in (w.get("exercises") or []):
-            for s in (ex.get("sets") or []):
-                wkg, rv, rpe = num(s.get("weight_kg")), num(s.get("reps")), num(s.get("rpe"))
-                dist, dur = num(s.get("distance_meters")), num(s.get("duration_seconds"))
-                if not ((wkg is None or 0 <= wkg <= 1000)
-                        and (rv is None or 0 <= rv <= 1000)
-                        and (rpe is None or 0 <= rpe <= 10)
-                        and (dist is None or 0 <= dist <= 1_000_000)
-                        and (dur is None or 0 <= dur <= 604_800)):
-                    skipped += 1
-                    continue
-                if d is None:
-                    null_dates += 1
-                idx = s.get("index")
-                c.execute("""INSERT INTO hevy_sets(date,workout_title,start_time,end_time,description,
-                  exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg,reps,
-                  distance_km,duration_seconds,rpe)
-                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                  (d, _trunc(w.get("title")), w.get("start_time"), w.get("end_time"),
-                   _trunc(w.get("description")), _trunc(ex.get("title")),
-                   ex.get("supersets_id"), _trunc(ex.get("notes")),
-                   int(idx) + 1 if isinstance(idx, (int, float)) else None,
-                   _trunc(s.get("type"), 20), wkg,
-                   int(rv) if rv is not None else None,
-                   round(dist / 1000.0, 3) if dist is not None else None,
-                   dur, rpe))
-                n += 1
-    quarterly = _import_quarterly_fitness_tests(c, workouts)
-    c.commit()
-    out({"ok": True, "imported_sets": n, "workouts": len(workouts),
-         "skipped_sets": skipped, "null_date_sets": null_dates, **quarterly})
+    """Compatibility entry point for the extracted import command."""
+    out(hevy_commands.import_json(
+        _command_context(), a.json_file, force=a.force, parse_number=num,
+        quarterly_routines=HEVY_QUARTERLY_ROUTINES))
 
 
 def _ensure_muscle_source(c):
@@ -445,119 +163,14 @@ def _ensure_muscle_source(c):
 
 
 def import_hevy_templates(a):
-    """§5b coarse muscle map: exercise_templates muscle tags →
-    exercise_muscles (primary=1.0, secondary=0.5, source='hevy') for
-    exercises that actually appear in hevy_sets or routines. An exercise
-    with ANY manually curated row is skipped — manual curation always wins,
-    and only source='hevy' rows are ever replaced (mapping rows are
-    re-derivable source config, not logged health data). Tags outside
-    MUSCLE_TO_GROUP (cardio/full_body/neck/other) still land here; the
-    radar surfaces them as `unmapped`."""
-    c = cx()
-    _ensure_muscle_source(c)
-    templates = _load_hevy_json(a.json_file, "exercise_templates")
-    used = {r["exercise_title"] for r in c.execute(
-        "SELECT DISTINCT exercise_title FROM hevy_sets"
-        " UNION SELECT DISTINCT exercise_title FROM routines")}
-    mapped = skipped = 0
-    for t in templates:
-        title = _trunc(t.get("title"))
-        if not title or title not in used:
-            continue
-        # Stale hevy rows are ALWAYS retired first — even when manual curation
-        # now owns the exercise, otherwise the two row sets coexist and the
-        # radar double-counts the exercise forever.
-        c.execute("DELETE FROM exercise_muscles WHERE exercise_title=? AND source='hevy'",
-                  (title,))
-        if c.execute("SELECT 1 FROM exercise_muscles WHERE exercise_title=? LIMIT 1",
-                     (title,)).fetchone():
-            skipped += 1          # manual curation wins
-            continue
-        prim = t.get("primary_muscle_group")
-        if prim:
-            c.execute("INSERT OR REPLACE INTO exercise_muscles(exercise_title,muscle,weight,source)"
-                      " VALUES(?,?,?,'hevy')", (title, _trunc(prim, 50), 1.0))
-        # dedupe + never let a duplicate secondary tag downgrade the primary
-        for sec in dict.fromkeys(t.get("secondary_muscle_groups") or []):
-            if sec and sec != prim:
-                c.execute("INSERT OR REPLACE INTO exercise_muscles(exercise_title,muscle,weight,source)"
-                          " VALUES(?,?,?,'hevy')", (title, _trunc(sec, 50), 0.5))
-        mapped += 1
-    c.commit(); out({"ok": True, "mapped_exercises": mapped, "skipped_manual": skipped})
+    """Compatibility entry point for the extracted import command."""
+    out(hevy_commands.import_templates(_command_context(), a.json_file))
 
 
 def import_hevy_routines(a):
-    """Refresh the routines CONFIG from Hevy ({"routines": [...]}). Every
-    existing row is snapshotted to routines_history (op='hevy-sync') first —
-    the approved config-delete exception; routine-undo deliberately skips
-    those snapshot rows so the nightly sync can't bury the user's edits.
-    target_sets = count of non-warmup sets; target_reps/weight = the first
-    non-warmup set (deterministic reduction of Hevy's per-set prescriptions).
-    Duplicate entries — the same exercise twice in a routine (heavy block +
-    back-off) or two routines sharing a title — AGGREGATE: sets sum, the
-    first block's reps/weight/order win, and the collapse is counted.
-    training_schedule (weekday→routine) is USER config and is never edited;
-    weekdays whose routine no longer exists are reported as orphaned."""
-    c = cx()
-    _ensure_routines_history(c)
-    routines = _load_hevy_json(a.json_file, "routines")
-    prior = c.execute("SELECT * FROM routines").fetchall()
-    for p in prior:
-        _snap(c, "hevy-sync", p["routine_name"], p["exercise_title"], p)
-    c.execute("DELETE FROM routines")
-    agg, dupes = {}, 0
-    for r in routines:
-        rname = _trunc(r.get("title"))
-        for ex in (r.get("exercises") or []):
-            work = [s for s in (ex.get("sets") or [])
-                    if (s.get("type") or "normal") != "warmup"]
-            first = work[0] if work else None
-            key = (rname, _trunc(ex.get("title")))
-            if key in agg:
-                dupes += 1
-                agg[key]["target_sets"] = ((agg[key]["target_sets"] or 0)
-                                           + len(work)) or None
-                continue
-            agg[key] = {
-                "ex_order": ex.get("index"),
-                "target_sets": len(work) or None,
-                "target_reps": int(first["reps"]) if first and first.get("reps") is not None else None,
-                "target_weight_kg": num(first.get("weight_kg")) if first else None,
-            }
-    for (rname, ename), v in agg.items():
-        c.execute("INSERT INTO routines(routine_name,exercise_title,ex_order,"
-                  "target_sets,target_reps,target_weight_kg) VALUES(?,?,?,?,?,?)",
-                  (rname, ename, v["ex_order"], v["target_sets"],
-                   v["target_reps"], v["target_weight_kg"]))
-    titles = {k[0] for k in agg}
-    orphaned = {r["weekday"]: r["routine_name"] for r in c.execute(
-        "SELECT weekday, routine_name FROM training_schedule")
-        if r["routine_name"] not in titles and r["routine_name"] != "Rest"}
-    c.commit()
-    out({"ok": True, "routines": len(routines), "snapshotted_rows": len(prior),
-         "duplicate_entries": dupes, "orphaned_schedule": orphaned})
-
-
-# §3f: Hevy body-measurement field -> body_metrics column. VERIFIED against
-# the official OpenAPI spec (api.hevyapp.com/docs swagger-ui-init.js,
-# BodyMeasurement schema, fetched 2026-07-10): `date` is a plain ISO date;
-# `weight_kg`/`fat_percent` and bare `waist`/`hips`/`abdomen` — but chest and
-# neck DO carry the suffix (`chest_cm`, `neck_cm`). Both spellings stay
-# accepted anyway so a future rename degrades to a skipped value, never a
-# crash. Fields with no body_metrics column (abdomen, biceps, thighs, calves,
-# shoulder_cm, lean_mass_kg) are deliberately NOT imported — design rule
-# 2026-07-10: WCR ships with no schema change; shoulder_cm/SWR is a later
-# option (the API does expose shoulder_cm when that day comes).
-HEVY_BODY_FIELDS = {
-    "weight_kg": "weight_kg",
-    "waist": "waist_cm", "waist_cm": "waist_cm",          # spec: waist
-    "chest": "chest_cm", "chest_cm": "chest_cm",          # spec: chest_cm
-    "neck": "neck_cm", "neck_cm": "neck_cm",              # spec: neck_cm
-    "hips": "hip_cm", "hip_cm": "hip_cm",                 # spec: hips
-    "fat_percent": "body_fat_pct", "body_fat_pct": "body_fat_pct",  # spec: fat_percent
-}
-BODY_CLAMPS = {"weight_kg": (20, 400), "waist_cm": (30, 250), "chest_cm": (40, 250),
-               "neck_cm": (15, 80), "hip_cm": (40, 250), "body_fat_pct": (1, 75)}
+    """Compatibility entry point for the extracted import command."""
+    out(hevy_commands.import_routines(
+        _command_context(), a.json_file, parse_number=num))
 
 
 def _ensure_body_source(c):
@@ -566,60 +179,9 @@ def _ensure_body_source(c):
 
 
 def import_hevy_body(a):
-    """Collector-only (§3f V-taper): body_measurements from the Hevy API
-    ({"body_measurements": [...]}). UPDATE-or-INSERT per (date, source='hevy')
-    — deliberately NOT the delete-and-reload the workout sync uses, because
-    body_metrics is a log table and CLAUDE.md law #3's delete exception covers
-    only routines config + hevy_sets. Nothing is ever deleted here: manual
-    rows are untouched, hevy rows the API stops returning simply linger, and
-    an empty payload is a harmless no-op (so no shrunken-payload guard is
-    needed). Out-of-range values are skipped per-field and counted, never
-    guessed. If Hevy ever returns several measurements for one date the one
-    later in the payload wins (the API exposes no within-day timestamp)."""
-    c = cx()
-    _ensure_body_source(c)
-    items = _load_hevy_json(a.json_file, "body_measurements")
-    rows, clamped = {}, 0
-    for m in items:
-        if not isinstance(m, dict):
-            continue
-        d = _hevy_api_date(m.get("date"))
-        if d is None:
-            continue
-        vals = {}
-        for field, col in HEVY_BODY_FIELDS.items():
-            v = num(m.get(field))
-            if v is None:
-                continue
-            lo, hi = BODY_CLAMPS[col]
-            if not lo <= v <= hi:
-                clamped += 1
-                continue
-            vals[col] = v
-        if vals:
-            rows[d] = vals          # one measurement set per date (last wins)
-    updated = inserted = 0
-    for d, vals in sorted(rows.items()):
-        cols = list(vals)
-        existing = c.execute(
-            "SELECT id FROM body_metrics WHERE date=? AND source='hevy' "
-            "ORDER BY id DESC LIMIT 1", (d,)).fetchone()
-        if existing:
-            # refresh ALL mapped columns (clearing ones Hevy no longer reports
-            # for the day) so an in-app correction propagates on the next sync
-            sets = ",".join(f"{col}=?" for col in HEVY_BODY_FIELDS.values())
-            c.execute(f"UPDATE body_metrics SET {sets} WHERE id=?",
-                      (*[vals.get(col) for col in HEVY_BODY_FIELDS.values()],
-                       existing["id"]))
-            updated += 1
-        else:
-            ph = ",".join("?" * len(cols))
-            c.execute(f"INSERT INTO body_metrics(date,{','.join(cols)},source) "
-                      f"VALUES(?,{ph},'hevy')", (d, *vals.values()))
-            inserted += 1
-    c.commit()
-    out({"ok": True, "dates": len(rows), "inserted": inserted, "updated": updated,
-         "skipped_values_out_of_range": clamped})
+    """Compatibility entry point for the extracted import command."""
+    out(hevy_commands.import_body(
+        _command_context(), a.json_file, parse_number=num))
 
 
 # =========================================================== training layer
@@ -682,19 +244,10 @@ def today_session(a):
 #         | rom (degrees, ↑) | binary (passed 0/1, ↑)   ← Phase 4 mobility
 # rom/binary are the two mobility units (design rule 2 — per-test unit): shoulder
 # and ankle ROM read in degrees, the Thomas hip-flexor screen reads pass/fail.
-KIND_FIELDS = {"strength": ("load_kg", "reps"), "hold": ("seconds",),
-               "timed": ("seconds",), "control": ("rating",), "distance": ("cm",),
-               "rom": ("degrees",), "binary": ("passed",)}
 
 
 def _ft(name, kind, group=None, ref=None, unilateral=0, priority=0):
     return insight_catalogs._ft(name, kind, group, ref, unilateral, priority)
-
-
-# Numeric clamps — reject impossible inputs loudly (same style as import-hevy).
-FT_CLAMPS = {"load_kg": (0, 1000), "reps": (1, 15), "seconds": (0, 3600),
-             "rating": (1, 3), "cm": (-50, 60), "degrees": (0, 300),
-             "passed": (0, 1)}
 
 
 # §3d EVERYDAY view — movement-PATTERN balance from compound e1RM. HEURISTIC
@@ -948,21 +501,6 @@ def last_session(a):
 # =========================================================== program editing
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
-def _ensure_routines_history(c):
-    """Undo journal for program edits. Program config (routines) is NOT logged
-    health data — the approved 'no-delete' scoping lets routine rows be removed,
-    but every prior state is snapshotted here first so any edit is reversible."""
-    _require_schema(c, "routines_history")
-
-def _snap(c, op, routine, exercise, prior):
-    c.execute("""INSERT INTO routines_history(op, routine_name, exercise_title, prior_existed,
-                 ex_order, target_sets, target_reps, target_weight_kg)
-                 VALUES(?,?,?,?,?,?,?,?)""",
-              (op, routine, exercise, 1 if prior else 0,
-               prior["ex_order"] if prior else None,
-               prior["target_sets"] if prior else None,
-               prior["target_reps"] if prior else None,
-               prior["target_weight_kg"] if prior else None))
 
 def routine_set(a):
     """Add or edit an exercise's targets in a routine (upsert). Snapshots the
@@ -1067,105 +605,9 @@ def schedule_set(a):
     out({"ok": True, "weekday": a.weekday, "routine": routine})
 
 def import_recipes(a):
-    """Load Cronometer recipe CSV. Stores nutrients as RECIPE TOTALS (as exported).
-    Per-gram is derived later using recipes.batch_grams (set via `set-batch` or `prep`).
-
-    Cronometer exports may contain whole-batch, per-serving, or PER-GRAM
-    values. The Amount cell identifies the latter two forms. Refuse those
-    forms unless the matching explicit mode is supplied so a tiny per-gram
-    number can never silently become a whole-batch total.
-
-    `--per-serving --servings N` scales one serving to batch totals.
-    `--per-gram --batch-grams G` scales one gram to batch totals and records
-    the batch weight atomically. Optional `--portions N` records the portion
-    count/weight, and `--meal-type` records the panel filter tag."""
-    if a.per_serving and a.per_gram:
-        sys.exit("--per-serving and --per-gram are mutually exclusive")
-    if a.servings is not None and not a.per_serving:
-        sys.exit("--servings requires --per-serving")
-    if a.per_serving:
-        if a.servings is None: sys.exit("--per-serving requires --servings N")
-        if a.servings < 1: sys.exit("--servings must be >= 1")
-    if a.per_gram and a.batch_grams is None:
-        sys.exit("--per-gram requires --batch-grams G")
-    if a.batch_grams is not None and a.batch_grams <= 0:
-        sys.exit("--batch-grams must be > 0")
-    if a.portions is not None:
-        if a.portions < 1: sys.exit("--portions must be >= 1")
-        if a.batch_grams is None: sys.exit("--portions requires --batch-grams G")
-    if a.meal_type is not None and a.meal_type not in MEAL_TYPES:
-        sys.exit(f"--meal-type must be one of: {', '.join(MEAL_TYPES)}")
-
-    mult = a.batch_grams if a.per_gram else (a.servings if a.per_serving else 1)
-    META = {"Food ID","Food Name","Comments","Amount"}
-    c = cx(); loaded = []
-    if a.meal_type is not None:
-        _recipes_has_meal_type(c)
-    with open(a.csv, newline="") as f:
-        rd = csv.DictReader(f)
-        if not rd.fieldnames or "Food Name" not in rd.fieldnames:
-            sys.exit("recipe CSV must contain a Food Name column")
-        ncols = [h for h in rd.fieldnames if h not in META]
-        for row in rd:
-            amount = (row.get("Amount") or "").strip().casefold()
-            amount_is_gram = bool(re.fullmatch(r"(?:1(?:\.0+)?)?\s*g(?:ram)?s?", amount))
-            amount_is_serving = "serving" in amount
-            if amount_is_gram and not a.per_gram:
-                sys.exit("CSV contains per-gram nutrients (Amount is 'g'); "
-                         "re-run with --per-gram --batch-grams G")
-            if amount_is_serving and not a.per_serving:
-                sys.exit("CSV contains per-serving nutrients; "
-                         "re-run with --per-serving --servings N")
-            if a.per_gram and not amount_is_gram:
-                sys.exit("--per-gram requires each CSV Amount to identify grams")
-            if a.per_serving and not amount_is_serving:
-                sys.exit("--per-serving requires each CSV Amount to identify a serving")
-            name = row["Food Name"]
-            rid = slug(name)
-            c.execute("""INSERT INTO recipes(recipe_id,name,notes,source)
-                         VALUES(?,?,?, 'cronometer')
-                         ON CONFLICT(recipe_id) DO UPDATE SET
-                           name=excluded.name, notes=excluded.notes, source=excluded.source""",
-                      (rid, name, row.get("Comments") or None))
-            c.execute("DELETE FROM recipe_nutrients WHERE recipe_id=?", (rid,))
-            for col in ncols:
-                v = num(row[col])
-                if v is None: continue
-                # Keep deterministic decimal CSV scaling free of binary-float
-                # tails (e.g. 0.10 × 3157 must store as 315.7, not
-                # 315.70000000000005).
-                v = round(v * mult, 9)
-                m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", col)
-                nutrient, unit = (m.group(1), m.group(2)) if m else (col, "")
-                # per_gram column here holds the RECIPE TOTAL until batch weight is set
-                c.execute("INSERT OR REPLACE INTO recipe_nutrients(recipe_id,nutrient,unit,per_gram) VALUES(?,?,?,?)",
-                          (rid, nutrient.strip(), unit, v))
-            if a.batch_grams is not None:
-                if a.portions is None:
-                    c.execute("UPDATE recipes SET batch_grams=? WHERE recipe_id=?",
-                              (a.batch_grams, rid))
-                else:
-                    gpp = round(a.batch_grams / a.portions, 1)
-                    c.execute("""UPDATE recipes
-                                 SET batch_grams=?, portions=?, grams_per_portion=?
-                                 WHERE recipe_id=?""",
-                              (a.batch_grams, a.portions, gpp, rid))
-            if a.meal_type is not None:
-                c.execute("UPDATE recipes SET meal_type=? WHERE recipe_id=?",
-                          (a.meal_type, rid))
-            loaded.append(name)
-    c.commit()
-    res = {"ok": True, "recipes_loaded": loaded}
-    if a.batch_grams is None:
-        res["next"] = ("run `set-batch <recipe> --grams <cooked weight>` "
-                       "so per-gram nutrition can be computed")
-    if a.per_serving: res.update({"per_serving": True, "servings": a.servings})
-    if a.per_gram: res.update({"per_gram": True, "batch_grams": a.batch_grams})
-    if a.portions is not None:
-        res.update({"portions": a.portions,
-                    "grams_per_portion": round(a.batch_grams / a.portions, 1)})
-    if a.meal_type is not None: res["meal_type"] = a.meal_type
-    out(res)
+    """Compatibility entry point for the extracted import command."""
+    out(recipe_commands.import_csv(
+        _command_context(), a, parse_number=num, slug=slug, meal_types=MEAL_TYPES))
 
 def set_batch(a):
     """Record the finished cooked weight of a recipe's batch (enables per-gram math).
@@ -1857,21 +1299,8 @@ def _vault_write_path(rel_dir, filename):
 
 
 def _stdin_text(what):
-    """stdin as VALIDATED UTF-8 text, checked BEFORE any file is created.
-    Under a C-locale service, surrogateescape lets undecodable bytes through
-    stdin.read() only to explode later in f.write() — after open('x') has
-    already created the file, leaving a zero-byte 'immutable' squatter. Fail
-    here instead, fail clean."""
-    content = sys.stdin.read()
-    if not content.strip():
-        sys.exit(f"empty {what}")
-    if len(content) > 500_000:
-        sys.exit(f"{what} too large (>500k)")
-    try:
-        content.encode("utf-8")
-    except UnicodeEncodeError:
-        sys.exit(f"{what} is not valid UTF-8 text — re-send it clean")
-    return content
+    """Compatibility wrapper using the current command input stream."""
+    return stdin_text(sys.stdin, what)
 
 
 def journal_capture(a):
@@ -3079,8 +2508,6 @@ def _configured_micro_targets():
     return insight_catalogs._configured_micro_targets(micro_keys=MICRO_KEYS)
 
 
-MICRO_CITATION_STATUS = ("user-configured" if CONFIGURED_MICRO_TARGETS
-                         else "not-configured")
 # Cronometer recipe exports use display names rather than the canonical keys
 # above. These aliases are intentionally narrow: EPA and DHA are summed into
 # the EPA+DHA target, while the broader Omega-3 total (which includes ALA) is
@@ -3102,9 +2529,6 @@ RECIPE_MICRO_NAME_TO_KEY = {
     "folate dfe": "folate",
 }
 RECIPE_MICRO_UNITS = {m["key"]: m["unit"] for m in MICRO_SEED}
-# macro columns from the same Cronometer daily export
-MACRO_ALIASES = {"energy_kcal": ("energy",), "protein_g": ("protein",)}
-MACRO_UNITS = {"energy_kcal": {"kcal": 1.0}, "protein_g": {"g": 1.0}}
 # composite weights (HEURISTIC editorial split, documented on the payload):
 # protein 25 + kcal 15 + 10 micros × 6 = 100
 NUTRITION_WEIGHTS = {"protein": 25, "kcal": 15, "micro_each": 6}
@@ -3137,288 +2561,14 @@ def nutrition_target_set(a):
     out({"ok": True, "name": name, "target": a.target})
 
 
-def _cronometer_header(h):
-    """'Vitamin D (IU)' -> ('vitamin d', 'iu'); bare headers get unit ''."""
-    m = re.match(r"^\s*(.*?)\s*\(([^)]*)\)\s*$", h or "")
-    if m:
-        return m.group(1).strip().lower(), m.group(2).strip().lower()
-    return (h or "").strip().lower(), ""
-
-
 def import_cronometer(a):
-    """Collector-only (§4a): a Cronometer DAILY-SUMMARY CSV (one row per day,
-    'Date' + per-nutrient columns like 'Vitamin D (IU)', 'Magnesium (mg)').
-    Header matching is defensive: only columns that match a seeded alias WITH
-    a convertible unit are imported (converted to the seed unit — e.g. IU→ug
-    for vitamin D at 40 IU/ug); everything else is reported in
-    unmatched_columns, never guessed. EPA+DHA are summed into omega3_epa_dha
-    (the EFSA target's definition); a bare 'Omega-3 (g)' total is NOT used —
-    it includes ALA and would overcount. Upserts per (date, nutrient):
-    reimporting a corrected export fixes rows in place, deletes nothing."""
-    c = cx(); _ensure_nutrient_tables(c)
-    specs = {}          # header-alias -> (key, factor)
-    for m in MICRO_SEED:
-        for al in m["aliases"]:
-            specs[al] = (m["key"], m["units"])
-    for key, aliases in MACRO_ALIASES.items():
-        for al in aliases:
-            specs[al] = (key, MACRO_UNITS[key])
-    # BOM-tolerant decode up front (Excel re-saves add one and it would mask
-    # the Date column); a non-UTF-8 export fails CLEAN before any row lands.
-    try:
-        with open(a.csv, "rb") as f:
-            text = f.read().decode("utf-8-sig")
-    except UnicodeDecodeError:
-        sys.exit("CSV is not UTF-8 — re-export it from Cronometer (or convert) first")
-    n_days = written = skipped_rows = skipped_values = 0
-    unmatched = []
-    rd = csv.DictReader(io.StringIO(text, newline=""))
-    fields = rd.fieldnames or []
-    # csv.DictReader keeps only the LAST of exactly-duplicated headers — a
-    # hand-edited export could silently lose a column, so surface them.
-    dup_cols = sorted({h for h in fields if fields.count(h) > 1})
-    cols = {}
-    for h in fields:
-        name, unit = _cronometer_header(h)
-        if name == "date":
-            cols[h] = ("__date__", 1.0)
-        elif name in ("epa", "dha") and unit in ("mg", "g"):
-            # keyed per NAME (last column wins, like every other nutrient) —
-            # summing raw columns would double-count an EPA(mg)+EPA(g) pair
-            cols[h] = (f"__{name}__", 1.0 if unit == "mg" else 1000.0)
-        elif name in specs:
-            key, units = specs[name]
-            if unit in units:
-                cols[h] = (key, units[unit])
-            else:
-                unmatched.append(h)
-        else:
-            unmatched.append(h)
-    if not any(k == "__date__" for k, _ in cols.values()):
-        sys.exit("no Date column — is this a Cronometer daily-summary export?")
-    for row in rd:
-        d = None
-        vals, epa_dha = {}, {}
-        row_skipped = 0
-        for h, (key, factor) in cols.items():
-            raw = (row.get(h) or "").strip()
-            if key == "__date__":
-                try:
-                    d = date.fromisoformat(raw[:10]).isoformat()
-                except ValueError:
-                    d = None
-                continue
-            if not raw:
-                continue
-            v = num(raw)
-            # nan passes `< 0` and then binds as NULL in sqlite (NOT NULL
-            # crash mid-import); inf scores 100% forever — both are garbage
-            if v is None or not math.isfinite(v) or v < 0:
-                row_skipped += 1
-                continue
-            if key in ("__epa__", "__dha__"):
-                epa_dha[key] = v * factor           # per-name, last wins
-            else:
-                vals[key] = round(v * factor, 3)
-        if epa_dha:
-            vals["omega3_epa_dha"] = round(sum(epa_dha.values()), 3)
-        skipped_values += row_skipped
-        if d is None:
-            # unparseable/missing date: the day is LOST — count it, don't hide it
-            if vals or row_skipped:
-                skipped_rows += 1
-            continue
-        if not vals:
-            continue
-        n_days += 1
-        for key, v in vals.items():
-            unit = next((m["unit"] for m in MICRO_SEED if m["key"] == key),
-                        "kcal" if key == "energy_kcal" else "g")
-            c.execute("""INSERT INTO nutrient_daily(date, nutrient, amount, unit, source)
-                VALUES(?,?,?,?, 'cronometer')
-                ON CONFLICT(date, nutrient, source) DO UPDATE SET
-                  amount=excluded.amount, unit=excluded.unit,
-                  ingested_at=datetime('now')""", (d, key, v, unit))
-            written += 1
-    c.commit()
-    out({"ok": True, "days": n_days, "values_written": written,
-         "skipped_rows_bad_date": skipped_rows,
-         "skipped_values_unparseable": skipped_values,
-         "duplicate_columns": dup_cols,
-         "unmatched_columns": sorted(unmatched),
-         "citation_status": MICRO_CITATION_STATUS})
-
-# ── T53: Google Health API v4 wearable sync (Fitbit Air) ────────────────────
-# Plausibility clamps — same physically-possible-wide posture as BODY_CLAMPS /
-# import-hevy: implausible values are SKIPPED and counted, never written and
-# never fatal (a cron sync must survive one garbage sample). weight reuses
-# BODY_CLAMPS["weight_kg"] — one home per bound.
-GH_METRIC_CLAMPS = {
-    "resting_hr": (20, 250),          # bpm
-    "hrv_ms": (1, 300),               # ms
-    "steps": (0, 200_000),
-    "active_energy_kcal": (0, 10_000),
-    "respiratory_rate": (4, 60),      # breaths/min
-    "spo2_pct": (50, 100),
-    "sleep_hours": (0, 24),
-}
-GH_SLEEP_CLAMPS = {
-    "time_asleep_hours": (0, 24), "time_in_bed_hours": (0, 24),
-    "deep_min": (0, 1440), "rem_min": (0, 1440),
-    "light_min": (0, 1440), "awake_min": (0, 1440),
-    "awakenings": (0, 100),
-}
-GH_SLEEP_TEXT = ("bedtime", "wake_time")   # "HH:MM" strings, validated
-GH_DAY_KEYS = {"date", "metrics", "sleep", "weight_kg"}
-
-
-def _gh_clamped(fields, clamps, skipped):
-    """Numeric validation for one payload section: unknown key = fatal
-    (schema drift must be LOUD, not silently dropped data); implausible
-    value = skipped + counted (one bad sample must not kill the sync)."""
-    vals = {}
-    for k, v in fields.items():
-        if k in GH_SLEEP_TEXT and clamps is GH_SLEEP_CLAMPS:
-            if not re.match(r"^\d{2}:\d{2}$", str(v or "")):
-                skipped.append(k)
-                continue
-            vals[k] = v
-            continue
-        if k not in clamps:
-            sys.exit(f"unknown field {k!r} — allowed: "
-                     f"{', '.join(sorted(clamps) + (list(GH_SLEEP_TEXT) if clamps is GH_SLEEP_CLAMPS else []))}")
-        fv = num(v)
-        lo, hi = clamps[k]
-        if fv is None or not math.isfinite(fv) or not lo <= fv <= hi:
-            skipped.append(k)
-            continue
-        vals[k] = fv
-    return vals
-
+    """Compatibility entry point for the extracted import command."""
+    out(cronometer_commands.import_csv(_command_context(), a.csv, parse_number=num))
 
 def import_google_health(a):
-    """Collector-only (T53, NOT in any bridge allowlist): ingest the payload
-    deploy/ghealth-sync builds from the Google Health API v4. Reads JSON from
-    a file path, or stdin when the arg is '-' (the collector pipes it in).
-
-    Payload schema (all sections optional per day; unknown keys are fatal):
-      {"days": [{
-         "date": "YYYY-MM-DD",                       # required, ISO
-         "metrics": {resting_hr, hrv_ms, steps, active_energy_kcal,
-                     respiratory_rate, spo2_pct, sleep_hours},
-         "sleep":   {time_asleep_hours, time_in_bed_hours, deep_min, rem_min,
-                     light_min, awake_min, awakenings,
-                     bedtime "HH:MM", wake_time "HH:MM"},
-         "weight_kg": 67.2
-      }, ...]}
-      A legacy "hrv_sdnn" metrics key (an old, not-yet-redeployed collector
-      during a deploy window) is silently normalized to "hrv_ms" — same value,
-      canonical name — so an old collector + new health.py stays safe.
-
-    Writes (provenance law — fitbit NEVER touches apple/manual data):
-    - daily_metrics: upsert the (date,'fitbit') row, only the fields given —
-      the coexisting (date,'apple') row is a different PK and untouched. THIS
-      Migration 001 owns the hrv_sdnn->hrv_ms additive compatibility copy.
-      This writer requires that canonical column and never performs DDL.
-    - sleep_log (PK date, single row per night): insert with
-      provenance='fitbit'; re-sync overwrites only a fitbit-provenance row's
-      given fields. A row owned by anyone else (apple / manual / NULL) keeps
-      every existing value and its provenance — fitbit may only FILL columns
-      that are NULL (gap-fill; overwriting would destroy logged data, law #3).
-    - body_metrics: per-date source='fitbit' weight row updated-or-appended
-      (import-hevy-body idiom) — manual rows are never touched.
-    Implausible values are skipped + counted (GH_METRIC_CLAMPS style);
-    nothing is ever deleted."""
-    if a.json_file == "-":
-        try:
-            data = json.loads(_stdin_text("google-health payload"))
-        except json.JSONDecodeError as e:
-            sys.exit(f"stdin is not valid JSON: {e}")
-    else:
-        with open(a.json_file) as f:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError as e:
-                sys.exit(f"{a.json_file} is not valid JSON: {e}")
-    if not isinstance(data, dict) or not isinstance(data.get("days"), list):
-        sys.exit('payload must be {"days": [...]}')
-    if set(data) - {"days"}:
-        sys.exit(f"unknown top-level key(s): {', '.join(sorted(set(data) - {'days'}))}")
-
-    c = cx()
-    n_days = dm_upserts = sleep_upserted = sleep_gap_filled = weights = 0
-    skipped = []
-    for day in data["days"]:
-        if not isinstance(day, dict):
-            sys.exit("each day must be an object")
-        if set(day) - GH_DAY_KEYS:
-            sys.exit(f"unknown day key(s): {', '.join(sorted(set(day) - GH_DAY_KEYS))}"
-                     f" — allowed: {', '.join(sorted(GH_DAY_KEYS))}")
-        d = valid_date(day.get("date"), "date")
-        n_days += 1
-
-        # legacy collector tolerance (deploy-window key normalization, see
-        # docstring): an old "hrv_sdnn" metrics key is treated as "hrv_ms".
-        raw_metrics = dict(day.get("metrics") or {})
-        legacy_hrv = raw_metrics.pop("hrv_sdnn", None)
-        if legacy_hrv is not None and "hrv_ms" not in raw_metrics:
-            raw_metrics["hrv_ms"] = legacy_hrv
-        metrics = _gh_clamped(raw_metrics, GH_METRIC_CLAMPS, skipped)
-        if metrics:
-            # Migration 001 owns the additive HRV compatibility copy. Writers
-            # require the canonical column and never perform schema DDL.
-            if "hrv_ms" in metrics:
-                _daily_metrics_has_hrv_ms(c)
-            cols = ",".join(metrics)
-            upd = ",".join(f"{k}=excluded.{k}" for k in metrics)
-            c.execute(f"""INSERT INTO daily_metrics(date, source, {cols})
-                          VALUES(?, 'fitbit', {','.join('?' * len(metrics))})
-                          ON CONFLICT(date, source) DO UPDATE SET {upd}""",
-                      (d, *metrics.values()))
-            dm_upserts += 1
-
-        sleep = _gh_clamped(day.get("sleep") or {}, GH_SLEEP_CLAMPS, skipped)
-        if sleep:
-            row = c.execute("SELECT provenance FROM sleep_log WHERE date=?",
-                            (d,)).fetchone()
-            if row is None or row["provenance"] == "fitbit":
-                cols = ",".join(sleep)
-                upd = ",".join(f"{k}=excluded.{k}" for k in sleep)
-                c.execute(f"""INSERT INTO sleep_log(date, provenance, {cols})
-                              VALUES(?, 'fitbit', {','.join('?' * len(sleep))})
-                              ON CONFLICT(date) DO UPDATE SET {upd},
-                                provenance='fitbit'""",
-                          (d, *sleep.values()))
-                sleep_upserted += 1
-            else:
-                # someone else's night: fill NULL columns only, never overwrite
-                upd = ",".join(f"{k}=COALESCE(sleep_log.{k}, ?)" for k in sleep)
-                c.execute(f"UPDATE sleep_log SET {upd} WHERE date=?",
-                          (*sleep.values(), d))
-                sleep_gap_filled += 1
-
-        if day.get("weight_kg") is not None:
-            w = num(day["weight_kg"])
-            lo, hi = BODY_CLAMPS["weight_kg"]
-            if w is None or not math.isfinite(w) or not lo <= w <= hi:
-                skipped.append("weight_kg")
-            else:
-                _ensure_body_source(c)
-                ex = c.execute("SELECT id FROM body_metrics WHERE date=? AND "
-                               "source='fitbit' ORDER BY id DESC LIMIT 1",
-                               (d,)).fetchone()
-                if ex:
-                    c.execute("UPDATE body_metrics SET weight_kg=? WHERE id=?",
-                              (w, ex["id"]))
-                else:
-                    c.execute("INSERT INTO body_metrics(date, weight_kg, source)"
-                              " VALUES(?,?, 'fitbit')", (d, w))
-                weights += 1
-    c.commit()
-    out({"ok": True, "days": n_days, "daily_metrics_upserts": dm_upserts,
-         "sleep_upserted": sleep_upserted, "sleep_gap_filled": sleep_gap_filled,
-         "weights": weights, "skipped_values_out_of_range": len(skipped),
-         "skipped_fields": sorted(set(skipped))})
+    """Compatibility entry point for the extracted import command."""
+    out(google_health_commands.import_json(
+        _command_context(), a.json_file, parse_number=num, stdin=sys.stdin))
 
 
 SCORE_BAD_CUTOFF = 40
@@ -6214,228 +5364,11 @@ def _muscle_map_mobility(a):
                   "is a fitness test), not the panel.")})
 
 
-# ── §3b import: bundled public anatomy map → exercise_submuscles ────────────
-# The ONLY seed path for exercise_submuscles (the v2.6 ExerciseDB integration
-# was retired in v2.7). Source of truth: docs/authored-submuscle-map.md —
-# citation keys below; an unknown key, group, weight or duplicate sub-region
-# is a hard error, never guessed around.
-SUBMAP_CITES = {
-    "DIST09": "lit:distefano-2009",   # Distefano 2009 JOSPT — glute EMG
-    "BOR11": "lit:boren-2011",        # Boren 2011 IJSPT — glute med/max EMG
-    "YOU10": "lit:youdas-2010",       # Youdas 2010 JSCR — pull-up/chin-up EMG
-    "CON15": "lit:contreras-2015",    # Contreras 2015 JAB — hip thrust EMG
-    "BIOMECH": "biomech",             # consensus biomechanics (generic tier)
-}
-
-
-SUBMAP_NOTE = ("sub-region emphasis is approximate (EMG evidence is fuzzy at "
-               "sub-region level) — each row cites its literature key; rows "
-               "flagged approx are mechanism-based emphasis; laterality "
-               "defaults to bilateral (per-side curation comes later)")
-
-
-def _parse_submuscle_map(text):
-    """docs/authored-submuscle-map.md → [{title, source, uni, rows}]. Strict:
-    a malformed data row aborts the import (silent skipping would be data
-    loss); italic commentary bullets ('- *…') and prose bullets outside a
-    '### ' section are ignored by design. Row format (v2.8 tiered):
-    '- <Group> · <sub-region>[ (detail)] · <weight> [E|B][ iso][ (note)]'
-    — the [E]/[B] confidence flag is REQUIRED (E = EMG-anchored, B =
-    biomechanical estimate); `approx` is derived (B rows are mechanism-based
-    emphasis), the legacy '· approx' suffix is refused."""
-    sections, cur = [], None
-    for line in text.splitlines():
-        if line.startswith("### "):
-            header = line[4:].strip()
-            # Citation separators also use an em dash, but some real Hevy
-            # exercise titles contain one themselves ("Quarterly Test —
-            # Tibialis Raise"). Preserve the full pre-citation text here;
-            # import resolution below first tries it exactly, then removes an
-            # optional authored descriptor such as "— conventional".
-            title = header.split("[", 1)[0].strip()
-            title = re.sub(r"\s+—\s*$", "", title).strip()
-            title = re.sub(r"\s*·\s*uni\s*$", "", title).strip()
-            keys = re.findall(r"\[([A-Z0-9]+)\]", header)
-            if not keys:
-                sys.exit(f"map section {title!r} has no [CITATION] key")
-            bad = [k for k in keys if k not in SUBMAP_CITES]
-            if bad:
-                sys.exit(f"map section {title!r}: unknown citation key(s) "
-                         f"{bad} — known: {', '.join(SUBMAP_CITES)}")
-            cur = {"title": title,
-                   "source": "+".join(SUBMAP_CITES[k] for k in keys),
-                   "uni": bool(re.search(r"·\s*uni\b", header)), "rows": []}
-            sections.append(cur)
-            continue
-        if line.startswith("#") or line.startswith("---"):
-            cur = None                       # any heading ends the section
-            continue
-        if cur is None or not line.startswith("- ") or line.startswith("- *"):
-            continue
-        parts = [p.strip() for p in line[2:].split("·")]
-        if len(parts) < 3:
-            sys.exit(f"malformed map row (need Group · sub-region · weight): {line!r}")
-        group, sub_raw = parts[0], parts[1]
-        if group not in MUSCLE_GROUP_AXES:
-            sys.exit(f"map row for {cur['title']!r}: {group!r} is not one of "
-                     f"the 7 groups ({', '.join(MUSCLE_GROUP_AXES)})")
-        sub = re.sub(r"\s*\([^)]*\)", "", sub_raw).strip().lower()
-        # weight cell: '<decimal> [E|B][ iso]' with an optional trailing
-        # '(note)' — strip the note, then every token must be recognized
-        toks = re.sub(r"\s*\([^)]*\)\s*$", "", parts[2]).split()
-        if not toks or not re.fullmatch(r"\d+(\.\d+)?", toks[0]):
-            sys.exit(f"malformed weight in map row: {line!r}")
-        weight = float(toks[0])
-        if not 0 < weight <= 1.0:
-            sys.exit(f"weight out of range (0–1.0] in map row: {line!r}")
-        if len(toks) < 2 or toks[1] not in ("[E]", "[B]"):
-            sys.exit(f"missing/unknown confidence flag in map row: {line!r} "
-                     "(every row needs [E] EMG-anchored or [B] biomech estimate)")
-        confidence = toks[1][1]
-        iso = toks[2:] == ["iso"]
-        if toks[2:] and not iso:    # a typo'd flag must not be silently dropped
-            sys.exit(f"unknown token(s) {toks[2:]} in map row: {line!r} "
-                     "(only 'iso' is valid after the confidence flag)")
-        if any(r["sub_region"] == sub for r in cur["rows"]):
-            sys.exit(f"duplicate sub-region {sub!r} for {cur['title']!r}")
-        extras = [p for p in parts[3:] if p]
-        if extras:                  # incl. the retired '· approx' suffix
-            sys.exit(f"unknown row flag(s) {extras} in map row: {line!r} "
-                     "(approx is derived from [B] since v2.8 — nothing goes "
-                     "after the weight cell)")
-        cur["rows"].append({"muscle_group": group, "sub_region": sub,
-                            "weight": weight, "laterality": "bilateral",
-                            "confidence": confidence, "iso": iso,
-                            "approx": confidence == "B"})
-    empty = [s["title"] for s in sections if not s["rows"]]
-    if empty:
-        sys.exit(f"map section(s) with no rows: {empty}")
-    return sections
-
-
 def import_submuscle_map(a):
-    """§3b: seed exercise_submuscles from the authored cited map. DRY-RUN IS
-    THE DEFAULT — without --seed nothing is written; the report shows what
-    will seed per exercise, the current exercisedb:* rows that --seed will
-    retire, plus mobility exclusions and any unresolved titles.
-
-    Titles resolve against configured exercises (exercise_muscles) exactly,
-    then with the map title's trailing parenthetical dropped ('Plank (front
-    plank)' → 'Plank'); unresolved map titles are surfaced, never seeded.
-
-    --seed-all is installation-only configuration seeding: it also writes
-    canonical authored titles that are not in exercise_muscles yet. This lets a
-    fresh database carry public anatomy knowledge before the first exercise
-    import; unused rows never create exposure because all consumers still join
-    against logged sets. The flag remains collector-only and is never brokered.
-
-    --seed: each mapped exercise's rows are replaced WHOLESALE (the authored
-    file is the single source of truth for mapped exercises — edit the file
-    and re-import to curate), then ALL exercisedb:* rows are retired: the
-    v2.6 ExerciseDB seed is gone and the whole map is authored/citable."""
-    with open(a.md_file, encoding="utf-8") as f:
-        sections = _parse_submuscle_map(f.read())
-    c = cx()
-    _ensure_submuscle_table(c)
-    candidates = [r["exercise_title"] for r in c.execute(
-        "SELECT DISTINCT exercise_title FROM exercise_muscles ORDER BY 1")]
-    existing = {r["t"]: r["n"] for r in c.execute(
-        "SELECT exercise_title t, COUNT(*) n FROM exercise_submuscles"
-        " GROUP BY exercise_title")}
-    _, coarse = _group_weight_maps(c)
-    proposed, not_in_db, mapped = [], [], set()
-    seed_all = bool(getattr(a, "seed_all", False))
-    seeded_without_candidate = []
-    for s in sections:
-        # Preserve semantic em-dash titles such as ``Quarterly Test —
-        # Tibialis Raise``.  Only the three authored grip/stance descriptors
-        # are aliases rather than part of the canonical exercise name.
-        variants = [s["title"]]
-        no_parenthetical = re.sub(r"\s*\([^)]*\)\s*$", "", s["title"]).strip()
-        if no_parenthetical not in variants:
-            variants.append(no_parenthetical)
-        no_descriptor = re.sub(
-            r"\s+—\s*(pronated grip|supinated grip|conventional)\s*$",
-            "", s["title"], flags=re.IGNORECASE).strip()
-        if no_descriptor not in variants:
-            variants.append(no_descriptor)
-        matched = next((v for v in variants if v in candidates), None)
-        title = matched or no_descriptor
-        if matched is None:
-            not_in_db.append(s["title"])
-            if not seed_all:
-                continue
-            seeded_without_candidate.append(title)
-        if title in MOBILITY_EXERCISES:
-            sys.exit(f"{title!r} is a mobility drill — it must never seed "
-                     "strength-volume rows (authored map § Mobility)")
-        if title in mapped:         # silent last-wins would hide authored rows
-            sys.exit(f"two map sections resolve to the same exercise {title!r}")
-        mapped.add(title)
-        # authored-wins honesty: which coarse Hevy groups lose their credit
-        # for this exercise once the authored rows take over (empty for a
-        # complete authored entry; review signal, not render-time noise)
-        authored_groups = {r["muscle_group"] for r in s["rows"]}
-        dropped = sorted(set(coarse.get(title, ({}, set()))[0]) - authored_groups)
-        proposed.append({"exercise": title, "source": s["source"],
-                         "uni": s["uni"], "rows": s["rows"],
-                         "counts": {"rows": len(s["rows"]),
-                                    "iso": sum(r["iso"] for r in s["rows"]),
-                                    "E": sum(r["confidence"] == "E" for r in s["rows"]),
-                                    "B": sum(r["confidence"] == "B" for r in s["rows"])},
-                         "replaces_rows": existing.get(title, 0),
-                         "coarse_groups_dropped": dropped})
-    retire_rows = [dict(r) for r in c.execute(
-        "SELECT exercise_title, muscle_group, sub_region, weight, source "
-        "FROM exercise_submuscles WHERE source LIKE 'exercisedb:%' "
-        "ORDER BY exercise_title, sub_region")]
-    mobility = sorted(t for t in candidates if t in MOBILITY_EXERCISES)
-    base = {"dry_run": not a.seed, "seed_all": seed_all,
-            "map_file": a.md_file,
-            "proposed": proposed,
-            "totals": {"exercises": len(proposed),
-                       "rows": sum(p["counts"]["rows"] for p in proposed),
-                       "iso": sum(p["counts"]["iso"] for p in proposed),
-                       "E": sum(p["counts"]["E"] for p in proposed),
-                       "B": sum(p["counts"]["B"] for p in proposed)},
-            "will_retire": {"count": len(retire_rows), "rows": retire_rows},
-            "mobility_excluded": mobility,
-            "non_volume_excluded": sorted(t for t in candidates
-                                          if t in NON_VOLUME_EXERCISES),
-            "unmapped_candidates": sorted(set(candidates) - mapped
-                                          - MOBILITY_EXERCISES
-                                          - NON_VOLUME_EXERCISES),
-            "map_titles_not_in_db": not_in_db, "note": SUBMAP_NOTE,
-            "seeded_without_candidate": sorted(seeded_without_candidate),
-            # §3f visibility (review): sub-regions the body figure has no
-            # drawn region for — they still COUNT in the radar/drill-down,
-            # but won't light up on the figure. Informational, not an error
-            # (a legitimately authored muscle may predate a display mapping;
-            # the figure also surfaces these at render time).
-            "unrepresented_on_figure": sorted(
-                {r["sub_region"] for s in sections for r in s["rows"]
-                 if r["sub_region"].strip().lower() not in FIGURE_SUB_SVG})}
-    if not a.seed:
-        out(base)
-        return
-    seeded_rows = 0
-    for p in proposed:
-        # full replace: the authored map owns its exercises' rows
-        c.execute("DELETE FROM exercise_submuscles WHERE exercise_title=?",
-                  (p["exercise"],))
-        for r in p["rows"]:
-            c.execute("INSERT INTO exercise_submuscles(exercise_title,"
-                      " muscle_group, sub_region, weight, laterality, source,"
-                      " approx, iso, confidence) VALUES(?,?,?,?,?,?,?,?,?)",
-                      (p["exercise"], r["muscle_group"], r["sub_region"],
-                       r["weight"], r["laterality"], p["source"],
-                       int(r["approx"]), int(r["iso"]), r["confidence"]))
-            seeded_rows += 1
-    # retire the v2.6 ExerciseDB seed — end state: zero exercisedb rows
-    c.execute("DELETE FROM exercise_submuscles WHERE source LIKE 'exercisedb:%'")
-    c.commit()
-    out({**base, "seeded_exercises": len(proposed), "seeded_rows": seeded_rows,
-         "retired_exercisedb_rows": len(retire_rows)})
+    """Compatibility entry point for the extracted import command."""
+    out(submuscle_commands.import_map(
+        _command_context(), a.md_file, seed=a.seed,
+        seed_all=bool(getattr(a, "seed_all", False)), figure_sub_svg=FIGURE_SUB_SVG))
 
 
 # =========================================================== §3f v-taper
@@ -6492,151 +5425,15 @@ def vtaper(a):
 # collector-only — the sandboxed panel never writes labs; only `labs` (read) is
 # bridge-exposed.
 
-# Catalog citation keys — the ONLY sources a cited catalog row may claim.
-LAB_CITES = {
-    # Explicitly non-clinical source used only by bundled fictional fixtures.
-    "TEST": "synthetic-test-fixture",
-}
-LAB_CATALOG_NOTE = ("reference intervals come from the configured catalog; "
-                    "plausibility bounds are WIDE 'physically "
-                    "possible' safety limits (catch a dropped-comma OCR error), "
-                    "NOT clinical-normal — a real abnormal value still flows, "
-                    "flagged out-of-range in the view")
-
-
 def _ensure_lab_tables(c):
     """Require the Migration 001 labs catalog without altering schema."""
     _require_schema(c, "lab_catalog")
 
 
-def _parse_ref_spec(spec, line):
-    """'ref 8.3-10.7' | 'ref <3.0' | 'ref >50' | 'ref none' → (low, high).
-    Open-ended intervals leave one side null."""
-    body = spec[len("ref"):].strip()
-    if body == "none":
-        return (None, None)
-    if body.startswith("<"):
-        return (None, _lab_num(body[1:], line))
-    if body.startswith(">"):
-        return (_lab_num(body[1:], line), None)
-    m = re.fullmatch(r"(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)", body)
-    if not m:
-        sys.exit(f"malformed reference interval {body!r} in: {line!r}")
-    return (float(m.group(1)), float(m.group(2)))
-
-
-def _lab_num(s, line):
-    try:
-        return float(s.strip())
-    except ValueError:
-        sys.exit(f"expected a number, got {s!r} in: {line!r}")
-
-
-def _parse_lab_catalog(text):
-    """docs/lab-catalog.md → [row dicts]. Strict grammar (a malformed row aborts
-    — silent skipping is data loss). Rows live under a '### <Panel>' header:
-      '- <canonical> · <display> · <unit> · ref <spec> · plaus <lo>-<hi> ·
-       delta <spec> · [CITE][CITE…][ · aliases: a; b]'
-    delta <spec> = '<val>' (abs) | '<val>f' (frac) | 'none'."""
-    out_rows, panel, seen = [], None, set()
-    for line in text.splitlines():
-        if line.startswith("### "):
-            panel = line[4:].strip()
-            continue
-        if line.startswith("#") or line.startswith("---"):
-            panel = None
-            continue
-        if not line.startswith("- ") or line.startswith("- *"):
-            continue
-        if panel is None:
-            sys.exit(f"catalog row outside a '### <Panel>' section: {line!r}")
-        parts = [p.strip() for p in line[2:].split("·")]
-        if len(parts) < 7:
-            sys.exit(f"malformed catalog row (need canonical · display · unit "
-                     f"· ref · plaus · delta · [CITE]): {line!r}")
-        canonical, display, unit, ref_s, plaus_s, delta_s, cite_s = parts[:7]
-        if not canonical or not unit:
-            sys.exit(f"catalog row needs a canonical name and unit: {line!r}")
-        if canonical in seen:
-            sys.exit(f"duplicate canonical test {canonical!r}")
-        seen.add(canonical)
-        if not ref_s.startswith("ref "):
-            sys.exit(f"expected 'ref …' field in: {line!r}")
-        ref_low, ref_high = _parse_ref_spec(ref_s, line)
-        if not plaus_s.startswith("plaus "):
-            sys.exit(f"expected 'plaus <lo>-<hi>' field in: {line!r}")
-        pm = re.fullmatch(r"plaus\s+(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)", plaus_s)
-        if not pm:
-            sys.exit(f"malformed plaus bounds in: {line!r}")
-        plaus_low, plaus_high = float(pm.group(1)), float(pm.group(2))
-        if not plaus_low < plaus_high:
-            sys.exit(f"plaus low must be < high in: {line!r}")
-        if not delta_s.startswith("delta "):
-            sys.exit(f"expected 'delta …' field in: {line!r}")
-        dbody = delta_s[len("delta"):].strip()
-        if dbody == "none":
-            max_delta, delta_kind = None, "abs"
-        elif dbody.endswith("f"):
-            max_delta, delta_kind = _lab_num(dbody[:-1], line), "frac"
-        else:
-            max_delta, delta_kind = _lab_num(dbody, line), "abs"
-        keys = re.findall(r"\[([A-Z]+)\]", cite_s)
-        if not keys:
-            sys.exit(f"catalog row needs at least one [CITE] key: {line!r}")
-        bad = [k for k in keys if k not in LAB_CITES]
-        if bad:
-            sys.exit(f"unknown citation key(s) {bad} in {line!r} — "
-                     f"known: {', '.join(LAB_CITES)}")
-        source = "+".join(LAB_CITES[k] for k in keys)
-        aliases = []
-        for extra in parts[7:]:
-            if extra.startswith("aliases:"):
-                # Pipes separate aliases so commas and punctuation remain data.
-                aliases = [a.strip() for a in extra[len("aliases:"):].split("|")
-                           if a.strip()]
-            elif extra:
-                sys.exit(f"unknown trailing field {extra!r} in: {line!r}")
-        out_rows.append({"canonical": canonical, "display": display,
-                         "panel": panel, "unit": unit,
-                         "ref_low": ref_low, "ref_high": ref_high,
-                         "plaus_low": plaus_low, "plaus_high": plaus_high,
-                         "max_delta": max_delta, "delta_kind": delta_kind,
-                         "aliases": aliases, "source": source})
-    if not out_rows:
-        sys.exit("catalog has no rows")
-    return out_rows
-
-
 def import_lab_catalog(a):
-    """Seed lab_catalog from a user-supplied catalog. DRY-RUN IS THE DEFAULT
-    — without --seed nothing is written; the report lists every proposed row +
-    whether it replaces an existing catalog entry. --seed UPSERTS by canonical
-    (config, not logged data) and PRESERVES user-confirmed rows for tests not
-    in the md."""
-    with open(a.md_file, encoding="utf-8") as f:
-        proposed = _parse_lab_catalog(f.read())
-    c = cx()
-    _ensure_lab_tables(c)
-    existing = {r["canonical"] for r in c.execute("SELECT canonical FROM lab_catalog")}
-    for p in proposed:
-        p["replaces"] = p["canonical"] in existing
-    panels = sorted({p["panel"] for p in proposed})
-    base = {"dry_run": not a.seed, "catalog_file": a.md_file, "proposed": proposed,
-            "totals": {"tests": len(proposed), "panels": len(panels)},
-            "note": LAB_CATALOG_NOTE}
-    if not a.seed:
-        out(base)
-        return
-    for p in proposed:
-        c.execute(
-            "INSERT OR REPLACE INTO lab_catalog(canonical, display, panel, unit,"
-            " ref_low, ref_high, plaus_low, plaus_high, max_delta, delta_kind,"
-            " aliases, source, confidence) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'cited')",
-            (p["canonical"], p["display"], p["panel"], p["unit"],
-             p["ref_low"], p["ref_high"], p["plaus_low"], p["plaus_high"],
-             p["max_delta"], p["delta_kind"], json.dumps(p["aliases"]), p["source"]))
-    c.commit()
-    out({**base, "seeded_tests": len(proposed)})
+    """Compatibility entry point for the extracted import command."""
+    out(lab_catalog_commands.import_catalog(
+        _command_context(), a.md_file, seed=a.seed))
 
 
 # ── labs: raw preservation + OCR-text ingestion + read ──────────────────────
@@ -9110,10 +7907,6 @@ def main():
             "analysis-job-status": analysis_job_cmd,
             "analysis-job-work": analysis_job_cmd,
             "analysis-job-execute": analysis_job_cmd,
-            "import-hevy-json": import_hevy_json,
-            "import-hevy-body": import_hevy_body,
-            "import-hevy-templates": import_hevy_templates,
-            "import-hevy-routines": import_hevy_routines,
             "today": today_session,
             "muscle-volume": muscle_volume,
             "last-session": last_session,
@@ -9135,18 +7928,13 @@ def main():
             "self-test-log": self_test_log,
             "exercise-trial-log": exercise_trial_log,
             "physio-void": physio_void,
-            "import-submuscle-map": import_submuscle_map,
-            "import-lab-catalog": import_lab_catalog,
             "lab-capture": lab_capture,
             "lab-ingest": lab_ingest,
             "labs": labs,
             "write-note": write_note,
             "journal-capture": journal_capture,
             "transcript-capture": transcript_capture,
-            "import-recipes": import_recipes,
             "recipe-ingredients-set": recipe_ingredients_set,
-            "import-cronometer": import_cronometer,
-            "import-google-health": import_google_health,
             "nutrition-target-set": nutrition_target_set,
             "profile-set": profile_set,
             "phase-set": phase_set,
@@ -9231,6 +8019,8 @@ def main():
         argv=sys.argv[1:], output=out, parse_number=num,
         meal_types=MEAL_TYPES, restock_actions=RESTOCK_ACTIONS,
         scores_default_days=SCORES_DEFAULT_DAYS,
+        quarterly_routines=HEVY_QUARTERLY_ROUTINES, stdin=sys.stdin,
+        slug=slug, figure_sub_svg=FIGURE_SUB_SVG,
     )
 
 

@@ -1051,3 +1051,25 @@ def test_menu_includes_meal_type_on_current_schema(db):
     assert jout(run(db, "menu"))["menu"][0]["meal_type"] is None   # untagged -> honest null
     run(db, "recipe-tag", "sample-stew", "snack")
     assert jout(run(db, "menu"))["menu"][0]["meal_type"] == "snack"
+
+
+def test_later_recipe_mode_refusal_preserves_existing_totals(db, tmp_path):
+    with sqlite3.connect(db) as con:
+        con.execute("""INSERT INTO recipes(recipe_id,name,batch_grams)
+                       VALUES('lentil-soup','Lentil Soup',700)""")
+        con.execute("""INSERT INTO recipe_nutrients(recipe_id,nutrient,unit,per_gram)
+                       VALUES('lentil-soup','Protein','g',45)""")
+    prior_recipes = rows(db, "SELECT * FROM recipes")
+    prior_nutrients = rows(db, "SELECT * FROM recipe_nutrients")
+    path = tmp_path / "mixed-amounts.csv"
+    path.write_text("Food Name,Amount,Protein (g)\n"
+                    "Lentil Soup,batch,60\n"
+                    "Bean Stew,1 serving,10\n")
+
+    result = run(db, "import-recipes", str(path), "--batch-grams", "900",
+                 expect_ok=False)
+
+    assert result.returncode == 1
+    assert "CSV contains per-serving nutrients" in result.stderr
+    assert rows(db, "SELECT * FROM recipes") == prior_recipes
+    assert rows(db, "SELECT * FROM recipe_nutrients") == prior_nutrients

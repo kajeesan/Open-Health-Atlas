@@ -312,3 +312,25 @@ def test_no_ddl_needed_import_into_pristine_schema(db):
         r[0] or "" for r in con.execute("SELECT sql FROM sqlite_master")))
     con.close()
     assert schema_before == schema_after
+
+
+def test_invalid_later_day_rolls_back_all_observation_tables(db):
+    seed(db, "INSERT INTO daily_metrics(date,source,steps) VALUES(?,?,?)",
+         [("2026-07-17", "fitbit", 100)])
+    seed(db, "INSERT INTO sleep_log(date,provenance,time_asleep_hours) VALUES(?,?,?)",
+         [("2026-07-17", "manual", 6)])
+    seed(db, "INSERT INTO body_metrics(date,source,weight_kg) VALUES(?,?,?)",
+         [("2026-07-17", "fitbit", 70)])
+    prior_metrics = rows(db, "SELECT * FROM daily_metrics")
+    prior_sleep = rows(db, "SELECT * FROM sleep_log")
+    prior_body = rows(db, "SELECT * FROM body_metrics")
+    invalid = payload()
+    invalid["days"].append({"date": "2026-07-18", "unexpected": 1})
+
+    result = imp(db, invalid, expect_ok=False)
+
+    assert result.returncode == 1
+    assert "unknown day key(s)" in result.stderr
+    assert rows(db, "SELECT * FROM daily_metrics") == prior_metrics
+    assert rows(db, "SELECT * FROM sleep_log") == prior_sleep
+    assert rows(db, "SELECT * FROM body_metrics") == prior_body

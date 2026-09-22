@@ -174,6 +174,21 @@ def test_engine_identity_manifest_covers_context_contracts_and_every_adapter(
         "hermes_insights/commands/hevy.py",
         "hermes_insights/importers/__init__.py",
         "hermes_insights/importers/hevy_csv.py",
+        "hermes_insights/commands/cronometer.py",
+        "hermes_insights/commands/google_health.py",
+        "hermes_insights/commands/lab_catalog.py",
+        "hermes_insights/commands/recipes.py",
+        "hermes_insights/commands/submuscle_map.py",
+        "hermes_insights/importers/common.py",
+        "hermes_insights/importers/hevy_json.py",
+        "hermes_insights/importers/cronometer.py",
+        "hermes_insights/importers/google_health.py",
+        "hermes_insights/importers/lab_catalog.py",
+        "hermes_insights/importers/recipes.py",
+        "hermes_insights/importers/submuscle_map.py",
+        "hermes_insights/body_contracts.py",
+        "hermes_insights/fitness_contracts.py",
+        "hermes_insights/routine_history.py",
     } <= paths
     assert "hermes_insights/catalogs.py" in paths
     assert "hermes_insights/calculations.py" in paths
