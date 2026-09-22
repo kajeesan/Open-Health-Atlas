@@ -6,10 +6,10 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-The third Milestone 3 family is complete, with production commit
-`f09f9fe34904837649e3e6ed7b478e2939b68820` and the [nutrition and food evidence](#nutrition-and-food-extraction-22-september-2026)
-below. The next family covers training, fitness tests, muscle calculations, pain
-and mobility.
+The fourth Milestone 3 family is complete, with production commit
+`8e2b0894fa6d5b0f3c2c9bea1014a5a804d457af` and the [training and movement evidence](#training-and-movement-extraction-22-september-2026)
+below. The next family covers daily frames, scores, Recovery/readiness and
+laboratory workflows.
 Continue on `codex/health-toolkit-modularization` and retain the accumulated local
 commits.
 
@@ -997,3 +997,119 @@ The owner changed main and successor tasks to Astra High. Independent review sta
 at Astra extra high. The [authoritative plan](TOOLKIT_MODULARIZATION.md#roles-and-ownership)
 records that override. The next bounded family covers training, fitness tests,
 muscle calculations, pain and mobility in the approved order.
+
+## Training and movement extraction, 22 September 2026
+
+The fourth Milestone 3 family is complete locally. Production commit
+`8e2b0894fa6d5b0f3c2c9bea1014a5a804d457af` matches source-tested tree
+`8a29ddec0c4a8039233439ea571b48f88fa0f3d0`. All 527 file hashes and staged Git
+state remained unchanged during final verification.
+
+Twenty training, fitness, muscle, pain and mobility commands now have direct
+CLI owners. Sixty unconverted handlers remain in the facade. All 122 parser
+definitions and handler names remain exact. The shared rollup has one owner;
+its anchored and legacy windows retain their distinct behavior. See
+[Training and movement ownership](ARCHITECTURE.md#training-and-movement-ownership)
+for dependencies, transaction boundaries and preserved asymmetries.
+
+Nine new cases characterize extra fitness fields, void behavior and rollback
+through actual SQLite/CLI paths. Two existing mobility and pain cases now use
+explicit owners and dependencies. The new cases passed unchanged baseline;
+the original two existing cases also passed baseline. No test-only production
+seam or weakened assertion was introduced.
+
+| Partition | Passed | Failed/errors/skipped | Pytest duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,081 | 0/0/0 | 513.46 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 193.78 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.32 s |
+
+The disjoint total is 2,101 tests. Focused repeats and contract audit assertions
+are not additional tests. Final checks used fictional records, declared
+dependencies, Node, the native statistical library and aligned civil clocks.
+
+All 437 source CLI calls and the separate parser diagnostic retain raw stdout
+and exit status. All twenty actual broker responses match: thirteen exposed
+commands and seven refused writers. Of 438 stderr records, 433 match raw bytes;
+five relocate traceback frames while retaining complete exception chains.
+
+All 420 complete database comparisons agree, with 292 raw-equal. All 420 vault
+comparisons match exact paths and bytes. Generated-time exceptions cover eleven
+named columns: 2,692 occurrences trace to 164 originating revision/cell writes within captured UTC-second intervals.
+Enqueue audit-event IDs contain generated time. Each of 466 occurrences reproduces
+its complete canonical hash material, covering 26 revision-specific IDs; stable
+trigger IDs remain exact. No arbitrary identifier or date is stripped. CLI civil
+time is fixed; actual broker children use real civil time.
+
+Four injected trigger-failure corpus cases reach protected schema-inventory
+refusal, not late trigger/event insertion. The evidence states that limit. A
+separate durable fitness idempotency-conflict case and the retained pain boundary
+case prove enqueue rollback. Earlier variable seed timestamps were corrected in
+the input fixture before final collection, without adding a comparison exception.
+
+Paired timing used ten workloads and 120 fresh launches after complete suites,
+alternating revision order with one first observation and five repetitions.
+Every paired stdout/stderr stream matches. Fixture copying was outside timing,
+and filesystem caches were not forcibly cleared.
+
+| Workload | Baseline median | Extracted median |
+|---|---:|---:|
+| scores | 126.79 ms | 125.88 ms |
+| readiness | 131.81 ms | 133.40 ms |
+| muscle-volume | 125.24 ms | 124.49 ms |
+| muscle-detail | 126.45 ms | 127.31 ms |
+| muscle-map | 126.23 ms | 125.04 ms |
+| fitness-tests | 124.27 ms | 124.97 ms |
+| athletic-radar | 124.75 ms | 125.23 ms |
+| strength-ratios | 125.89 ms | 125.70 ms |
+| pain-log | 147.80 ms | 150.60 ms |
+| routine-set | 137.92 ms | 138.57 ms |
+
+Observed median changes ranged from -0.94% to +1.89%, with a maximum increase
+of 2.80 ms. No material unexplained regression appeared in this bounded sample.
+The readiness workload returned its supported insufficient-data result, without
+a schema refusal. These timings do not establish general workload latency.
+
+The actual offline ad hoc app built from `8e2b089` passed fourteen
+lifecycle and nine bundled MCP checks. An isolated -I -B probe verified 22 Git-exact selected files, including all ten
+new owners, and 163 contained loaded module paths. The full CLI collection
+verified 69 contained product files across 437 traces.
+The corresponding-source ZIP has 529 entries: 527 exact project files and two
+pinned dependency sources. Its SHA-256 is
+`8c7bcf1c202839b3bb1e56a5e4054d74be9cc9fd7c474640f7dde18cb1c754d9`.
+The package preserves all 437 CLI outputs/exits, the parser diagnostic, 420
+complete database/vault pairs and twenty broker responses against both source
+versions. Of 438 stderr files, 432 are raw-equal. Against the candidate, source-root
+substitution leaves only Python standard-library strptime frames and argparse
+choice quoting. Actual preceding/current apps reproduce identical unknown-command
+output with identical Python/argparse bytes. Raw stderr equality is not claimed.
+Harness CLI/parser and broker server launches use -I -B; the unchanged broker
+child command does not forward those flags and retains bytecode suppression.
+After explicit execution release, final deep/strict signature verification passed
+and all 3,126 audited file hashes remained unchanged, with zero findings. The first
+default-sandbox build failed at icon generation; the unchanged native-access retry
+passed. No source or sealed-app repair was required.
+
+This qualifies local package behavior. Native GUI/charts, minimum OS, Developer
+ID, notarization, Gatekeeper and clean-customer installation remain unqualified.
+No installer archive was created or published. Pattern scans are not exhaustive
+privacy certification.
+
+The explicit Hermes inventory includes all ten new runtime modules. Recursive
+cache identity, narrow numerical provenance and golden replay pins remain
+unchanged. The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [daily collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain. Schema, broker privileges, existing import normalization and
+ledger/synthesis internals were not changed.
+
+Independent source, contract, suite, timing and package reviews found no
+remaining blocker. Inventory, vendor/license and source/history privacy checks
+passed. Initial name-shadowing and fixture failures remain separate diagnostics.
+Review caught three facade bindings removed too broadly; they were restored
+before final verification. The superseded suite was interrupted and is excluded
+from passing counts.
+
+The next family covers daily frames, scores, Recovery/readiness and laboratory
+workflows. Continue through the approved fresh-main relay on Astra High, with
+independent review on Astra extra high. Push, merge, release and live/private
+boundaries remain unchanged.
