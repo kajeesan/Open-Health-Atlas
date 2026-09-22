@@ -6,10 +6,11 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-The fifth Milestone 3 family is complete, with production commit
-`459d53f54e0b19b0b06910f43f0daf4ef5096399` and the [daily frames, scores, Recovery and lab evidence](#daily-frames-scores-recovery-and-lab-extraction-22-september-2026)
-below. The next family covers remaining CLI coordination around existing
-feature, association, ledger, synthesis and orchestration engines.
+All six Milestone 3 families are complete locally. The final family's production
+commit is `fee48cc404cbaed566adb453e92c4127bf18651a`; see the
+[CLI coordination evidence](#cli-coordination-extraction-22-september-2026).
+Milestone 4 now audits remaining compatibility consumers, completes documentation
+and integrated acceptance, and compares final performance with the corrected baseline.
 Continue on `codex/health-toolkit-modularization` and retain the accumulated local
 commits.
 
@@ -19,7 +20,7 @@ before starting the next milestone. Push, merge, release, private-data, credenti
 and live-integration boundaries remain unchanged. No merge is needed to continue
 authorized local work.
 
-Ownership of the next family transfers through the fresh-main handoff. Exact checkout,
+Ownership of Milestone 4 transfers through the fresh-main handoff. Exact checkout,
 active task ownership, acceptance receipts and local evidence paths stay in the
 external handoff package. The successor must verify and explicitly accept the
 checkpoint before editing, then update this section at its milestone boundary.
@@ -1224,3 +1225,137 @@ feature, association, ledger, synthesis and orchestration engines, without
 redesigning those engines. Continue through the approved fresh-main relay;
 final compatibility cleanup and integrated acceptance follow. Publication,
 merge and live/private-data boundaries remain separate.
+
+## CLI coordination extraction, 22 September 2026
+
+The sixth Milestone 3 family is complete in the local tree. Production commit
+`fee48cc404cbaed566adb453e92c4127bf18651a` matches the tested source tree
+`02698d02ba0cac4c49dd1f905cd59bf17c9adb95`. Twenty-six paths changed, and the
+frozen tree contains 547 source files.
+
+The remaining 47 commands now register directly through the shared CLI. All
+122 parser contracts and handler names remain exact, and the legacy dispatch
+map is empty. Ten command modules own coordination for schema/query, events,
+features, associations, analysis jobs, ledger, synthesis, scheduled analysis
+and orchestration. The facade contains no SQL implementation. See
+[Feature, ledger and orchestration command ownership](ARCHITECTURE.md#feature-ledger-and-orchestration-command-ownership).
+Its remaining compatibility exports require the final Milestone 4 consumer
+audit.
+
+Existing numerical, ledger, synthesis, orchestration, runtime, cache and job
+engines remain unchanged. Schema-version asymmetries, transaction boundaries,
+JSON formatting and stable child launch paths are preserved. Six new durable
+tests cover medication event atomicity, synthesis durability/validation and
+the real analysis-job start/work/status path; they also pass the unchanged
+baseline.
+
+| Partition | Passed | Failures/errors/skips | JUnit duration |
+|---|---:|---|---:|
+| Application, including toolkit | 2,095 | 0/0/0 | 527.562 s |
+| Fictional end-to-end journeys | 15 | 0/0/0 | 222.279 s |
+| Actual MCP client/server | 5 | 0/0/0 | 3.285 s |
+
+These are 2,115 distinct passing identities, with the original JUnit and raw
+execution evidence retained. Application/MCP ran on the initial freeze; all
+relevant runtime, test and substantive input bytes match the final freeze.
+Final E2E ran on the final tree. This is explicit cross-revision evidence, not
+three final-tree executions. The prior family's missing original XML remains a
+prior-family limit.
+
+The first E2E run failed two trace pins. Independent comparison proved that
+only relocated owner labels and one derived projection digest per trace
+differed. Reversing those labels and recomputing the digest reproduced both
+previous canonical traces exactly. Only those two pins, their fixture manifest
+and the release inventory changed before the passing final E2E run. Numerical
+outputs, selection, model inputs, lineage and notification status did not
+change.
+
+Source comparison covers 336 actual CLI invocations per version and a separate
+122-command parser diagnostic. Every exit and stderr stream matches; 334
+stdout streams match raw bytes. Two synthesis outputs differ only in their
+verified temporary vault root; relative paths and file bytes match. All 178
+complete canonical database snapshots and 672 vault snapshots match exactly.
+The 178 auxiliary snapshots retain complete SQLite logical state and physical
+digests; historical raw sidecar files are not claimed equal or retained.
+
+Cache/job identity differences are recomputed from exact code manifests, paths,
+Python/context and captured canonical hash material. Only verified identity
+and derived key fields differ; all other logical sidecar fields remain literal.
+The corpus positively exercises 46 family commands; actual broker children and
+the durable job test prove successful fenced `analysis-job-execute` behavior.
+
+Twenty non-job broker requests and full responses match raw bytes. Real jobs
+complete through unmodified child processes with equal requests and result
+bytes. Different poll counts reflect asynchronous progress; each generated
+job/attempt ID, timestamp and key is checked against its saved state and
+interval. Canonical databases remain physically unchanged, with exact empty
+vaults.
+
+Authenticated fictional evidence uses one audited fixture adaptation: an
+existing `change_conditions` sentence is encoded as a JSON string. Decoding
+recovers the same sentence. All other cells and restored trigger SQL remain
+exact; the SQLite schema-change counter increases by two. This is disclosed
+adapted test data, not an unmodified fixture or a ledger generated entirely
+through public writes.
+
+Clean paired timing covers ten workloads and 120 fresh launches, alternating
+revision order. Every paired stdout/stderr matches. Median increases range
+from 0.57% to 4.18%; the longest association workload increases 108.57 ms
+(0.81%). Short-command increases range from 0.97 to 6.06 ms. No material
+unexplained regression appears in this bounded comparison against the
+preceding checkpoint; Milestone 4 still compares final performance with the
+corrected baseline.
+
+An earlier timing attempt is diagnostic only: the baseline contained fifteen
+bytecode files while the candidate had none. Independent examination matched
+all 877 recursive code objects to fresh source compilation, preserving earlier
+source provenance. Timing was repeated from complete Git-exact exports that
+reject every bytecode file and cache directory before and after execution. No
+performance code change was needed. Filesystem caches were not forcibly
+evicted.
+
+The fresh offline ad hoc app passed fourteen lifecycle and nine bundled MCP
+checks. Its isolated probe verifies nineteen selected Git-exact product files
+and 182 contained module entries across 179 distinct bundle files. The external
+verification harness is identified separately. The packaged CLI loads 101
+contained Git-exact product files and preserves all 336 cases plus the separate
+parser inventory under the same state and identity checks. Only unknown-command
+stderr adds the inherited Python 3.11/3.12 difference in its quoting of all 122
+choices; 335 stderr streams remain raw-equal. The two verified vault-root stdout
+exceptions remain; 334 stdout streams match raw bytes.
+
+Twenty packaged non-job broker envelopes and the actual job request/result bytes
+match source. A read-only bundled Python probe independently reproduces both the
+unpatched broker and CLI cache identities. It performs no analytical calculation
+and preserves the fictional database and every bundle file. Package CLI/parser,
+module and identity probes use `-I -B`. The successful broker corpus launches
+bundled Python with `-B`; its unchanged child command forwards neither flag
+and inherits bytecode suppression.
+
+The corresponding-source ZIP contains 549 entries: all 547 exact project files
+and two pinned dependency sources. Its SHA-256 is
+`73aa28eb1353535fa6c517dba8b09b68e83c70c3b809e393ecc69521156baea1`.
+After explicit execution release, final deep/strict signature verification passed
+and all 3,144 audited regular-file hashes remained unchanged, with zero findings.
+The probe's larger file count includes two internal Python symlinks; its source
+count additionally includes the verified generated build-info file. No bundle
+execution is permitted after sealing without renewed coordination and audit.
+
+Initial native-build and socket/sandbox failures remain separate diagnostics.
+The unchanged builder and actual verifiers passed with the recorded bounded local
+permissions. No product or bundle repair was needed. Independent source, suite,
+contract, timing and package reviews found no remaining blocker. License/vendor
+and source/history checks passed; final checkpoint inventory verification is
+recorded separately from the production package.
+
+The inherited [seed and tied-candidate caveat](#corrected-toolkit-baseline-22-september-2026)
+and [collector failure-path behavior](#daily-workflow-extraction-22-september-2026)
+remain. Native GUI/charts, minimum OS, Developer ID, notarization, Gatekeeper
+and clean-customer installation remain unqualified. Pattern scans are bounded
+checks, not exhaustive privacy certification. No installer was published.
+
+The next milestone audits the remaining compatibility consumers, removes only
+proven obsolete plumbing, completes documentation and integrated verification,
+and compares final performance with the corrected baseline. Continue through
+the approved fresh-main relay on the same branch. Push, merge, publication,
+credentials and live/private-data boundaries remain separate.
