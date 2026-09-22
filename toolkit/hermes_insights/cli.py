@@ -20,7 +20,7 @@ from . import synthesis as insight_synthesis
 from .catalogs import PRIMARY_MEDICATION
 from .commands import (
     collectors, cronometer, daily_capture, followthrough, google_health, hevy,
-    lab_catalog, notes, recipes, schedules, submuscle_map,
+    food, nutrition, lab_catalog, notes, recipes, schedules, submuscle_map,
 )
 from .commands.hevy import import_csv
 
@@ -360,7 +360,7 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
 def run(context, legacy_handlers, *, argv, output, parse_number,
         meal_types, restock_actions, scores_default_days,
         quarterly_routines, stdin, slug, figure_sub_svg, water_target_ml, open_url,
-        medication_aliases):
+        medication_aliases, nutrition_config):
     """Dispatch converted commands and explicitly wired compatibility handlers."""
     def hevy_csv(arguments):
         output(import_csv(context, arguments.csv, parse_number=parse_number))
@@ -466,8 +466,64 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
     def collector_run_record_cmd(arguments):
         output(collectors.collector_run_record(context, arguments, stdin=stdin))
 
+    def set_batch(arguments):
+        output(food.set_batch(context, arguments))
+
+    def recipe_tag(arguments):
+        output(food.recipe_tag(context, arguments))
+
+    def recipe_ingredients_set(arguments):
+        output(food.recipe_ingredients_set(context, arguments, stdin=stdin))
+
+    def prep(arguments):
+        output(food.prep(context, arguments))
+
+    def eat(arguments):
+        output(food.eat(context, arguments))
+
+    def log_food(arguments):
+        output(food.log_food(context, arguments))
+
+    def menu(arguments):
+        output(food.menu(context, arguments))
+
+    def restock_check(arguments):
+        output(food.restock_check(context, arguments))
+
+    def restock_mark(arguments):
+        output(food.restock_mark(context, arguments))
+
+    def profile_set(arguments):
+        output(nutrition.profile_set(context, arguments))
+
+    def phase_set(arguments):
+        output(nutrition.phase_set(context, arguments))
+
+    def nutrition_target_set(arguments):
+        output(nutrition.nutrition_target_set(context, arguments))
+
+    def nutrition_targets(arguments):
+        output(nutrition.nutrition_targets(context, arguments, config=nutrition_config))
+
+    def nutrition_coverage(arguments):
+        output(nutrition.nutrition_coverage(context, arguments, config=nutrition_config))
+
     handlers = {
         **legacy_handlers,
+        "set-batch": set_batch,
+        "recipe-tag": recipe_tag,
+        "recipe-ingredients-set": recipe_ingredients_set,
+        "prep": prep,
+        "eat": eat,
+        "log-food": log_food,
+        "menu": menu,
+        "restock-check": restock_check,
+        "restock-mark": restock_mark,
+        "profile-set": profile_set,
+        "phase-set": phase_set,
+        "nutrition-target-set": nutrition_target_set,
+        "nutrition-targets": nutrition_targets,
+        "nutrition-coverage": nutrition_coverage,
         "import-hevy": hevy_csv,
         "import-hevy-json": hevy_json,
         "import-hevy-templates": hevy_templates,

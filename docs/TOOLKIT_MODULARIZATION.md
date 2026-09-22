@@ -167,9 +167,10 @@ and independently reviewed.
 
 ## Roles and ownership
 
-Keep the main orchestrator and independent reviewer on `gpt-6-astra` with `xhigh`
-reasoning. Successor mains preserve this configuration; report unavailability
-instead of silently changing it. Implementation uses the configured main model.
+Use `gpt-6-astra` with `high` reasoning for the main and successor mains, as
+the owner directed on 22 September 2026. The independent reviewer remains on
+`gpt-6-astra` with `xhigh` reasoning. Report unavailability instead of silently
+changing these settings. Implementation uses the configured main model.
 A lower-cost runner may execute fixed checks, not make correctness decisions.
 
 The main owns scope, sequencing, integration, evidence assessment and reporting.

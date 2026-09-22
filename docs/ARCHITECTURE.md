@@ -68,6 +68,7 @@ and UI state.
 | CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
 | File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
+| Nutrition and food | `toolkit/hermes_insights/nutrition.py`, `food.py`, `score_contracts.py`, `commands/` | Profile targets, nutrition coverage, recipe scaling, food capture and freezer stock |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
 | Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
@@ -81,7 +82,7 @@ and UI state.
 
 `health.py:main` supplies an explicit mapping of unconverted handlers to
 `cli.run`. The CLI registers their arguments alongside the extracted import and
-daily commands, then owns dispatch and error formatting. Other command families remain
+daily, nutrition and food commands, then owns dispatch and error formatting. Other command families remain
 in the facade until their planned extraction.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
@@ -124,8 +125,8 @@ owners.
 Daily commands own database closure and preserve their original commit points.
 Generic-write restrictions and optional capture sources have one owner in
 `capture_contracts.py`. Labs remain outside the generic writer. The exact note
-allowlist and vault path guard live in `vault_notes.py`. Retained food and laboratory
-commands use compatibility aliases to these same contracts.
+allowlist and vault path guard live in `vault_notes.py`. Food commands directly reuse
+capture-source validation; retained laboratory commands use the vault compatibility alias.
 
 Schedule history and versioned plan snapshots share the schedule transaction.
 Day-rating milestone triggers and supplement capture links likewise remain atomic
@@ -152,6 +153,38 @@ The explicit Hermes engine inventory includes the extracted runtime modules.
 Recursive exact-cache identity still covers toolkit Python source.
 Numerical provenance retains its narrower engine inventory. These identities serve
 different contracts and are not interchangeable.
+
+### Nutrition and food ownership
+
+`commands/nutrition.py` owns profile and phase writes, manual macro targets,
+current target reports and daily nutrition coverage. `nutrition.py` owns target
+calculations and the per-day nutrition values and score. The retained `scores`
+command reaches those same functions through facade adapters. Shared score bands
+and rounding live in `score_contracts.py`. Later score/readiness coordination remains
+in the facade.
+
+The facade resolves water, phase, protein and micronutrient configuration at
+startup, preserving missing and invalid configuration behavior. It supplies
+`NutritionConfig` and the civil clock explicitly. Hydration capture and dynamic
+target computation receive the same resolved fallback. Coverage applies current
+targets to historical days and omits days without nutrition. Hydration stays separate.
+
+`commands/food.py` owns batch configuration, recipe tags, ingredient sidecars,
+prep, eat, food logging, menu and restock commands. `food.py` owns recipe lookup,
+nutrient scaling, capture validation and restock guards. Recipe import normalization
+remains in its existing importer: `recipe_nutrients.per_gram` stores batch totals.
+Food scaling uses current recipe metadata, including when reading older records.
+
+Food capture, stock changes and completeness invalidations retain one transaction.
+Prep also updates optional recipe metadata and resets restock state atomically.
+Eat selects one oldest positive batch. It can refuse a request even when later
+batches contain enough stock. Restock snoozes use current civil time for backdated
+consumption. These are preserved behaviors, not new inventory rules.
+
+Ingredient sidecars use the supplied vault and validated full payload. They replace
+one file through a temporary file and atomic rename, with cleanup on failure.
+They remain distinct from immutable transcript captures. Broker permissions remain
+unchanged. Configuration writers and ingredient sidecars stay outside its allowlist.
 
 ## Data ownership and writes
 

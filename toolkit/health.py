@@ -14,6 +14,18 @@ from datetime import date, datetime, timedelta, timezone
 
 from hermes_insights import cli as insight_cli
 from hermes_insights.command_context import CommandContext
+from hermes_insights import nutrition as nutrition_domain
+from hermes_insights.commands import food as food_commands, nutrition as nutrition_commands
+from hermes_insights.food import MEAL_TYPES, RESTOCK_ACTIONS, RESTOCK_THRESHOLD_MAX
+from hermes_insights.nutrition import (
+    OWNER_PROFILE_KEYS, SEX_VALUES, ACTIVITY_FALLBACK_VALUES, DIET_PHASES,
+    NUTRITION_TARGET_NAMES, NUTRITION_WEIGHTS, RECIPE_MICRO_NAME_TO_KEY, RECIPE_MICRO_UNITS,
+    daymax as _daymax, day_values as _nutrition_day_values, day_score as _nutrition_day_score,
+    recipe_micro_factor as _recipe_micro_factor,
+)
+from hermes_insights.score_contracts import (
+    SCORE_BAD_CUTOFF, SCORE_GOOD_CUTOFF, band as _band, clamp100 as _clamp100,
+)
 from hermes_insights.capture_contracts import (
     CAPTURE_SOURCES, DAYMAP, LOGGABLE, RATING, UPSERT_DATE_TABLES, capture_source,
     require_soreness_note as _subjective_daily_has_soreness_note,
@@ -581,419 +593,48 @@ def import_recipes(a):
         _command_context(), a, parse_number=num, slug=slug, meal_types=MEAL_TYPES))
 
 def set_batch(a):
-    """Record the finished cooked weight of a recipe's batch (enables per-gram math).
-    Optional --portions N also sets recipes.portions + grams_per_portion (= grams/N)
-    for the recipe page's per-portion math. Unlike `prep`, this NEVER touches
-    meal_inventory — it's the side-effect-free restore path (e.g. re-syncing
-    batch/portions after a re-import), not a fresh prep event."""
-    if a.portions is not None and a.portions < 1: sys.exit("--portions must be >= 1")
-    c = cx()
-    r = c.execute("SELECT recipe_id,name FROM recipes WHERE recipe_id=? OR name=?", (a.recipe, a.recipe)).fetchone()
-    if not r: sys.exit(f"recipe not found: {a.recipe}")
-    res = {"ok": True, "recipe": r["name"], "batch_grams": a.grams}
-    if a.portions is not None:
-        gpp = round(a.grams / a.portions, 1)
-        c.execute("UPDATE recipes SET batch_grams=?, portions=?, grams_per_portion=? WHERE recipe_id=?",
-                  (a.grams, a.portions, gpp, r["recipe_id"]))
-        res.update({"portions": a.portions, "grams_per_portion": gpp})
-    else:
-        c.execute("UPDATE recipes SET batch_grams=? WHERE recipe_id=?", (a.grams, r["recipe_id"]))
-    c.commit(); out(res)
-
-def _recipe(c, key):
-    return c.execute("SELECT * FROM recipes WHERE recipe_id=? OR name=?", (key, key)).fetchone()
-
-
-def _recipe_ingredients_path(recipe_id):
-    """Validated vault sidecar for one recipe's structured ingredient list."""
-    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,159}", recipe_id or ""):
-        sys.exit("recipe has an unsafe id; ingredients were not written")
-    vault = _vault_root()
-    target = os.path.abspath(os.path.join(
-        vault, "personal", "recipes", f"{recipe_id}.ingredients.json"))
-    if os.path.commonpath([target, vault]) != vault:
-        sys.exit("ingredient path escapes the vault")
-    return target
-
-
-def _ingredient_number(value, field, index):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        sys.exit(f"ingredient {index} {field} must be a number")
-    value = float(value)
-    if not (math.isfinite(value) and 0 < value <= 1_000_000):
-        sys.exit(f"ingredient {index} {field} must be finite and > 0")
-    return int(value) if value.is_integer() else value
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.set_batch(_command_context(), a))
 
 
 def recipe_ingredients_set(a):
-    """Replace one recipe's structured ingredient sidecar from JSON on stdin.
-
-    This is agent/SSH-only (never panel-bridge reachable). It validates the
-    recipe against the database, normalizes a small explicit JSON contract,
-    and atomically replaces only personal/recipes/<id>.ingredients.json.
-    Nutrition totals, logs, and inventory are untouched.
-    """
-    c = cx_ro()
-    try:
-        r = _recipe(c, a.recipe)
-    finally:
-        c.close()
-    if not r:
-        sys.exit(f"recipe not found: {a.recipe}")
-
-    raw = _stdin_text("recipe ingredients")
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        sys.exit(f"recipe ingredients must be valid JSON: {exc.msg}")
-    items = payload.get("ingredients") if isinstance(payload, dict) else payload
-    if not isinstance(items, list) or not 1 <= len(items) <= 100:
-        sys.exit("ingredients must be a JSON list containing 1-100 items")
-
-    normalized = []
-    allowed = {"name", "amount", "unit", "weight_g", "note"}
-    for index, item in enumerate(items, 1):
-        if not isinstance(item, dict):
-            sys.exit(f"ingredient {index} must be an object")
-        unexpected = set(item) - allowed
-        if unexpected:
-            sys.exit(f"ingredient {index} has unsupported fields: {', '.join(sorted(unexpected))}")
-        name = item.get("name")
-        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 200:
-            sys.exit(f"ingredient {index} name must be 1-200 characters")
-        clean = {"name": name.strip()}
-        if "amount" in item:
-            clean["amount"] = _ingredient_number(item["amount"], "amount", index)
-            unit = item.get("unit")
-            if not isinstance(unit, str) or not unit.strip() or len(unit.strip()) > 32:
-                sys.exit(f"ingredient {index} unit must be 1-32 characters when amount is set")
-            clean["unit"] = unit.strip()
-        elif "unit" in item:
-            sys.exit(f"ingredient {index} unit requires amount")
-        if "weight_g" in item:
-            clean["weight_g"] = _ingredient_number(item["weight_g"], "weight_g", index)
-        if "note" in item:
-            note = item["note"]
-            if not isinstance(note, str) or not note.strip() or len(note.strip()) > 300:
-                sys.exit(f"ingredient {index} note must be 1-300 characters")
-            clean["note"] = note.strip()
-        normalized.append(clean)
-
-    target = _recipe_ingredients_path(r["recipe_id"])
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    document = {
-        "recipe_id": r["recipe_id"],
-        "recipe_name": r["name"],
-        "ingredients": normalized,
-        "updated_at": _now().isoformat(timespec="seconds"),
-    }
-    tmp = target + f".tmp.{os.getpid()}"
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(document, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.replace(tmp, target)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-    rel = os.path.relpath(target, _vault_root())
-    out({"ok": True, "recipe": r["name"], "recipe_id": r["recipe_id"],
-         "ingredients_count": len(normalized), "file": rel,
-         "ingredients": normalized})
-
-
-# T47: whitelist for recipe-tag; the panel's Recipes meal filter renders these.
-MEAL_TYPES = ("breakfast", "lunch", "dinner", "snack")
-
-
-def _recipes_has_meal_type(c):
-    """Require the migration-owned recipe column without DDL."""
-    _require_schema(c, "recipes", "meal_type")
-    return True
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.recipe_ingredients_set(_command_context(), a, stdin=sys.stdin))
 
 
 def recipe_tag(a):
-    """Tag a recipe with a meal type (breakfast/lunch/dinner/snack) for the
-    panel's Recipes filter, or 'clear' to null it. Coach/agent-side config —
-    NOT in either panel bridge allowlist (same posture as athletic-target-set).
-    Migration 001 owns recipes.meal_type; this writer only validates and uses it."""
-    mt = (a.meal_type or "").strip().lower()
-    if mt not in MEAL_TYPES + ("clear",):
-        sys.exit(f"meal_type must be one of: {', '.join(MEAL_TYPES)} (or 'clear' to remove)")
-    c = cx()
-    r = _recipe(c, a.recipe)
-    if not r: sys.exit(f"recipe not found: {a.recipe}")
-    _recipes_has_meal_type(c)
-    val = None if mt == "clear" else mt
-    c.execute("UPDATE recipes SET meal_type=? WHERE recipe_id=?", (val, r["recipe_id"]))
-    c.commit()
-    out({"ok": True, "recipe": r["name"], "meal_type": val})
-
-def _compute_nutrients(c, rid, grams, batch_grams):
-    """Deterministic: per_gram = total/batch_grams; nutrient_eaten = per_gram * grams."""
-    rows = c.execute("SELECT nutrient,unit,per_gram FROM recipe_nutrients WHERE recipe_id=?", (rid,)).fetchall()
-    res = {}
-    for r in rows:
-        res[r["nutrient"]] = round(r["per_gram"] / batch_grams * grams, 3)
-    return res
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.recipe_tag(_command_context(), a))
 
 
 # ------------------------------------------------------- freezer restock state
-RESTOCK_ACTIONS = {"notified", "restock", "alternatives", "later", "skip"}
-RESTOCK_THRESHOLD_MAX = 1_000_000
-
-
-def _restock_state_ready(c):
-    _require_schema(
-        c,
-        "recipe_restock_state",
-        "recipe_id",
-        "action",
-        "threshold",
-        "portions_at_notice",
-        "snooze_until",
-        "updated_at",
-    )
-
-
-def _restock_threshold(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        sys.exit("--threshold must be a finite nonnegative number")
-    result = float(value)
-    if not math.isfinite(result) or not 0 <= result <= RESTOCK_THRESHOLD_MAX:
-        sys.exit(
-            f"--threshold must be finite and between 0 and {RESTOCK_THRESHOLD_MAX}"
-        )
-    return result
-
-
-def _restock_due(c, recipe_id, portions, threshold, on_date):
-    if portions > threshold:
-        return False
-    state = c.execute(
-        """SELECT action,snooze_until FROM recipe_restock_state
-             WHERE recipe_id=?""",
-        (recipe_id,),
-    ).fetchone()
-    if not state:
-        return True
-    if state["action"] == "later" and state["snooze_until"]:
-        return state["snooze_until"] <= on_date
-    return False
 
 
 def restock_check(a):
-    """Return low-stock recipes whose notification state is currently due.
-
-    This read does not mark an item as notified. A caller records the state only
-    after its notification or user-choice surface succeeds.
-    """
-    threshold = _restock_threshold(a.threshold)
-    d = valid_date(a.date) if a.date else today()
-    c = cx()
-    _restock_state_ready(c)
-    rows = c.execute(
-        """SELECT r.recipe_id, r.name,
-                  COALESCE(SUM(m.portions_remaining), 0) AS portions,
-                  MAX(m.prepped_on) AS latest_batch
-             FROM meal_inventory m
-             JOIN recipes r ON r.recipe_id=m.recipe_id
-         GROUP BY r.recipe_id, r.name
-         ORDER BY portions, r.name"""
-    ).fetchall()
-    alerts = []
-    for row in rows:
-        if _restock_due(c, row["recipe_id"], row["portions"], threshold, d):
-            alerts.append({
-                "recipe_id": row["recipe_id"],
-                "recipe": row["name"],
-                "portions_left": row["portions"],
-                "threshold": threshold,
-                "prepped_on": row["latest_batch"],
-            })
-    out({"date": d, "threshold": threshold, "alerts": alerts,
-         "count": len(alerts)})
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.restock_check(_command_context(), a))
 
 
 def restock_mark(a):
-    """Persist a delivered restock prompt or the user's selected response."""
-    if a.action not in RESTOCK_ACTIONS:
-        sys.exit(f"action must be one of: {', '.join(sorted(RESTOCK_ACTIONS))}")
-    threshold = _restock_threshold(a.threshold)
-    d = valid_date(a.date) if a.date else today()
-    c = cx()
-    _restock_state_ready(c)
-    recipe = _recipe(c, a.recipe)
-    if not recipe:
-        sys.exit(f"recipe not found: {a.recipe}")
-    inventory = c.execute(
-        """SELECT COALESCE(SUM(portions_remaining), 0) AS portions
-             FROM meal_inventory WHERE recipe_id=?""",
-        (recipe["recipe_id"],),
-    ).fetchone()
-    snooze_until = a.snooze_until
-    if a.action == "later" and not snooze_until:
-        snooze_until = (date.fromisoformat(d) + timedelta(days=3)).isoformat()
-    if snooze_until:
-        snooze_until = valid_date(snooze_until, "--snooze-until")
-    c.execute(
-        """INSERT INTO recipe_restock_state
-             (recipe_id,action,threshold,portions_at_notice,snooze_until,updated_at)
-             VALUES(?,?,?,?,?,datetime('now'))
-             ON CONFLICT(recipe_id) DO UPDATE SET
-               action=excluded.action,
-               threshold=excluded.threshold,
-               portions_at_notice=excluded.portions_at_notice,
-               snooze_until=excluded.snooze_until,
-               updated_at=datetime('now')""",
-        (recipe["recipe_id"], a.action, threshold,
-         inventory["portions"], snooze_until),
-    )
-    c.commit()
-    out({
-        "ok": True,
-        "recipe_id": recipe["recipe_id"],
-        "recipe": recipe["name"],
-        "action": a.action,
-        "portions_left": inventory["portions"],
-        "threshold": threshold,
-        "snooze_until": snooze_until,
-    })
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.restock_mark(_command_context(), a))
 
 def prep(a):
-    """Log a meal-prep batch: set batch weight + add portions to the freezer inventory."""
-    c = cx(); r = _recipe(c, a.recipe)
-    if not r: sys.exit(f"recipe not found: {a.recipe}")
-    _restock_state_ready(c)
-    gpp = round(a.batch_grams / a.portions, 1) if a.batch_grams else r["grams_per_portion"]
-    if a.batch_grams:
-        c.execute("UPDATE recipes SET batch_grams=?, grams_per_portion=?, portions=? WHERE recipe_id=?",
-                  (a.batch_grams, gpp, a.portions, r["recipe_id"]))
-    c.execute("INSERT INTO meal_inventory(recipe_id,portions_remaining,grams_per_portion,prepped_on) VALUES(?,?,?,?)",
-              (r["recipe_id"], a.portions, gpp, today()))
-    # A new batch begins a new stock cycle. Earlier skip/snooze/notice state
-    # must not suppress the next genuine low-stock transition.
-    c.execute("DELETE FROM recipe_restock_state WHERE recipe_id=?", (r["recipe_id"],))
-    c.commit()
-    out({"ok": True, "prepped": r["name"], "portions": a.portions, "grams_per_portion": gpp, "batch_grams": a.batch_grams or r["batch_grams"]})
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.prep(_command_context(), a))
 
-def _log_nutrition(c, rid, name, grams, d, *, time_value=None, meal_type=None, source=None):
-    _require_schema(c, "nutrition_log", "time", "meal_type")
-    r = c.execute("SELECT batch_grams FROM recipes WHERE recipe_id=?", (rid,)).fetchone()
-    bg = r["batch_grams"] if r else None
-    n = _compute_nutrients(c, rid, grams, bg) if bg else {}
-    cols = ["date", "recipe_id", "food_name", "grams", "kcal", "protein_g",
-            "carbs_g", "fat_g", "fiber_g", "time", "meal_type"]
-    values = [d, rid, name, grams, n.get("Energy"), n.get("Protein"), n.get("Carbs"),
-              n.get("Fat"), n.get("Fiber"), time_value, meal_type]
-    if source is not None:
-        cols.append("source"); values.append(source)
-    c.execute(f"INSERT INTO nutrition_log({','.join(cols)}) VALUES({','.join('?' * len(cols))})", values)
-    return n, bg
-
-def _food_capture_values(a):
-    try:
-        d = insight_events.iso_date(a.date, "--date") if a.date else today()
-    except insight_events.CaptureError as exc:
-        sys.exit(str(exc))
-    t = getattr(a, "time", None)
-    if t is not None:
-        try:
-            insight_events.hhmm(t, "--time", nullable=False)
-        except insight_events.CaptureError as exc:
-            sys.exit(str(exc))
-    meal_type = getattr(a, "meal_type", None)
-    if meal_type is not None:
-        meal_type = meal_type.strip().lower()
-        if meal_type not in MEAL_TYPES:
-            sys.exit(f"--meal-type must be one of: {', '.join(MEAL_TYPES)}")
-    return d, t, meal_type, _capture_source(a)
 
 def log_food(a):
-    if not (math.isfinite(a.grams) and 0 < a.grams <= 100_000):
-        sys.exit("--grams must be a positive finite number no greater than 100000")
-    c = cx(); r = _recipe(c, a.recipe)
-    if not r: sys.exit(f"recipe not found: {a.recipe}")
-    d, t, meal_type, source = _food_capture_values(a)
-    n, bg = _log_nutrition(c, r["recipe_id"], r["name"], a.grams, d,
-                           time_value=t, meal_type=meal_type, source=source)
-    if insight_migrations.recorded_version(c) >= 2:
-        insight_events.invalidate_explicit_none(
-            c, d, "food_identity", f"recipe:{r['recipe_id']}", source or "manual", None,
-        )
-        insight_events.invalidate_explicit_none(
-            c, d, "nutrition_total", None, source or "manual", None,
-        )
-    c.commit()
-    extra = ({"time": t, "meal_type": meal_type, "source": source}
-             if any(v is not None for v in (t, meal_type, source)) else {})
-    if not bg:
-        out({"ok": True, "logged": r["name"], "grams": a.grams, "date": d,
-             "warning": "no batch weight set -> macros not computed. run `set-batch`.", **extra}); return
-    out({"ok": True, "logged": r["name"], "grams": a.grams, "date": d,
-         "kcal": n.get("Energy"), "protein_g": n.get("Protein"), "carbs_g": n.get("Carbs"), "fat_g": n.get("Fat"), **extra})
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.log_food(_command_context(), a))
 
 def eat(a):
-    """Eat one (or more) portions from the freezer: decrement inventory + log nutrition."""
-    if not 1 <= a.portions <= 100:
-        sys.exit("--portions must be 1-100")
-    c = cx(); r = _recipe(c, a.recipe)
-    if not r: sys.exit(f"recipe not found: {a.recipe}")
-    _restock_state_ready(c)
-    inv = c.execute("""SELECT id,portions_remaining,grams_per_portion FROM meal_inventory
-                       WHERE recipe_id=? AND portions_remaining>0 ORDER BY prepped_on LIMIT 1""", (r["recipe_id"],)).fetchone()
-    if not inv: sys.exit(f"no portions of '{r['name']}' left in inventory")
-    p = a.portions
-    if inv["portions_remaining"] < p: sys.exit(f"only {inv['portions_remaining']} portions left")
-    grams = inv["grams_per_portion"] * p
-    d, t, meal_type, source = _food_capture_values(a)
-    n, bg = _log_nutrition(c, r["recipe_id"], r["name"], grams, d,
-                           time_value=t, meal_type=meal_type, source=source)
-    c.execute("UPDATE meal_inventory SET portions_remaining=portions_remaining-? WHERE id=?", (p, inv["id"]))
-    if insight_migrations.recorded_version(c) >= 2:
-        insight_events.invalidate_explicit_none(
-            c, d, "food_identity", f"recipe:{r['recipe_id']}", source or "manual", None,
-        )
-        insight_events.invalidate_explicit_none(
-            c, d, "nutrition_total", None, source or "manual", None,
-        )
-    left = c.execute(
-        """SELECT COALESCE(SUM(portions_remaining), 0) AS portions
-             FROM meal_inventory WHERE recipe_id=?""",
-        (r["recipe_id"],),
-    ).fetchone()["portions"]
-    # Snoozes are operational reminders, so compare them with the current day
-    # even when the consumption record itself is backdated.
-    alert = _restock_due(c, r["recipe_id"], left, 2, today())
-    c.commit()
-    extra = ({"date": d, "time": t, "meal_type": meal_type, "source": source}
-             if any(v is not None for v in (t, meal_type, source)) else {})
-    out({"ok": True, "ate": r["name"], "portions": p, "grams": grams, "portions_left": left,
-         "kcal": n.get("Energy"), "protein_g": n.get("Protein"),
-         "restock_alert": alert,
-         "restock_next": (
-             "deliver restock choices, then run restock-mark --action notified"
-             if alert else None
-         ), **extra})
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.eat(_command_context(), a))
 
 def menu(a):
-    c = cx()
-    # Migration 001 owns meal_type. This read requires it and never runs DDL.
-    _recipes_has_meal_type(c)
-    mt_col = ", r.meal_type"
-    rows = c.execute(f"""SELECT r.name, r.recipe_id, SUM(m.portions_remaining) AS portions, m.grams_per_portion, r.batch_grams{mt_col}
-        FROM meal_inventory m JOIN recipes r ON r.recipe_id=m.recipe_id
-        WHERE m.portions_remaining>0 GROUP BY r.recipe_id ORDER BY portions DESC""").fetchall()
-    items = []
-    for r in rows:
-        kcal = protein = None
-        if r["batch_grams"]:
-            n = _compute_nutrients(c, r["recipe_id"], r["grams_per_portion"], r["batch_grams"])
-            kcal, protein = n.get("Energy"), n.get("Protein")
-        items.append({"recipe": r["name"], "portions_available": r["portions"],
-                      "grams_per_portion": r["grams_per_portion"], "kcal_per_portion": kcal, "protein_g": protein,
-                      "meal_type": r["meal_type"]})
-    out({"date": a.date or today(), "menu": items})
+    """Compatibility entry point for the extracted food command."""
+    out(food_commands.menu(_command_context(), a))
 
 # =========================================================== generic logging
 
@@ -1750,14 +1391,7 @@ def day_signature(a):
 #   nutrition    ALWAYS insufficient until nutrition data and user-configured
 #                targets are available.
 def _configured_positive_number(name, default):
-    raw = os.environ.get(name, str(default)).strip()
-    try:
-        value = float(raw)
-    except ValueError as exc:
-        raise RuntimeError(f"{name} must be a positive number") from exc
-    if not math.isfinite(value) or value <= 0:
-        raise RuntimeError(f"{name} must be a positive number")
-    return value
+    return nutrition_domain.configured_positive_number(name, default, environ=os.environ)
 
 
 WATER_TARGET_ML = _configured_positive_number("HERMES_WATER_FALLBACK_ML", 2000)
@@ -1782,57 +1416,9 @@ def _configured_micro_targets():
     return insight_catalogs._configured_micro_targets(micro_keys=MICRO_KEYS)
 
 
-# Cronometer recipe exports use display names rather than the canonical keys
-# above. These aliases are intentionally narrow: EPA and DHA are summed into
-# the EPA+DHA target, while the broader Omega-3 total (which includes ALA) is
-# never substituted for it.
-RECIPE_MICRO_NAME_TO_KEY = {
-    "vitamin d": "vitamin_d",
-    "magnesium": "magnesium",
-    "epa": "omega3_epa_dha",
-    "dha": "omega3_epa_dha",
-    "zinc": "zinc",
-    "iron": "iron",
-    "vitamin b12": "vitamin_b12",
-    "b12": "vitamin_b12",
-    "b12 (cobalamin)": "vitamin_b12",
-    "calcium": "calcium",
-    "potassium": "potassium",
-    "vitamin c": "vitamin_c",
-    "folate": "folate",
-    "folate dfe": "folate",
-}
-RECIPE_MICRO_UNITS = {m["key"]: m["unit"] for m in MICRO_SEED}
-# composite weights (HEURISTIC editorial split, documented on the payload):
-# protein 25 + kcal 15 + 10 micros × 6 = 100
-NUTRITION_WEIGHTS = {"protein": 25, "kcal": 15, "micro_each": 6}
-NUTRITION_TARGET_NAMES = {"protein_g", "kcal"}   # owner macro targets
-
-
-def _ensure_nutrient_tables(c):
-    """Idempotent (§4a): per-day nutrient amounts (Cronometer import) + the
-    user's macro targets. Amounts upsert per (date, nutrient, source) — a
-    reimport corrects in place, nothing is ever deleted."""
-    _require_schema(c, "nutrient_daily")
-    _require_schema(c, "nutrition_targets")
-
-
 def nutrition_target_set(a):
-    """Owner macro targets for the §4a composite (protein_g, kcal). Config —
-    NOT in the bridge allowlists (agent/SSH path only)."""
-    name = (a.name or "").strip().lower()
-    if name not in NUTRITION_TARGET_NAMES:
-        sys.exit(f"name must be one of: {', '.join(sorted(NUTRITION_TARGET_NAMES))}")
-    if not (math.isfinite(a.target) and a.target > 0):
-        sys.exit("target must be a positive finite number")   # inf zeroes the
-        # score forever and NaN dies in sqlite's NULL binding — refuse both
-    c = cx(); _ensure_nutrient_tables(c)
-    c.execute("""INSERT INTO nutrition_targets(name, target, updated)
-        VALUES(?,?,datetime('now'))
-        ON CONFLICT(name) DO UPDATE SET target=excluded.target, updated=datetime('now')""",
-        (name, float(a.target)))
-    c.commit()
-    out({"ok": True, "name": name, "target": a.target})
+    """Compatibility entry point for the extracted nutrition command."""
+    out(nutrition_commands.nutrition_target_set(_command_context(), a))
 
 
 def import_cronometer(a):
@@ -1845,20 +1431,6 @@ def import_google_health(a):
         _command_context(), a.json_file, parse_number=num, stdin=sys.stdin))
 
 
-SCORE_BAD_CUTOFF = 40
-SCORE_GOOD_CUTOFF = 70
-
-
-def _band(v):
-    return (
-        "bad" if v < SCORE_BAD_CUTOFF
-        else "warn" if v < SCORE_GOOD_CUTOFF
-        else "good"
-    )
-
-def _clamp100(v):
-    return int(round(max(0.0, min(100.0, v))))
-
 def _score(v, **inputs):
     v = _clamp100(v)
     return {"score": v, "band": _band(v), "inputs": inputs}
@@ -1868,127 +1440,6 @@ def _no_data(reason, **inputs):
     if inputs: d["inputs"] = inputs
     return d
 
-
-def _recipe_micro_factor(key, unit):
-    """Convert one recipe nutrient unit to its canonical MICRO_SEED unit."""
-    norm = {"µg": "ug", "mcg": "ug"}
-    source = norm.get((unit or "").strip().lower(),
-                      (unit or "").strip().lower())
-    target = norm.get(RECIPE_MICRO_UNITS[key].lower(),
-                      RECIPE_MICRO_UNITS[key].lower())
-    if source == target:
-        return 1.0
-    if source == "g" and target == "mg":
-        return 1000.0
-    if key == "vitamin_d" and source == "iu" and target == "ug":
-        return 0.025
-    return None
-
-
-def _nutrition_day_values(c, d):
-    """Compose one day's score inputs without double counting.
-
-    Logged kcal/protein come from nutrition_log. Recipe micronutrients are
-    reconstructed from recipe total / batch grams * grams eaten. A
-    nutrient_daily value then replaces the corresponding fallback value
-    nutrient-by-nutrient because a Cronometer daily total already includes
-    those foods.
-    """
-    values = {}
-    if _table_exists(c, "nutrition_log"):
-        macro = c.execute(
-            "SELECT SUM(kcal) kcal, SUM(protein_g) protein_g"
-            " FROM nutrition_log WHERE date=?", (d,)).fetchone()
-        if macro:
-            if macro["kcal"] is not None:
-                values["energy_kcal"] = macro["kcal"]
-            if macro["protein_g"] is not None:
-                values["protein_g"] = macro["protein_g"]
-
-    if all(_table_exists(c, name)
-           for name in ("nutrition_log", "recipes", "recipe_nutrients")):
-        rows = c.execute(
-            """SELECT nl.grams, r.batch_grams, rn.nutrient, rn.unit,
-                      rn.per_gram
-                 FROM nutrition_log nl
-                 JOIN recipes r ON r.recipe_id=nl.recipe_id
-                 JOIN recipe_nutrients rn ON rn.recipe_id=nl.recipe_id
-                WHERE nl.date=? AND nl.grams IS NOT NULL
-                  AND r.batch_grams IS NOT NULL AND r.batch_grams>0
-                  AND rn.per_gram IS NOT NULL""", (d,))
-        for row in rows:
-            key = RECIPE_MICRO_NAME_TO_KEY.get(
-                (row["nutrient"] or "").strip().lower())
-            if key is None:
-                continue
-            factor = _recipe_micro_factor(key, row["unit"])
-            if factor is None:
-                continue
-            amount = (row["per_gram"] / row["batch_grams"]
-                      * row["grams"] * factor)
-            values[key] = values.get(key, 0.0) + amount
-
-    if _table_exists(c, "nutrient_daily"):
-        for row in c.execute(
-                "SELECT nutrient, MAX(amount) amount FROM nutrient_daily"
-                " WHERE date=? GROUP BY nutrient", (d,)):
-            values[row["nutrient"]] = row["amount"]
-    return values
-
-
-def _nutrition_day_score(c, d, targets):
-    """Shared per-day §4a scorer (T46).
-
-    Scores the composed daily values from `_nutrition_day_values` against the
-    same T44 targets used by nutrition-targets. Cronometer daily totals win
-    per nutrient; logged recipe values fill only missing nutrients. The
-    weights/credit shapes remain the original composite. Returns None only
-    when neither source contains scoreable nutrition for the day.
-    """
-    nd = _nutrition_day_values(c, d)
-    if not nd:
-        return None
-    w = NUTRITION_WEIGHTS
-    kcal_t = targets["kcal"]["target"]
-    protein_t = targets["protein_g"]["target"]
-
-    protein = nd.get("protein_g")
-    protein_frac = min(1.0, protein / protein_t) if protein is not None and protein_t else 0.0
-    protein_part = w["protein"] * protein_frac
-
-    kcal = nd.get("energy_kcal")
-    if kcal is None or not kcal_t:
-        kcal_part = 0.0
-    else:
-        off = abs(kcal - kcal_t) / kcal_t
-        kcal_part = w["kcal"] * max(0.0, min(1.0, (0.25 - off) / 0.15))
-
-    micros, low = [], []
-    for m in targets["micros"]:
-        if m["target"] is None:
-            continue   # e.g. fibre — no Cronometer alias, nothing to score against
-        amt = nd.get(m["nutrient"])
-        frac = min(1.0, amt / m["target"]) if amt is not None else 0.0
-        micros.append({"key": m["nutrient"], "amount": amt, "unit": m["unit"],
-                       "target": m["target"], "pct": round(100 * frac),
-                       "source": m["source"]})
-        if frac < 0.8:
-            low.append(m["nutrient"])
-    micros_part = w["micro_each"] * sum(mi["pct"] for mi in micros) / 100.0
-
-    score = _clamp100(protein_part + kcal_part + micros_part)
-    return {
-        "score": score, "band": _band(score),
-        "components": {
-            "protein_g": protein, "protein_target": protein_t,
-            "protein_pct": round(100 * protein / protein_t) if protein is not None and protein_t else None,
-            "kcal": kcal, "kcal_target": kcal_t,
-            "kcal_pct": round(100 * kcal / kcal_t) if kcal is not None and kcal_t else None,
-            "micros": micros, "low_micros": low,
-            "micros_hit": sum(1 for mi in micros if mi["pct"] >= 100),
-            "micros_total": len(micros),
-        },
-    }
 
 def _anchor_day(raw=None):
     """Return the explicit analysis day, or preserve the ordinary live day."""
@@ -5025,34 +4476,10 @@ def labs(a):
 
 
 # =========================================================== owner profile / phase
-OWNER_PROFILE_KEYS = {"height_cm", "sex", "dob", "activity_fallback"}
-SEX_VALUES = {"male", "female"}
-ACTIVITY_FALLBACK_VALUES = {"sedentary", "light", "moderate", "active", "very_active"}
-DIET_PHASES = {"cut", "maintain", "bulk"}
 
 
 def _configured_phase_numbers(name):
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return {}
-    try:
-        values = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"{name} must be valid JSON") from exc
-    if not isinstance(values, dict) or set(values) != DIET_PHASES:
-        raise RuntimeError(f"{name} must define cut, maintain, and bulk")
-    configured = {}
-    for key, value in values.items():
-        if isinstance(value, bool):
-            raise RuntimeError(f"{name} values must be finite numbers")
-        try:
-            number = float(value)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError(f"{name} values must be finite numbers") from exc
-        if not math.isfinite(number):
-            raise RuntimeError(f"{name} values must be finite numbers")
-        configured[key] = number
-    return configured
+    return nutrition_domain.configured_phase_numbers(name, environ=os.environ)
 
 
 CONFIGURED_PHASE_OFFSETS = _configured_phase_numbers("HERMES_PHASE_OFFSETS_JSON")
@@ -5061,65 +4488,14 @@ if any(value <= 0 for value in CONFIGURED_PROTEIN_PER_KG.values()):
     raise RuntimeError("HERMES_PROTEIN_PER_KG_JSON values must be greater than zero")
 
 
-def _ensure_profile_table(c):
-    """Idempotent: user profile config (height/sex/dob/activity fallback) +
-    diet phase, keyed rows. Feeds the T44 targets engine (Mifflin-St Jeor +
-    phase-relative kcal) — config only, no health data."""
-    _require_schema(c, "owner_profile")
-
-
-def _profile_upsert(c, key, value):
-    c.execute("""INSERT INTO owner_profile(key, value, updated_at)
-        VALUES(?,?,?)
-        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""",
-        (key, value, today()))
-
-
 def profile_set(a):
-    """User profile config for the T44 targets engine. Config — NOT in the
-    bridge allowlists (agent/SSH path only)."""
-    key = (a.key or "").strip().lower()
-    if key not in OWNER_PROFILE_KEYS:
-        sys.exit(f"key must be one of: {', '.join(sorted(OWNER_PROFILE_KEYS))}")
-    value = a.value
-    if key == "height_cm":
-        try:
-            v = float(value)
-        except (TypeError, ValueError):
-            sys.exit(f"height_cm must be a number, got: {value!r}")
-        if not (100 <= v <= 250):
-            sys.exit(f"height_cm must be between 100 and 250, got: {value!r}")
-    elif key == "sex":
-        if value not in SEX_VALUES:
-            sys.exit(f"sex must be one of: {', '.join(sorted(SEX_VALUES))}")
-    elif key == "dob":
-        try:
-            d = date.fromisoformat(value)
-        except (TypeError, ValueError):
-            sys.exit(f"dob must be ISO YYYY-MM-DD, got: {value!r}")
-        if not (date(1900, 1, 1) <= d <= date.fromisoformat(today())):
-            sys.exit(f"dob must be between 1900-01-01 and today, got: {value!r}")
-    elif key == "activity_fallback":
-        if value not in ACTIVITY_FALLBACK_VALUES:
-            sys.exit(f"activity_fallback must be one of: {', '.join(sorted(ACTIVITY_FALLBACK_VALUES))}")
-    c = cx(); _ensure_profile_table(c)
-    _profile_upsert(c, key, value)
-    c.commit()
-    out({"ok": True, "key": key, "value": value})
+    """Compatibility entry point for the extracted nutrition command."""
+    out(nutrition_commands.profile_set(_command_context(), a))
 
 
 def phase_set(a):
-    """Diet phase (cut/maintain/bulk) for the T44 targets engine's phase-
-    relative kcal adjustment. A phase change always restarts phase_started."""
-    phase = (a.phase or "").strip().lower()
-    if phase not in DIET_PHASES:
-        sys.exit(f"phase must be one of: {', '.join(sorted(DIET_PHASES))}")
-    c = cx(); _ensure_profile_table(c)
-    started = today()
-    _profile_upsert(c, "phase", phase)
-    _profile_upsert(c, "phase_started", started)
-    c.commit()
-    out({"ok": True, "phase": phase, "phase_started": started})
+    """Compatibility entry point for the extracted nutrition command."""
+    out(nutrition_commands.phase_set(_command_context(), a))
 
 
 # =========================================================== T44 targets engine
@@ -5127,79 +4503,24 @@ def phase_set(a):
 # lab_catalog precedent). This is nutrition PLANNING, not medical advice — no
 # demographic targets are assumed here. Phase and protein values are explicit
 # installation configuration; the water heuristic is labeled as such.
-TARGETS_SEED = {
-    "bmr": {
-        "formula": "male: 10*kg + 6.25*cm - 5*age + 5; female: same - 161 instead of +5",
-        "source": "Mifflin-St Jeor 1990 (Am J Clin Nutr 51:241-247) resting energy equation"},
-    "activity_factors": {
-        "values": {"sedentary": 1.2, "light": 1.375, "moderate": 1.55,
-                   "active": 1.725, "very_active": 1.9},
-        "source": "standard TDEE activity multipliers (Harris-Benedict/Mifflin convention)"},
-    "phase_offset_kcal": {
-        "values": CONFIGURED_PHASE_OFFSETS,
-        "source": "installation-configured phase offset"},
-    "protein_g_per_kg": {
-        "values": CONFIGURED_PROTEIN_PER_KG,
-        "source": "installation-configured protein target"},
-    "fat_pct_kcal": {
-        "value": 0.25,
-        "source": "25% of kcal — within the 20-35% acceptable range (position-stand "
-                  "convention); kept above ~20% as the hormonal-health floor"},
-    "kcal_band_pct": {
-        "value": 0.10,
-        "source": "+/-10% band — matches the existing nutrition-score kcal credit band"},
-    "water": {
-        "ml_per_kg": WATER_ML_PER_KG,
-        "ml_per_exercise_hour": WATER_ML_PER_EXERCISE_HOUR,
-        "hot_day_bonus_ml": WATER_HOT_DAY_BONUS_ML,
-        "hot_day_temp_c": WATER_HOT_DAY_TEMP_C,
-        "source": "installation-configured water heuristic"},
-}
+TARGETS_SEED = nutrition_domain.target_seed(
+    phase_offsets=CONFIGURED_PHASE_OFFSETS, protein_per_kg=CONFIGURED_PROTEIN_PER_KG,
+    water_ml_per_kg=WATER_ML_PER_KG, water_ml_per_exercise_hour=WATER_ML_PER_EXERCISE_HOUR,
+    water_hot_day_bonus_ml=WATER_HOT_DAY_BONUS_ML, water_hot_day_temp_c=WATER_HOT_DAY_TEMP_C,
+)
 
 
-def _daymax(c, col, lo, hi=None):
-    """Per-day MAX of a daily_metrics column across sources (documented
-    provenance choice: rows are keyed (date, source) — Apple and Fitbit
-    coexist per day, and a silent GROUP BY date would sum/average across
-    sources; MAX per day is the deliberate, commented merge here)."""
-    q = (f"SELECT date, MAX({col}) v FROM daily_metrics "
-         f"WHERE {col} IS NOT NULL AND date>=? ")
-    args = [lo]
-    if hi is not None:
-        q += "AND date<=? "
-        args.append(hi)
-    return {r["date"]: r["v"] for r in c.execute(q + "GROUP BY date", args)}
+def _nutrition_config():
+    return nutrition_domain.NutritionConfig(
+        target_seed=TARGETS_SEED, micro_targets=CONFIGURED_MICRO_TARGETS,
+        phase_offsets=CONFIGURED_PHASE_OFFSETS, protein_per_kg=CONFIGURED_PROTEIN_PER_KG,
+        micro_seed=MICRO_SEED, micro_target_extra=MICRO_TARGET_EXTRA,
+        water_target_ml=WATER_TARGET_ML,
+    )
 
 
 def _water_target(c, weight_kg):
-    """Configured baseline/exercise/weather heuristic, rounded to 50 ml.
-    Uses today's exercise_min / weather max temp, else yesterday's — whichever
-    day first has any data; day_used records the choice. Without a weight the
-    existing WATER_TARGET_ML constant is the labeled fallback."""
-    seed = TARGETS_SEED["water"]
-    if weight_kg is None:
-        return {"target": WATER_TARGET_ML, "basis": "fallback",
-                "components": {"baseline": None, "exercise": None, "weather": None},
-                "day_used": None}
-    day_used, ex_min, temp_max = today(), 0.0, None
-    for back in (0, 1):
-        d = days_ago(back)
-        ex = _daymax(c, "exercise_min", d, d).get(d)   # per-day MAX across sources
-        w = (c.execute("SELECT temp_max_c FROM weather WHERE date=?", (d,)).fetchone()
-             if _table_exists(c, "weather") else None)
-        tm = w["temp_max_c"] if w else None
-        if ex is not None or tm is not None:
-            day_used, ex_min, temp_max = d, ex or 0.0, tm
-            break
-    baseline = round(seed["ml_per_kg"] * weight_kg)
-    exercise = round(seed["ml_per_exercise_hour"] * ex_min / 60.0)
-    weather = (seed["hot_day_bonus_ml"]
-               if temp_max is not None and temp_max >= seed["hot_day_temp_c"] else 0)
-    return {"target": int(round((baseline + exercise + weather) / 50.0) * 50),
-            "basis": seed["source"],
-            "components": {"baseline": baseline, "exercise": exercise,
-                           "weather": weather},
-            "day_used": day_used}
+    return nutrition_domain.water_target(c, weight_kg, clock=_now, config=_nutrition_config())
 
 
 def _micro_targets():
@@ -5209,182 +4530,17 @@ def _micro_targets():
 
 
 def _compute_targets(c):
-    """READ-only compute (T44/T46): owner profile + logged data -> today's
-    nutrition targets (pinned JSON contract — T45/T46/T47 build against it).
-    Shared by the `nutrition-targets` CLI subcommand, scores()'s water and
-    nutrition components, and `nutrition-coverage` — ONE targets source for
-    the whole system, no rival computations. No writes: Migration 001 owns
-    owner_profile and nutrition_targets; empty migrated tables simply provide
-    no configuration rows. Missing inputs -> insufficient_data, never a guess (the
-    labeled water fallback is the one allowed exception)."""
-    prof = ({r["key"]: r["value"] for r in c.execute("SELECT key, value FROM owner_profile")}
-            if _table_exists(c, "owner_profile") else {})
-    wrow = c.execute("""SELECT date, weight_kg FROM body_metrics
-                        WHERE weight_kg IS NOT NULL AND date<=?
-                        ORDER BY date DESC, id DESC LIMIT 1""", (today(),)).fetchone()
-    weight = wrow["weight_kg"] if wrow else None
-    missing = [k for k in ("height_cm", "sex", "dob") if not prof.get(k)]
-    if missing or weight is None:
-        reason = (f"user profile incomplete — profile-set {'/'.join(missing)}"
-                  if missing else
-                  "no weight_kg in body_metrics — log a weight first")
-        return {"status": "insufficient_data", "reason": reason,
-                "targets": {"water_ml": _water_target(c, weight)}}
-    missing_micros = sorted(MICRO_KEYS - set(CONFIGURED_MICRO_TARGETS))
-    if missing_micros:
-        return {
-            "status": "insufficient_data",
-            "reason": "nutrient targets are not configured",
-            "missing_nutrient_targets": missing_micros,
-            "targets": {"water_ml": _water_target(c, weight)},
-        }
-    if (set(CONFIGURED_PHASE_OFFSETS) != DIET_PHASES
-            or set(CONFIGURED_PROTEIN_PER_KG) != DIET_PHASES):
-        return {
-            "status": "insufficient_data",
-            "reason": "nutrition phase and protein targets are not configured",
-            "targets": {"water_ml": _water_target(c, weight)},
-        }
-
-    # profile (owner_profile stores raw TEXT — float() on read)
-    height = float(prof["height_cm"])
-    sex = prof["sex"]
-    dob = date.fromisoformat(prof["dob"])
-    t = date.fromisoformat(today())
-    age = t.year - dob.year - ((t.month, t.day) < (dob.month, dob.day))
-
-    # activity over the trailing 28 days, derived deterministically
-    lo = days_ago(28)
-    hevy_dates = {r["date"] for r in c.execute(
-        "SELECT DISTINCT date FROM hevy_sets WHERE date>=? AND date<=?", (lo, today()))}
-    steps = _daymax(c, "steps", lo, today())  # per-day MAX across sources
-    ex_days = _daymax(c, "exercise_min", lo, today())  # (provenance rule, see _daymax)
-    s = len(hevy_dates) / 4.0                 # sessions/week
-    st_avg = round(st.mean(steps.values())) if steps else None
-    days_with_data = len(hevy_dates | set(steps) | set(ex_days))
-    fallback_level = prof.get("activity_fallback") or "moderate"
-    if days_with_data < 14:
-        level, basis = fallback_level, "fallback"
-    else:
-        basis = "logged"
-        stv = st_avg or 0
-        if s >= 6 or (s >= 4 and stv >= 12000):
-            level = "very_active"
-        elif s >= 4 or (s >= 3 and stv >= 10000):
-            level = "active"
-        elif s >= 2 or stv >= 8000:
-            level = "moderate"
-        elif s >= 1 or stv >= 5000:
-            level = "light"
-        else:
-            level = "sedentary"
-    factor = TARGETS_SEED["activity_factors"]["values"][level]
-
-    # Mifflin-St Jeor BMR -> maintenance -> phase-adjusted kcal
-    bmr = 10 * weight + 6.25 * height - 5 * age + (5 if sex == "male" else -161)
-    maintenance = round(bmr * factor)
-    phase = prof.get("phase")
-    phase_out = {"phase": phase or "maintain",
-                 "started": prof.get("phase_started"), "set": phase is not None}
-    offset = TARGETS_SEED["phase_offset_kcal"]["values"][phase_out["phase"]]
-
-    # legacy nutrition_targets rows (user's explicit manual setting) OVERRIDE
-    # the computed kcal/protein; fat/carbs/band derive from the EFFECTIVE values
-    overrides = ({r["name"]: r["target"] for r in
-                 c.execute("SELECT name, target FROM nutrition_targets")}
-                 if _table_exists(c, "nutrition_targets") else {})
-    kcal = maintenance + offset
-    kcal_t = {"target": kcal,
-              "source": (f"{TARGETS_SEED['bmr']['source']} x activity factor "
-                         f"({TARGETS_SEED['activity_factors']['source']}); "
-                         f"phase offset: {TARGETS_SEED['phase_offset_kcal']['source']}; "
-                         f"band: {TARGETS_SEED['kcal_band_pct']['source']}")}
-    if overrides.get("kcal") is not None:
-        kcal = int(round(overrides["kcal"]))
-        kcal_t.update(target=kcal, override=True,
-                      source="owner override (nutrition_targets table)")
-    band = TARGETS_SEED["kcal_band_pct"]["value"]
-    kcal_t["band_low"] = round(kcal * (1 - band))
-    kcal_t["band_high"] = round(kcal * (1 + band))
-
-    per_kg = TARGETS_SEED["protein_g_per_kg"]["values"][phase_out["phase"]]
-    protein = round(per_kg * weight)
-    protein_t = {"target": protein, "per_kg": per_kg,
-                 "source": TARGETS_SEED["protein_g_per_kg"]["source"]}
-    if overrides.get("protein_g") is not None:
-        protein = int(round(overrides["protein_g"]))
-        protein_t.update(target=protein, per_kg=round(protein / weight, 2),
-                         override=True,
-                         source="owner override (nutrition_targets table)")
-
-    fat = round(TARGETS_SEED["fat_pct_kcal"]["value"] * kcal / 9)
-    carbs = round((kcal - protein * 4 - fat * 9) / 4)
-
-    return {"status": "ok",
-         "profile": {"height_cm": height, "sex": sex, "age": age,
-                     "weight_kg": weight, "weight_date": wrow["date"]},
-         "phase": phase_out,
-         "activity": {"level": level, "factor": factor, "basis": basis,
-                      "sessions_per_week": round(s, 2), "avg_steps": st_avg,
-                      "days_with_data": days_with_data},
-         "maintenance_kcal": maintenance,
-         "targets": {
-             "kcal": kcal_t,
-             "protein_g": protein_t,
-             "fat_g": {"target": fat, "pct_kcal": 25,
-                       "source": TARGETS_SEED["fat_pct_kcal"]["source"]},
-             "carbs_g": {"target": carbs,
-                         "source": "remainder: (kcal - protein*4 - fat*9) / 4 "
-                                   "(Atwater 4/9/4 kcal per g)"},
-             "water_ml": _water_target(c, weight),
-             "micros": _micro_targets(),
-         }}
+    return nutrition_domain.compute_targets(c, clock=_now, config=_nutrition_config())
 
 
 def nutrition_targets(a):
-    """CLI wrapper (T44/T46): pure read/compute, zero flags. Delegates to
-    _compute_targets (shared by scores()/nutrition-coverage)."""
-    out(_compute_targets(cx()))
+    """Compatibility entry point for the extracted nutrition command."""
+    out(nutrition_commands.nutrition_targets(_command_context(), a, config=_nutrition_config()))
 
 
 def nutrition_coverage(a):
-    """READ-only per-day target-coverage rows (T46): the user's
-    redefinition of 'food quality' as % of macro+micro targets hit that
-    day. Uses the SAME scorer (_nutrition_day_score) and targets source
-    (_compute_targets) as scores()'s nutrition component — one path, not a
-    rival formula. Targets are computed ONCE from the CURRENT profile/
-    weight/phase (compute-on-read, same as nutrition-targets); a historical
-    day's row is scored against TODAY's targets, not a period-accurate
-    re-derivation of that day's own weight/phase — an honest limitation,
-    documented rather than silently assumed (out of scope for T46). Water
-    is NOT included (the owner defined coverage as macro+micro targets
-    only, not hydration). Days with neither logged nutrition nor Cronometer
-    data are OMITTED, never zero-scored; an empty window is its own
-    insufficient_data."""
-    c = cx()
-    tg = _compute_targets(c)
-    if tg["status"] != "ok":
-        out({"days": a.days, "rows": [], "status": "insufficient_data",
-             "reason": tg["reason"]})
-        return
-    rows = []
-    for back in range(a.days):
-        d = days_ago(back)
-        res = _nutrition_day_score(c, d, tg["targets"])
-        if res is None:
-            continue
-        comp = res["components"]
-        rows.append({"date": d, "score": res["score"], "band": res["band"],
-                     "components": {"protein_pct": comp["protein_pct"],
-                                    "kcal_pct": comp["kcal_pct"],
-                                    "micros_hit": comp["micros_hit"],
-                                    "micros_total": comp["micros_total"]}})
-    if not rows:
-        out({"days": a.days, "rows": [], "status": "insufficient_data",
-             "reason": "no logged nutrition or Cronometer data in this window"})
-        return
-    rows.sort(key=lambda r: r["date"])
-    out({"days": a.days, "rows": rows, "status": "ok"})
+    """Compatibility entry point for the extracted nutrition command."""
+    out(nutrition_commands.nutrition_coverage(_command_context(), a, config=_nutrition_config()))
 
 
 # =========================================================== Phase 2 capture
@@ -7124,20 +6280,6 @@ def main():
             "lab-capture": lab_capture,
             "lab-ingest": lab_ingest,
             "labs": labs,
-            "recipe-ingredients-set": recipe_ingredients_set,
-            "nutrition-target-set": nutrition_target_set,
-            "profile-set": profile_set,
-            "phase-set": phase_set,
-            "nutrition-targets": nutrition_targets,
-            "nutrition-coverage": nutrition_coverage,
-            "set-batch": set_batch,
-            "recipe-tag": recipe_tag,
-            "prep": prep,
-            "eat": eat,
-            "log-food": log_food,
-            "menu": menu,
-            "restock-check": restock_check,
-            "restock-mark": restock_mark,
             "query": query,
             "bp-brief": bp_brief,
             "summary": summary,
@@ -7198,7 +6340,7 @@ def main():
         quarterly_routines=HEVY_QUARTERLY_ROUTINES, stdin=sys.stdin,
         slug=slug, figure_sub_svg=FIGURE_SUB_SVG,
         water_target_ml=WATER_TARGET_ML, open_url=_open_collector_url,
-        medication_aliases=MEDICATION_ALIASES,
+        medication_aliases=MEDICATION_ALIASES, nutrition_config=_nutrition_config(),
     )
 
 
