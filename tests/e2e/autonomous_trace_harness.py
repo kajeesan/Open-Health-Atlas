@@ -32,7 +32,9 @@ FIXTURE_ROOT = TOOLKIT_ROOT / "tests" / "fixtures" / "autonomous_insights"
 if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
-import health  # noqa: E402
+from hermes_insights import runtime  # noqa: E402
+from hermes_insights.command_context import CommandContext  # noqa: E402
+from hermes_insights.commands import scheduled_analysis  # noqa: E402
 from hermes_insights import (  # noqa: E402
     associations,
     frame,
@@ -141,7 +143,7 @@ def fixture_context(*, running_completeness: bool = False) -> AdapterContext:
     that its current Google Health collector covers workouts.
     """
 
-    base = health._phase3_context()
+    base = runtime.adapter_context(clock=lambda: FIXED_NOW, timezone="Europe/Paris")
     constants = dict(base.constants)
     if running_completeness:
         constants["RUN_COMPLETENESS_SOURCES"] = {"fixture-workouts"}
@@ -2055,7 +2057,7 @@ def _production_synthesis_preparation(
 ) -> dict[str, Any]:
     """Build the exact production Phase 6 pre-model preparation from rows."""
 
-    refs = health._phase6_refs_and_novelty(  # noqa: SLF001
+    refs = scheduled_analysis.refs_and_novelty(  # noqa: SLF001
         connection,
         {"batch_id": batch_id},
         cadence,
@@ -2098,8 +2100,8 @@ def _production_synthesis_preparation(
             "production synthesis preparation lacks persisted evidence"
         )
     return {
-        "source": "health._phase6_finalize preparation contract",
-        "refs_source": "health._phase6_refs_and_novelty",
+        "source": "scheduled_analysis.finalize preparation contract",
+        "refs_source": "scheduled_analysis.refs_and_novelty",
         "structured_slots_source": (
             "hermes_insights.orchestrator.structured_slots"
         ),
@@ -2112,13 +2114,10 @@ def _production_synthesis_preparation(
 def _scheduled_weekly(database_path: Path, anchor: str) -> dict[str, Any]:
     """Run the production Phase 6 weekly preparation/compute/finalize path."""
 
-    original_db = health.DB
-    original_now = health._now
     original_ledger_now = ledger._now  # noqa: SLF001
     original_synthesis_now = synthesis._utc_now  # noqa: SLF001
     fixed_utc = f"{anchor}T08:00:00+00:00"
-    health.DB = str(database_path)
-    health._now = lambda: FIXED_NOW
+    command_context = CommandContext(str(database_path), lambda: FIXED_NOW, "Europe/Paris", str(database_path.parent / "vault"), str(TOOLKIT_ROOT / "health.py"))
     ledger._now = lambda: fixed_utc  # noqa: SLF001
     synthesis._utc_now = lambda: fixed_utc  # noqa: SLF001
     try:
@@ -2127,10 +2126,10 @@ def _scheduled_weekly(database_path: Path, anchor: str) -> dict[str, Any]:
             local_now=FIXED_NOW,
             anchor=anchor,
         )
-        prepared = health._phase6_prepare_batch("weekly", plan, None)
-        runs = health._phase6_compute_runs(prepared, plan)
-        finalized = health._phase6_finalize(
-            prepared, plan, "weekly", None, None,
+        prepared = scheduled_analysis.prepare_batch(command_context, "weekly", plan, None)
+        runs = scheduled_analysis.compute_runs(command_context, prepared, plan)
+        finalized = scheduled_analysis.finalize(
+            command_context, prepared, plan, "weekly", None, None,
         )
         return {
             "plan": plan,
@@ -2141,8 +2140,6 @@ def _scheduled_weekly(database_path: Path, anchor: str) -> dict[str, Any]:
             **finalized,
         }
     finally:
-        health.DB = original_db
-        health._now = original_now
         ledger._now = original_ledger_now  # noqa: SLF001
         synthesis._utc_now = original_synthesis_now  # noqa: SLF001
 
@@ -3603,7 +3600,7 @@ def _actual_contract_calls(
     elif scenario_key == "weekly_no_novelty":
         calls.extend([
             call(
-                "health._phase6_prepare_batch",
+                "scheduled_analysis.prepare_batch",
                 arguments={
                     "kind": "weekly",
                     "anchors": [
@@ -3618,7 +3615,7 @@ def _actual_contract_calls(
                 invocation_count=2,
             ),
             call(
-                "health._phase6_compute_runs",
+                "scheduled_analysis.compute_runs",
                 arguments={
                     "kind": "weekly",
                     "anchors": [
@@ -3633,7 +3630,7 @@ def _actual_contract_calls(
                 invocation_count=2,
             ),
             call(
-                "health._phase6_finalize",
+                "scheduled_analysis.finalize",
                 arguments={
                     "kind": "weekly",
                     "anchors": [

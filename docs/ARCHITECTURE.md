@@ -64,7 +64,7 @@ and UI state.
 | Area | Location | Responsibility |
 |---|---|---|
 | Web application | `app/` | Authentication, security middleware, HTML, JSON APIs, read models, bridge client |
-| Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit legacy-handler wiring and temporary compatibility adapters |
+| Health toolkit entry point | `toolkit/health.py` | Stable executable, explicit command configuration and temporary compatibility adapters |
 | CLI plumbing | `toolkit/hermes_insights/cli.py`, `command_context.py` | Command registration, parsing, dispatch, error output and explicit command configuration |
 | File and provider imports | `toolkit/hermes_insights/commands/`, `importers/` | Import transactions, source normalization and catalog validation |
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
@@ -82,10 +82,10 @@ and UI state.
 
 ## Toolkit command boundaries
 
-`health.py:main` supplies an explicit mapping of unconverted handlers to
-`cli.run`. The CLI registers their arguments alongside the extracted import and
-daily, nutrition, food, training, frame, score, Recovery and lab commands, then owns dispatch and error formatting. Other command families remain
-in the facade until their planned extraction.
+`health.py:main` passes command configuration to `cli.run`. The CLI registers every
+command and owns argument parsing, dispatch and error formatting. The facade
+retains compatibility delegates for older Python callers; registration calls the
+owning modules directly.
 
 `CommandContext` carries the database path, civil clock, timezone, vault path
 and stable executable path. The facade resolves configuration at invocation.
@@ -267,6 +267,49 @@ receive connections, clocks, and configuration explicitly. Lab latest/trend
 selection, exact confirmation names, report-range precedence, and catalog
 reflagging remain unchanged. Parser contracts and broker permissions remain
 unchanged.
+
+### Feature, ledger and orchestration command ownership
+
+The remaining command coordination belongs under `commands/`. Existing analytical
+and persistence engines retain their implementations.
+
+| Command area | Command owner | Existing engine authority |
+|---|---|---|
+| SQL reads, schema inspection and migrations | `schema.py` | `runtime.py`, `migrations.py` |
+| Raw captures, canonical events, completeness and aliases | `events.py` | `events.py`, `orchestrator.py` |
+| Registry, feature frames, data readiness and goals | `features.py` | `registry.py`, `frame.py`, `readiness.py`, `goals.py` |
+| Associations and finding replay | `associations.py` | `associations.py`, `exact_cache.py` |
+| Manual analysis and hypotheses | `ledger.py` | `ledger.py` |
+| Synthesis preparation, recording and history | `synthesis.py` | `synthesis.py`, `orchestrator.py` |
+| Scheduled analysis and trigger-driven analysis | `scheduled_analysis.py` | `ledger.py`, `orchestrator.py`, `synthesis.py` |
+| Trigger and notification transitions | `orchestration.py` | `orchestrator.py` |
+| Analysis-job launch and dispatch | `analysis_jobs.py` | `analysis_jobs.py` |
+
+Command-owner paths are relative to `hermes_insights/commands/`; engine paths are
+relative to `hermes_insights/`. `commands/analytical.py` provides shared range,
+registry and schema coordination. Commands construct analytical contexts from the
+supplied civil clock and timezone after existing validation gates. The event engine
+retains its separate range clock.
+
+Phase 2 and Phase 3 commands preserve their respective minimum schema checks.
+Associations retain the analytical compatibility gate. Ledger and orchestration
+preflight the exact current autonomous schema, then check minimum versions
+inside their write transactions. These checks serve different purposes and scopes.
+
+Medication events and their triggers share one transaction; corrections attach
+triggers to replacement events. Association reads share one read-only snapshot
+with the exact cache. Manual refresh computes before acquiring its write transaction;
+hypothesis promotion recomputes and persists within one write snapshot.
+
+Scheduled analysis commits preparation, persists each completed or failed run,
+and finalizes separately. Finalization rechecks any trigger lease before writing.
+Synthesis recording commits SQLite before its idempotent Markdown append. If the
+file append fails, an exact retry can complete it from the durable record.
+
+The job command keeps the configured stable CLI path and fixed association/finding
+handler map. Its existing engine retains child fencing, inherited lock descriptors,
+bounded output and error serialization. Canonical analytical JSON and legacy query
+output remain distinct; broker permissions are unchanged.
 
 ## Data ownership and writes
 

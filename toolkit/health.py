@@ -14,6 +14,13 @@ from datetime import date, datetime, timedelta, timezone
 
 from hermes_insights import cli as insight_cli
 from hermes_insights.command_context import CommandContext
+from hermes_insights.commands import (
+    analytical as analytical_commands, schema as schema_commands,
+    events as event_commands, features as feature_commands,
+    associations as association_commands, analysis_jobs as analysis_job_commands,
+    ledger as ledger_commands, synthesis as synthesis_commands,
+    orchestration as orchestration_commands, scheduled_analysis,
+)
 from hermes_insights import muscles as muscles_domain, fitness as fitness_domain
 from hermes_insights.commands import (training as training_commands, fitness as fitness_commands,
     muscles as muscles_commands, physio as physio_commands)
@@ -347,13 +354,9 @@ def day_rating(a):
     out(daily_capture_commands.day_rating(_command_context(), a))
 
 # =========================================================== read
-SAFE = re.compile(r"^\s*SELECT\b", re.I)
+SAFE = schema_commands.SAFE
 def query(a):
-    if not SAFE.match(a.sql) or ";" in a.sql.rstrip(";"):
-        sys.exit("only single read-only SELECT statements are allowed")
-    c = cx_ro()   # read-only connection is the trust boundary; the regex is a first layer
-    rows = [dict(r) for r in c.execute(a.sql).fetchall()]
-    out({"rows": rows, "count": len(rows)})
+    out(schema_commands.query(_command_context(), a))
 
 def _daily_metrics_has_hrv_ms(c):
     """Require Migration 001's canonical HRV field without running DDL."""
@@ -404,14 +407,7 @@ def transcript_capture(a):
 
 
 def schema(a):
-    """List tables/views and their columns — so the coach can orient without raw python."""
-    c = cx()
-    known = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY type DESC, name")]
-    if a.table:
-        if a.table not in known: sys.exit(f"no such table/view: {a.table}")
-        out({"table": a.table, "columns": [{"name": r[1], "type": r[2]} for r in c.execute(f"PRAGMA table_info('{a.table}')")]})
-        return
-    out({"tables_and_views": {t: [r[1] for r in c.execute(f"PRAGMA table_info('{t}')")] for t in known}})
+    out(schema_commands.schema(_command_context(), a))
 
 # =========================================================== weather
 
@@ -903,180 +899,67 @@ def nutrition_coverage(a):
 
 # =========================================================== Phase 2 capture
 def _write_insight(fn, *args, **kwargs):
-    """Run one Phase 2 write in a single explicit transaction."""
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 2)
-        result = fn(c, *args, **kwargs)
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out(result)
+    out(event_commands._write_insight(_command_context(), fn, *args, **kwargs))
 
 
 def _stdin_json():
-    return insight_events.parse_json_stdin(sys.stdin.read())
+    return event_commands._stdin_json(sys.stdin)
 
 
 def schema_status_cmd(a):
-    out(insight_migrations.schema_status(DB))
+    out(schema_commands.schema_status_cmd(_command_context(), a))
 
 
 def schema_plan_cmd(a):
-    out(insight_migrations.schema_plan(DB, a.to))
+    out(schema_commands.schema_plan_cmd(_command_context(), a))
 
 
 def migrate_cmd(a):
-    out(insight_migrations.migrate(DB, a.to, a.expected_from))
+    out(schema_commands.migrate_cmd(_command_context(), a))
 
 
 def capture_raw_cmd(a):
-    payload = _stdin_json()
-    insight_events.validate_capture_raw(payload)
-    _write_insight(insight_events.capture_raw, payload)
+    out(event_commands.capture_raw_cmd(_command_context(), a, stdin=sys.stdin))
 
 
 def capture_resolve_cmd(a):
-    payload = _stdin_json()
-    insight_events.validate_capture_resolve(payload)
-    _write_insight(insight_events.capture_resolve, payload)
+    out(event_commands.capture_resolve_cmd(_command_context(), a, stdin=sys.stdin))
 
 
 def event_log_cmd(a):
-    payload = _stdin_json()
-    insight_events.validate_event(payload)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 2)
-        result = insight_events.event_log(c, payload)
-        if (
-            payload["category"] == "medication_change"
-            and insight_migrations.recorded_version(c) >= 4
-        ):
-            insight_orchestrator.enqueue_internal_trigger(
-                c,
-                trigger_kind="medication_regime_change",
-                source_table="event_exposures",
-                source_row_key=str(result["event_id"]),
-                event_date=result["date"],
-            )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out(result)
+    out(event_commands.event_log_cmd(_command_context(), a, stdin=sys.stdin))
 
 
 def event_correct_cmd(a):
-    insight_events.bounded_int(a.id, "id", 1, 2_147_483_647, nullable=False)
-    payload = _stdin_json()
-    insight_events.validate_event(payload, correction=True)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 2)
-        result = insight_events.event_correct(c, a.id, payload)
-        if (
-            payload["category"] == "medication_change"
-            and insight_migrations.recorded_version(c) >= 4
-        ):
-            insight_orchestrator.enqueue_internal_trigger(
-                c,
-                trigger_kind="medication_regime_change",
-                source_table="event_exposures",
-                source_row_key=str(result["replacement_event_id"]),
-                event_date=payload["date"],
-            )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out(result)
+    out(event_commands.event_correct_cmd(_command_context(), a, stdin=sys.stdin))
 
 
 def event_void_cmd(a):
-    insight_events.bounded_int(a.id, "id", 1, 2_147_483_647, nullable=False)
-    insight_events.bounded_text(a.reason, "reason", 500, nullable=False)
-    _write_insight(insight_events.event_void, a.id, a.reason)
+    out(event_commands.event_void_cmd(_command_context(), a))
 
 
 def events_cmd(a):
-    status = insight_migrations.schema_status(DB)
-    if status["current_version"] < 2:
-        raise insight_migrations.SchemaError(
-            "schema_migration_required", "schema version 2 is required")
-    c = cx_ro()
-    try:
-        result = insight_events.list_events(
-            c, from_date=a.from_date, to_date=a.to_date, days=a.days,
-            all_dates=a.all_dates, category=a.category,
-            entity_key_value=a.entity_key,
-        )
-    finally:
-        c.close()
-    out(result)
+    out(event_commands.events_cmd(_command_context(), a))
 
 
 def capture_completeness_set_cmd(a):
-    insight_events.validate_completeness_input(
-        event_date=a.date, scope=a.scope, state=a.state,
-        explicit_none=a.explicit_none, entity_key_value=a.entity_key,
-        source=a.source, capture_id=a.capture_id, note=a.note,
-    )
-    _write_insight(
-        insight_events.completeness_set, event_date=a.date, scope=a.scope,
-        state=a.state, explicit_none=a.explicit_none,
-        entity_key_value=a.entity_key, source=a.source,
-        capture_id=a.capture_id, note=a.note,
-    )
+    out(event_commands.capture_completeness_set_cmd(_command_context(), a))
 
 
 def capture_completeness_cmd(a):
-    status = insight_migrations.schema_status(DB)
-    if status["current_version"] < 2:
-        raise insight_migrations.SchemaError(
-            "schema_migration_required", "schema version 2 is required")
-    c = cx_ro()
-    try:
-        result = insight_events.completeness_read(
-            c, from_date=a.from_date, to_date=a.to_date, days=a.days,
-            all_dates=a.all_dates, scope=a.scope,
-        )
-    finally:
-        c.close()
-    out(result)
+    out(event_commands.capture_completeness_cmd(_command_context(), a))
 
 
 def entity_alias_set_cmd(a):
-    insight_events.validate_alias_set(a.type, a.alias, a.canonical, a.label)
-    _write_insight(insight_events.alias_set, a.type, a.alias, a.canonical, a.label)
+    out(event_commands.entity_alias_set_cmd(_command_context(), a))
 
 
 def entity_alias_retire_cmd(a):
-    insight_events.validate_alias_retire(a.type, a.alias)
-    _write_insight(insight_events.alias_retire, a.type, a.alias)
+    out(event_commands.entity_alias_retire_cmd(_command_context(), a))
 
 
 def entity_alias_history_cmd(a):
-    status = insight_migrations.schema_status(DB)
-    if status["current_version"] < 2:
-        raise insight_migrations.SchemaError(
-            "schema_migration_required", "schema version 2 is required")
-    c = cx_ro()
-    try:
-        result = insight_events.alias_history(c, a.type, a.alias)
-    finally:
-        c.close()
-    out(result)
+    out(event_commands.entity_alias_history_cmd(_command_context(), a))
 
 
 def supplement_log(a):
@@ -1086,11 +969,7 @@ def supplement_log(a):
 
 # =========================================================== Phase 3 feature integration
 def _phase3_schema_ready():
-    status = insight_migrations.schema_status(DB)
-    if status["current_version"] < 3:
-        raise insight_migrations.SchemaError(
-            "schema_migration_required", "schema version 3 is required")
-    return status
+    return analytical_commands.require_phase3_schema(_command_context())
 
 
 def _phase4_schema_ready():
@@ -1103,183 +982,38 @@ def _phase3_context():
     return insight_runtime.adapter_context(clock=_now, bindings=globals())
 
 
-def _phase3_range(a):
-    lo, hi, kind = insight_events.resolve_range(
-        from_date=a.from_date, to_date=a.to_date, days=a.days,
-        all_dates=a.all_dates,
-    )
-    return DateRange(
-        start=date.fromisoformat(lo) if lo else None,
-        end=date.fromisoformat(hi) if hi else None,
-        kind="all" if kind == "all" else "bounded",
-    )
+_phase3_range = analytical_commands.requested_range
 
 
-def _phase3_definitions(c, context, family=None):
-    built = insight_registry.build_registry(c, context, family=family)
-    if isinstance(built, dict):
-        for key in ("features", "entries", "registry", "definitions"):
-            if key in built:
-                return list(built[key])
-        return list(built.values())
-    if hasattr(built, "definitions"):
-        return list(built.definitions)
-    return list(built)
+_phase3_definitions = analytical_commands.definitions
 
 
 def feature_registry_cmd(a):
-    _phase3_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        definitions = _phase3_definitions(c, context, family=a.family)
-        result = insight_registry.serialize_registry(definitions)
-    finally:
-        c.close()
-    out(result)
+    out(feature_commands.feature_registry_cmd(_command_context(), a))
 
 
 def feature_frame_cmd(a):
-    requested = _phase3_range(a)  # validate before opening the database
-    _phase3_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        definitions = _phase3_definitions(c, context, family=a.family)
-        result = insight_frame.build_feature_frame(
-            c, definitions, requested, context,
-            include_provenance=a.include_provenance,
-        )
-    finally:
-        c.close()
-    out(result)
+    out(feature_commands.feature_frame_cmd(_command_context(), a))
 
 
 def data_readiness_cmd(a):
-    requested = _phase3_range(a)  # validate before opening the database
-    _phase3_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        definitions = _phase3_definitions(c, context)
-        result = insight_readiness.build_readiness(
-            c, definitions, requested, context, goal=a.goal, outcome=a.outcome,
-        )
-    finally:
-        c.close()
-    out(result)
+    out(feature_commands.data_readiness_cmd(_command_context(), a))
 
 
 def outcome_associations_cmd(a):
-    from hermes_insights import exact_cache
-    # Scalar/range validation deliberately precedes every database check.
-    insight_associations.validate_options(
-        outcome_key=a.outcome, mode=a.mode, min_n=a.min_n,
-        interactions=a.interactions, top=a.top,
-    )
-    requested = _phase3_range(a)
-    _phase4_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        c.execute("BEGIN")
-        definitions = _phase3_definitions(c, context)
-        result = exact_cache.cached_compute(
-            DB, {"operation": "outcome-associations", "range": requested.to_dict(),
-                 "outcome": a.outcome, "mode": a.mode, "min_n": a.min_n,
-                 "interactions": a.interactions, "top": a.top},
-            lambda: insight_associations.analyze_outcome(
-                c, definitions, requested, context,
-                outcome_key=a.outcome, mode=a.mode, min_n=a.min_n,
-                interactions=a.interactions, top=a.top,
-            ), connection=c, context=context, definitions=definitions,
-        )
-        result = exact_cache.refresh_readiness(
-            DB, result, connection=c, context=context, definitions=definitions,
-        )
-    except exact_cache.AnalysisBusy as exc:
-        raise insight_associations.AssociationError("analysis_busy", str(exc)) from exc
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(association_commands.outcome_associations_cmd(_command_context(), a)))
 
 
 def finding_evidence_cmd(a):
-    from hermes_insights import exact_cache
-    insight_associations.validate_options(
-        outcome_key=a.outcome, mode="all",
-        min_n=insight_associations.DEFAULT_MIN_N,
-        interactions="pairwise", top=100,
-    )
-    insight_associations.validate_sha256_id(a.finding_id, "finding-id")
-    insight_associations.validate_sha256_id(
-        a.input_fingerprint, "input-fingerprint")
-    requested = _phase3_range(a)
-    _phase4_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        c.execute("BEGIN")
-        definitions = _phase3_definitions(c, context)
-        result = exact_cache.cached_compute(
-            DB, {"operation": "finding-evidence", "range": requested.to_dict(),
-                 "outcome": a.outcome, "finding_id": a.finding_id,
-                 "input_fingerprint": a.input_fingerprint},
-            lambda: insight_associations.recompute_finding_evidence(
-                c, definitions, requested, context,
-                outcome_key=a.outcome, finding_id_value=a.finding_id,
-                input_fingerprint_value=a.input_fingerprint,
-            ), connection=c, context=context, definitions=definitions,
-        )
-    except exact_cache.AnalysisBusy as exc:
-        raise insight_associations.AssociationError("analysis_busy", str(exc)) from exc
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(association_commands.finding_evidence_cmd(_command_context(), a)))
 
 
 def goal_list_cmd(a):
-    _phase3_schema_ready()
-    c = cx_ro()
-    try:
-        result = insight_goals.list_goals(c, include_disabled=a.all_goals)
-    finally:
-        c.close()
-    out(result)
+    out(feature_commands.goal_list_cmd(_command_context(), a))
 
 
 def goal_set_cmd(a):
-    # Build/validate the concrete registered outcome before opening a write
-    # transaction; an invalid pair cannot acquire a write lock.
-    _phase3_schema_ready()
-    context = _phase3_context()
-    c = cx()
-    try:
-        definitions = _phase3_definitions(c, context)
-        registered = {
-            getattr(item, "key", item.get("key") if isinstance(item, dict) else None): item
-            for item in definitions
-        }
-        registered.pop(None, None)
-        insight_goals.prepare_goal_revision(
-            c, goal_key=a.goal, enabled=a.enabled, priority=a.priority,
-            outcome_key=a.outcome, direction=a.direction, note=a.note,
-            source=a.source, registered_keys=registered,
-        )
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 3)
-        result = insight_goals.set_goal(
-            c, goal_key=a.goal, enabled=a.enabled, priority=a.priority,
-            outcome_key=a.outcome, direction=a.direction, note=a.note,
-            source=a.source, registered_keys=registered,
-        )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    out(result)
+    out(feature_commands.goal_set_cmd(_command_context(), a))
 
 
 def collector_run_record_cmd(a):
@@ -1288,1377 +1022,173 @@ def collector_run_record_cmd(a):
 
 
 # =========================================================== Phase 5 ledger/synthesis
-_PHASE5_BASE_OUTCOMES = (
-    "subjective.day_rating",
-    "subjective.energy",
-    "subjective.focus",
-    "subjective.mood",
-    "adherence.word_kept",
-)
-_PHASE5_ANNOTATION_KEYS = {
-    "annotation_id", "hypothesis_id", "evaluation_id", "annotation_kind",
-    "content", "source", "synthesis_id", "context_version",
-    "prompt_sha256", "model_id", "provider", "supersedes_id",
-    "input_sha256",
-}
+_PHASE5_BASE_OUTCOMES = ledger_commands._PHASE5_BASE_OUTCOMES
+_PHASE5_ANNOTATION_KEYS = ledger_commands._PHASE5_ANNOTATION_KEYS
 
 
 def _phase5_schema_ready():
-    """Phase 5 writers and structured reads require exact Migration 004."""
-    status = insight_migrations.schema_status(DB)
-    if status["current_version"] != insight_migrations.AUTONOMOUS_SCHEMA_VERSION:
-        raise insight_migrations.SchemaError(
-            "schema_migration_required",
-            "hypothesis-ledger-v1 requires the exact current schema version",
-        )
-    return status
+    return analytical_commands.require_phase5_schema(_command_context())
 
 
-def _phase5_range_record(requested):
-    if requested.kind == "all":
-        return {
-            "range_role": "primary",
-            "requested_range_kind": "all",
-            "requested_from": None,
-            "requested_to": None,
-        }
-    return {
-        "range_role": "primary",
-        "requested_range_kind": "bounded",
-        "requested_from": requested.start.isoformat(),
-        "requested_to": requested.end.isoformat(),
-    }
+_phase5_range_record = ledger_commands.range_record
 
 
 def _phase5_anchor(requested, explicit=None):
-    if explicit is not None:
-        return insight_events.iso_date(explicit, "--anchor")
-    if requested.end is not None:
-        return requested.end.isoformat()
-    return today()
+    return ledger_commands.anchor(_command_context(), requested, explicit)
 
 
-def _phase5_modes(outcome_key):
-    return (
-        ("ordinal", "green-vs-non-green", "red-vs-non-red")
-        if outcome_key == "subjective.day_rating"
-        else ("ordinal",)
-    )
+_phase5_modes = ledger_commands.outcome_modes
 
 
-def _phase5_selected_outcomes(c, explicit):
-    if explicit:
-        if len(explicit) > 64:
-            raise insight_ledger.LedgerError(
-                "validation_error",
-                "--outcome may be repeated at most 64 times",
-                validation=True,
-            )
-        selected = set(explicit)
-        selection = "explicit_set"
-    else:
-        selected = set(_PHASE5_BASE_OUTCOMES)
-        goals = insight_goals.list_goals(c, include_disabled=False)["goals"]
-        selected.update(
-            goal["outcome_key"]
-            for goal in goals
-            if goal["enabled"] and goal["outcome_key"] is not None
-        )
-        selection = "base_and_enabled"
-    for outcome_key in selected:
-        insight_associations.validate_options(
-            outcome_key=outcome_key,
-            mode="all",
-            min_n=insight_associations.DEFAULT_MIN_N,
-            interactions="pairwise",
-            top=100,
-        )
-    return sorted(selected), selection
+_phase5_selected_outcomes = ledger_commands.selected_outcomes
 
 
 def _phase5_compute_manual(requested, explicit_outcomes, explicit_mode=None):
-    """Compute one snapshot of every outcome/mode before opening a writer."""
-    _phase5_schema_ready()
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        c.execute("BEGIN")
-        insight_migrations.require_version(c, 4)
-        definitions = _phase3_definitions(c, context)
-        outcomes, selection = _phase5_selected_outcomes(c, explicit_outcomes)
-        if explicit_mode is not None:
-            if len(outcomes) != 1:
-                raise insight_ledger.LedgerError(
-                    "validation_error",
-                    "--mode requires exactly one explicit --outcome",
-                    validation=True,
-                )
-            if explicit_mode not in _phase5_modes(outcomes[0]):
-                raise insight_ledger.LedgerError(
-                    "validation_error",
-                    "--mode is not supported for the selected outcome",
-                    validation=True,
-                )
-        registry_hash = (
-            "sha256:"
-            + insight_registry.registry_content_checksum(definitions)
-        )
-        verified = []
-        for outcome_key in outcomes:
-            modes = (
-                (explicit_mode,)
-                if explicit_mode is not None
-                else _phase5_modes(outcome_key)
-            )
-            for outcome_mode in modes:
-                verified.append(
-                    (
-                        outcome_key,
-                        outcome_mode,
-                        insight_ledger.compute_verified_analysis(
-                            c,
-                            definitions,
-                            requested,
-                            context,
-                            outcome_key=outcome_key,
-                            outcome_mode=outcome_mode,
-                        ),
-                    )
-                )
-    finally:
-        c.close()
-    return outcomes, selection, registry_hash, verified
-
-
-def _phase5_input_bound_initiator(prefix, verified):
-    """Bind batch identity to the exact per-outcome Phase 4 input snapshots."""
-
-    inputs = sorted(
-        [
-            {
-                "outcome_key": outcome_key,
-                "outcome_mode": outcome_mode,
-                "input_fingerprint": result.payload["meta"]["input_fingerprint"],
-            }
-            for outcome_key, outcome_mode, result in verified
-        ],
-        key=lambda item: (
-            item["outcome_key"],
-            item["outcome_mode"],
-            item["input_fingerprint"],
-        ),
+    return ledger_commands.compute_manual(
+        _command_context(), requested, explicit_outcomes, explicit_mode,
+        adapter_context=_phase3_context(),
     )
-    return (
-        f"{prefix}/"
-        + insight_provenance.sha256_id(
-            {
-                "contract_version": insight_ledger.LEDGER_CONTRACT_VERSION,
-                "kind": "analysis_batch_inputs",
-                "inputs": inputs,
-            }
-        )
-    )
+
+
+_phase5_input_bound_initiator = ledger_commands.input_bound_initiator
 
 
 def _phase6_prepare_batch(kind, plan, trigger):
-    """Create the deterministic fan-out before expensive read-only computation."""
-
-    context = _phase3_context()
-    c = cx_ro()
-    try:
-        c.execute("BEGIN")
-        all_definitions = _phase3_definitions(c, context)
-        freshness = insight_orchestrator.freshness_snapshot(
-            c, now=_now().astimezone(timezone.utc),
-        )
-        definitions, suppressed = insight_orchestrator.suppress_stale_dependencies(
-            all_definitions, freshness,
-        )
-        selection = insight_orchestrator.outcome_modes(
-            c,
-            trigger_kind=trigger["trigger_kind"] if trigger is not None else None,
-        )
-        for outcome in selection["outcomes"]:
-            insight_associations.validate_options(
-                outcome_key=outcome,
-                mode="all",
-                min_n=insight_associations.DEFAULT_MIN_N,
-                interactions="pairwise",
-                top=100,
-            )
-        registry_hash = (
-            "sha256:" + insight_registry.registry_content_checksum(definitions)
-        )
-    finally:
-        c.close()
-
-    initiator = (
-        f"trigger/{trigger['trigger_id']}"
-        if trigger is not None
-        else f"scheduled-{kind}-v1"
+    return scheduled_analysis.prepare_batch(
+        _command_context(), kind, plan, trigger, adapter_context=_phase3_context(),
     )
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        producer_triggers = []
-        restart_definitions = [
-            definition for definition in definitions
-            if definition.key == "running.restart"
-        ]
-        if restart_definitions:
-            primary = next(
-                requested for role, requested
-                in insight_orchestrator.range_objects(plan)
-                if role == "primary"
-            )
-            running_adapter = insight_frame.load_adapters()["running"]
-            restart_observations = running_adapter.load(
-                c,
-                tuple(restart_definitions),
-                primary,
-                context,
-                include_provenance=True,
-            )
-            for observation in restart_observations:
-                if (
-                    observation.feature_key == "running.restart"
-                    and observation.state == "observed"
-                    and observation.value == 1
-                ):
-                    producer_triggers.append(
-                        insight_orchestrator.enqueue_internal_trigger(
-                            c,
-                            trigger_kind="running_restart",
-                            source_table="workouts",
-                            source_row_key=f"restart:{observation.observed_at}",
-                            event_date=observation.observed_at,
-                        )
-                    )
-        batch = insight_ledger.create_analysis_batch(
-            c,
-            run_kind=kind,
-            anchor_date=plan["anchor_date"],
-            initiator_key=initiator,
-            outcome_selection=selection["selection"],
-            outcomes=selection["outcome_modes"],
-            ranges=plan["ranges"],
-            registry_sha256_value=registry_hash,
-            range_plan_version=insight_orchestrator.RANGE_PLAN_VERSION,
-        )
-        runs = []
-        for range_row in batch["ranges"]:
-            for outcome in selection["outcome_modes"]:
-                runs.append(insight_ledger.start_analysis_run(
-                    c,
-                    batch_id=batch["batch_id"],
-                    range_id=range_row["range_id"],
-                    outcome_key=outcome["outcome_key"],
-                    outcome_mode=outcome["outcome_mode"],
-                    batch_outcomes=selection["outcome_modes"],
-                ))
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    return {
-        "batch": batch, "runs": runs, "definitions": definitions,
-        "context": context, "selection": selection, "freshness": freshness,
-        "suppressed_dependencies": suppressed,
-        "producer_triggers": producer_triggers,
-    }
 
 
 def _phase6_compute_runs(prepared, plan):
-    """Compute all running fan-out members on one read-only snapshot."""
-
-    ranges = {
-        item["range_role"]: requested
-        for item, (_role, requested) in zip(
-            plan["ranges"], insight_orchestrator.range_objects(plan), strict=True,
-        )
-    }
-    by_range = {
-        item["range_id"]: item["range_role"]
-        for item in prepared["batch"]["ranges"]
-    }
-    computed, failed = [], []
-    c = cx_ro()
-    try:
-        c.execute("BEGIN")
-        # Rebuild inside the frozen DB snapshot, then apply the same freshness
-        # dependency filter calculated for the batch identity.
-        definitions = _phase3_definitions(c, prepared["context"])
-        definitions, _unused = insight_orchestrator.suppress_stale_dependencies(
-            definitions, prepared["freshness"],
-        )
-        for run in prepared["runs"]:
-            if run["status"] != "running":
-                continue
-            role = by_range[run["range_id"]]
-            try:
-                verified = insight_ledger.compute_verified_analysis(
-                    c,
-                    definitions,
-                    ranges[role],
-                    prepared["context"],
-                    outcome_key=run["outcome_key"],
-                    outcome_mode=run["outcome_mode"],
-                )
-                computed.append((run, verified))
-            except Exception as exc:
-                code = getattr(exc, "code", None)
-                if not isinstance(code, str) or re.fullmatch(
-                    r"[a-z][a-z0-9_]{0,79}", code,
-                ) is None:
-                    code = "analysis_compute_failed"
-                failed.append((run, code))
-    finally:
-        c.close()
-
-    persisted = []
-    for run, verified in computed:
-        c = cx()
-        try:
-            c.execute("BEGIN IMMEDIATE")
-            persisted.append(insight_ledger.persist_analysis_run(
-                c, run_id=run["run_id"], verified=verified,
-            ))
-            c.commit()
-        except Exception:
-            c.rollback()
-            raise
-        finally:
-            c.close()
-    for run, reason in failed:
-        c = cx()
-        try:
-            c.execute("BEGIN IMMEDIATE")
-            persisted.append(insight_ledger.fail_analysis_run(
-                c, run_id=run["run_id"], reason_code=reason,
-            ))
-            c.commit()
-        except Exception:
-            c.rollback()
-            raise
-        finally:
-            c.close()
-    return persisted
+    return scheduled_analysis.compute_runs(_command_context(), prepared, plan)
 
 
-def _phase6_refs_and_novelty(c, batch, kind, trigger):
-    runs = [
-        dict(row) for row in c.execute(
-            """SELECT r.*,q.range_role
-                 FROM analysis_runs r
-                 JOIN analysis_range_requests q ON q.range_id=r.range_id
-                WHERE r.batch_id=?
-                ORDER BY q.range_role,r.outcome_key,r.outcome_mode,r.run_id""",
-            (batch["batch_id"],),
-        )
-    ]
-    run_refs = [
-        {
-            "run_id": row["run_id"],
-            "purpose": (
-                "trigger" if kind == "trigger"
-                else row["range_role"]
-            ),
-        }
-        for row in runs
-    ]
-    finding_rows = [
-        dict(row) for row in c.execute(
-            """SELECT f.*,q.range_role
-                 FROM analysis_findings f
-                 JOIN analysis_runs r ON r.run_id=f.run_id
-                 JOIN analysis_range_requests q ON q.range_id=r.range_id
-                WHERE r.batch_id=? AND f.eligible_for_hypothesis=1
-                ORDER BY q.range_role,f.outcome_key,f.finding_id LIMIT 256""",
-            (batch["batch_id"],),
-        )
-    ]
-    finding_refs = [
-        {"finding_id": row["finding_id"], "role": "primary"}
-        for row in finding_rows
-    ]
-    evaluation_rows = [
-        dict(row) for row in c.execute(
-            """SELECT e.*
-                 FROM hypothesis_evaluations e
-                 JOIN analysis_runs r ON r.run_id=e.run_id
-                WHERE r.batch_id=?
-                ORDER BY e.hypothesis_id,e.id DESC""",
-            (batch["batch_id"],),
-        )
-    ]
-    latest_evaluations = []
-    seen_hypotheses = set()
-    for row in evaluation_rows:
-        if row["hypothesis_id"] in seen_hypotheses:
-            continue
-        seen_hypotheses.add(row["hypothesis_id"])
-        latest_evaluations.append(row)
-    latest_evaluations = latest_evaluations[:256]
-    hypothesis_refs = [
-        {
-            "hypothesis_id": row["hypothesis_id"],
-            "evaluation_id": row["id"],
-            "role": "changed" if row["transition_applied"] else "context",
-        }
-        for row in latest_evaluations
-    ]
-    has_weekly_baseline = True
-    if kind == "weekly":
-        has_weekly_baseline = c.execute(
-            """SELECT 1 FROM synthesis_runs
-                WHERE cadence='manual' AND status='completed'
-                ORDER BY completed_at DESC LIMIT 1"""
-        ).fetchone() is not None
-    decision = insight_orchestrator.novelty_decision(
-        cadence=kind,
-        finding_fingerprints=(
-            row["evidence_fingerprint"] for row in finding_rows
-        ),
-        transition_fingerprints=(
-            row["evidence_fingerprint"]
-            for row in latest_evaluations if row["transition_applied"]
-        ),
-        approved_trigger=trigger is not None,
-        has_weekly_baseline=has_weekly_baseline,
-    )
-    return {
-        "runs": runs, "run_refs": run_refs,
-        "finding_rows": finding_rows, "finding_refs": finding_refs,
-        "evaluation_rows": latest_evaluations,
-        "hypothesis_refs": hypothesis_refs, "novelty": decision,
-    }
+_phase6_refs_and_novelty = scheduled_analysis.refs_and_novelty
 
 
-def _phase6_record_no_message(c, *, batch, kind, anchor, refs, status, reason):
-    evidence_fingerprint = insight_synthesis.synthesis_evidence_fingerprint(
-        c,
-        analysis_batch_id=batch["batch_id"],
-        run_refs=refs["run_refs"],
-        finding_refs=[],
-        hypothesis_refs=[],
-    )
-    synthesis_id = insight_provenance.sha256_id({
-        "contract_version": insight_synthesis.SYNTHESIS_CONTRACT_VERSION,
-        "kind": "scheduled_no_message",
-        "analysis_batch_id": batch["batch_id"],
-        "cadence": kind, "status": status, "reason": reason,
-        "evidence_fingerprint": evidence_fingerprint,
-    })
-    result = insight_synthesis.record_synthesis(c, {
-        "synthesis_id": synthesis_id,
-        "analysis_batch_id": batch["batch_id"],
-        "cadence": kind,
-        "reason_code": reason,
-        "cutoff_date": anchor,
-        "evidence_fingerprint": evidence_fingerprint,
-        "context_version": insight_synthesis.SYNTHESIS_CONTEXT_VERSION,
-        "prompt_sha256": None,
-        "model_id": None,
-        "provider": None,
-        "run_refs": refs["run_refs"],
-        "finding_refs": [],
-        "hypothesis_refs": [],
-        "narrative_md": None,
-        "rendered_md": None,
-        "status": status,
-        "no_message_reason_code": reason,
-        "annotations": [],
-        "notification": None,
-    })
-    return result
+_phase6_record_no_message = scheduled_analysis.record_no_message
 
 
 def _phase6_finalize(prepared, plan, kind, trigger, trigger_payload):
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        if trigger_payload is not None:
-            # A long analytical computation never inherits authority from an
-            # expired worker: re-check the exact generation/token fence.
-            insight_orchestrator.assert_trigger_lease(c, trigger_payload)
-        batch = insight_ledger.finalize_analysis_batch(
-            c, batch_id=prepared["batch"]["batch_id"],
-        )
-        has_weekly_baseline = True
-        if kind == "weekly":
-            has_weekly_baseline = c.execute(
-                """SELECT 1 FROM synthesis_runs
-                    WHERE cadence='manual' AND status='completed'
-                    ORDER BY completed_at DESC LIMIT 1"""
-            ).fetchone() is not None
-        dormancy = None
-        if kind == "monthly":
-            dormancy = (
-                "dormant_stale_prerequisite"
-                if prepared["suppressed_dependencies"]
-                else "dormant_no_eligible_data"
-            )
-        if kind == "nightly" or (kind == "weekly" and not has_weekly_baseline):
-            ledger = {
-                "ok": True,
-                "changed": False,
-                "skipped": True,
-                "reason_code": (
-                    "nightly_analysis_only"
-                    if kind == "nightly"
-                    else "bootstrap_baseline_required"
-                ),
-            }
-        else:
-            ledger = insight_ledger.refresh_batch_hypotheses(
-                c, batch_id=batch["batch_id"], dormancy_reason=dormancy,
-            )
-
-        # Derived producers share this transaction with the ledger transition.
-        transitions = [
-            dict(row) for row in c.execute(
-                """SELECT e.*
-                     FROM hypothesis_evaluations e
-                     JOIN analysis_runs r ON r.run_id=e.run_id
-                    WHERE r.batch_id=? AND e.transition_applied=1
-                    ORDER BY e.id""",
-                (batch["batch_id"],),
-            )
-        ]
-        derived_triggers = list(prepared["producer_triggers"])
-        for row in transitions:
-            trigger_kind = (
-                "hypothesis_replicated" if row["status"] == "replicated"
-                else "hypothesis_reversal"
-                if row["evidence_class"] == "opposite_pass"
-                else None
-            )
-            if trigger_kind is not None:
-                derived_triggers.append(insight_orchestrator.enqueue_internal_trigger(
-                    c,
-                    trigger_kind=trigger_kind,
-                    source_table="hypothesis_evaluations",
-                    source_row_key=str(row["id"]),
-                    event_date=row["range_to"] or plan["anchor_date"],
-                ))
-        refs = _phase6_refs_and_novelty(c, batch, kind, trigger)
-        terminal_status = "completed"
-        reason = refs["novelty"].reason_code
-        synthesis = None
-        preparation = None
-        terminal_runs = refs["runs"]
-        usable = sum(
-            row["status"] == "completed" for row in terminal_runs
-        )
-        if (
-            kind == "weekly"
-            and refs["novelty"].reason_code == "bootstrap_baseline_required"
-        ):
-            terminal_status, reason = "no_novelty", "bootstrap_baseline_required"
-        elif batch["status"] == "failed":
-            terminal_status, reason = "failed", "all_analysis_runs_failed"
-        elif usable == 0:
-            terminal_status, reason = "insufficient_data", "no_eligible_analysis_data"
-        elif not refs["novelty"].eligible:
-            terminal_status = "no_novelty"
-        if kind != "nightly":
-            if terminal_status in {
-                "failed", "insufficient_data", "no_novelty", "suppressed",
-            }:
-                synthesis = _phase6_record_no_message(
-                    c, batch=batch, kind=kind, anchor=plan["anchor_date"],
-                    refs=refs, status=terminal_status, reason=reason,
-                )
-            else:
-                evidence_fingerprint = insight_synthesis.synthesis_evidence_fingerprint(
-                    c,
-                    analysis_batch_id=batch["batch_id"],
-                    run_refs=refs["run_refs"],
-                    finding_refs=refs["finding_refs"],
-                    hypothesis_refs=refs["hypothesis_refs"],
-                )
-                preparation = {
-                    "boundary": "synthesis-record",
-                    "analysis_batch_id": batch["batch_id"],
-                    "cadence": kind,
-                    "cutoff_date": plan["anchor_date"],
-                    "context_version": insight_synthesis.SYNTHESIS_CONTEXT_VERSION,
-                    "evidence_fingerprint": evidence_fingerprint,
-                    "run_refs": refs["run_refs"],
-                    "finding_refs": refs["finding_refs"],
-                    "hypothesis_refs": refs["hypothesis_refs"],
-                    "structured_slots": insight_orchestrator.structured_slots(
-                        cadence=kind,
-                        run_rows=refs["runs"],
-                        finding_rows=refs["finding_rows"],
-                        evaluation_rows=refs["evaluation_rows"],
-                        freshness=prepared["freshness"],
-                        suppressed_dependencies=prepared["suppressed_dependencies"],
-                    ),
-                    "model_invoked": False,
-                }
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    return {
-        "batch": batch, "ledger": ledger, "status": terminal_status,
-        "reason_code": reason, "synthesis": synthesis,
-        "synthesis_preparation": preparation,
-        "derived_triggers": derived_triggers,
-    }
+    return scheduled_analysis.finalize(
+        _command_context(), prepared, plan, kind, trigger, trigger_payload,
+    )
 
 
 def _phase6_analysis_refresh(a):
-    _phase5_schema_ready()
-    trigger_payload = None
-    trigger = None
-    if a.kind == "trigger":
-        trigger_payload = _orchestration_payload()
-        insight_orchestrator.validate_trigger_lease(trigger_payload)
-        _phase5_schema_ready()
-        c = cx_ro()
-        try:
-            trigger = insight_orchestrator.assert_trigger_lease(
-                c, trigger_payload,
-            )
-            source_run = None
-            if trigger["source_table"] == "hypothesis_evaluations":
-                source_run = c.execute(
-                    """SELECT r.analysis_to
-                         FROM hypothesis_evaluations e
-                         JOIN analysis_runs r ON r.run_id=e.run_id
-                        WHERE e.id=?""",
-                    (trigger["source_row_key"],),
-                ).fetchone()
-        finally:
-            c.close()
-        plan = insight_orchestrator.cadence_plan(
-            "trigger",
-            local_now=_now(),
-            event_date=trigger["event_date"],
-            analysis_to=source_run["analysis_to"] if source_run else None,
-        )
-    else:
-        plan = insight_orchestrator.cadence_plan(
-            a.kind, local_now=_now(), anchor=a.anchor,
-        )
-    prepared = _phase6_prepare_batch(a.kind, plan, trigger)
-    runs = _phase6_compute_runs(prepared, plan)
-    finalized = _phase6_finalize(
-        prepared, plan, a.kind, trigger, trigger_payload,
-    )
-    print(canonical_json({
-        "ok": True,
-        "contract_version": insight_orchestrator.ORCHESTRATOR_CONTRACT_VERSION,
-        "plan": plan,
-        "outcomes": prepared["selection"],
-        "freshness": prepared["freshness"],
-        "suppressed_dependencies": prepared["suppressed_dependencies"],
-        "runs": runs,
-        **finalized,
-    }))
+    print(canonical_json(scheduled_analysis.analysis_refresh(
+        _command_context(), a, stdin=sys.stdin,
+    )))
 
 
 def analysis_refresh_cmd(a):
-    if a.kind != "manual":
-        if (
-            a.outcome
-            or getattr(a, "mode", None) is not None
-            or a.from_date is not None
-            or a.to_date is not None
-            or a.days is not None
-            or a.all_dates
-        ):
-            raise insight_orchestrator.OrchestrationError(
-                "validation_error",
-                "scheduled analysis-refresh does not accept caller range/outcome overrides",
-                validation=True,
-            )
-        if a.kind == "trigger":
-            if not a.stdin or a.anchor is not None:
-                raise insight_orchestrator.OrchestrationError(
-                    "validation_error",
-                    "trigger analysis-refresh requires only --kind trigger --stdin",
-                    validation=True,
-                )
-        elif a.stdin:
-            raise insight_orchestrator.OrchestrationError(
-                "validation_error",
-                "--stdin is valid only for trigger analysis-refresh",
-                validation=True,
-            )
-        return _phase6_analysis_refresh(a)
-    if a.stdin:
-        raise insight_orchestrator.OrchestrationError(
-            "validation_error",
-            "manual analysis-refresh does not accept --stdin",
-            validation=True,
-        )
-    explicit_mode = getattr(a, "mode", None)
-    if explicit_mode is not None:
-        if not a.outcome or len(a.outcome) != 1:
-            raise insight_ledger.LedgerError(
-                "validation_error",
-                "--mode requires exactly one explicit --outcome",
-                validation=True,
-            )
-        if explicit_mode not in _phase5_modes(a.outcome[0]):
-            raise insight_ledger.LedgerError(
-                "validation_error",
-                "--mode is not supported for the selected outcome",
-                validation=True,
-            )
-    requested = _phase3_range(a)
-    anchor = _phase5_anchor(requested, a.anchor)
-    outcomes, selection, registry_hash, verified = _phase5_compute_manual(
-        requested, a.outcome, explicit_mode,
-    )
-    outcome_modes = [
-        {"outcome_key": outcome_key, "outcome_mode": outcome_mode}
-        for outcome_key, outcome_mode, _result in verified
-    ]
-    range_record = _phase5_range_record(requested)
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        batch = insight_ledger.create_analysis_batch(
-            c,
-            run_kind="manual",
-            anchor_date=anchor,
-            initiator_key=_phase5_input_bound_initiator(
-                "manual-analysis-refresh", verified,
-            ),
-            outcome_selection=selection,
-            outcomes=outcome_modes,
-            ranges=[range_record],
-            registry_sha256_value=registry_hash,
-        )
-        primary = next(
-            item for item in batch["ranges"] if item["range_role"] == "primary"
-        )
-        runs = []
-        for outcome_key, outcome_mode, result in verified:
-            run = insight_ledger.start_analysis_run(
-                c,
-                batch_id=batch["batch_id"],
-                range_id=primary["range_id"],
-                outcome_key=outcome_key,
-                outcome_mode=outcome_mode,
-                batch_outcomes=outcome_modes,
-            )
-            runs.append(
-                insight_ledger.persist_analysis_run(
-                    c, run_id=run["run_id"], verified=result,
-                )
-            )
-        completed = insight_ledger.finalize_analysis_batch(
-            c, batch_id=batch["batch_id"],
-        )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json({
-        "ok": True,
-        "contract_version": insight_ledger.LEDGER_CONTRACT_VERSION,
-        "batch": completed,
-        "outcomes": outcomes,
-        "runs": runs,
-    }))
+    print(canonical_json(ledger_commands.analysis_refresh(_command_context(), a, stdin=sys.stdin)))
 
 
 def hypothesis_promote_cmd(a):
-    insight_associations.validate_options(
-        outcome_key=a.outcome,
-        mode="all",
-        min_n=insight_associations.DEFAULT_MIN_N,
-        interactions="pairwise",
-        top=100,
-    )
-    insight_associations.validate_sha256_id(a.finding_id, "finding-id")
-    insight_associations.validate_sha256_id(
-        a.input_fingerprint, "input-fingerprint",
-    )
-    range_forms = (
-        int(a.from_date is not None or a.to_date is not None)
-        + int(a.days is not None)
-        + int(a.all_dates)
-    )
-    if range_forms != 1:
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            "hypothesis-promote requires exactly one explicit range",
-            validation=True,
-        )
-    requested = _phase3_range(a)
-    anchor = _phase5_anchor(requested)
-    _phase5_schema_ready()
-    context = _phase3_context()
-    c = cx()
-    try:
-        # Recompute, persist if absent, and promote from one locked snapshot.
-        # A concurrent capture cannot make a verified browser finding stale in
-        # the gap between the replay and the ledger write.
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        definitions = _phase3_definitions(c, context)
-        replay = insight_ledger.compute_verified_finding(
-            c,
-            definitions,
-            requested,
-            context,
-            outcome_key=a.outcome,
-            finding_id_value=a.finding_id,
-            input_fingerprint_value=a.input_fingerprint,
-        )
-        finding = replay.payload["finding"]
-        outcome_mode = finding["outcome"]["mode"]
-        persisted = c.execute(
-            "SELECT run_id FROM analysis_findings WHERE finding_id=?",
-            (finding["finding_id"],),
-        ).fetchone()
-        if persisted is None:
-            analysis = insight_ledger.compute_verified_analysis(
-                c,
-                definitions,
-                requested,
-                context,
-                outcome_key=a.outcome,
-                outcome_mode=outcome_mode,
-            )
-            matching = next(
-                (
-                    item for item in analysis.payload["findings"]
-                    if item["finding_id"] == finding["finding_id"]
-                ),
-                None,
-            )
-            if (
-                matching is None
-                or matching["provenance"]["evidence_fingerprint"]
-                != finding["provenance"]["evidence_fingerprint"]
-            ):
-                raise insight_ledger.LedgerError(
-                    "stale_finding",
-                    "replayed finding changed before persistence",
-                )
-            meta = analysis.payload["meta"]
-            range_record = _phase5_range_record(requested)
-            batch = insight_ledger.create_analysis_batch(
-                c,
-                run_kind="manual",
-                anchor_date=anchor,
-                initiator_key=_phase5_input_bound_initiator(
-                    "hypothesis-promote",
-                    [(a.outcome, outcome_mode, analysis)],
-                ),
-                outcome_selection="explicit_set",
-                outcomes=[(a.outcome, outcome_mode)],
-                ranges=[range_record],
-                registry_sha256_value=meta["registry_sha256"],
-                analysis_version=meta["analysis_version"],
-                registry_version=meta["registry_version"],
-                engine_sha256_value=meta["engine_sha256"],
-            )
-            primary = next(
-                item for item in batch["ranges"] if item["range_role"] == "primary"
-            )
-            run = insight_ledger.start_analysis_run(
-                c,
-                batch_id=batch["batch_id"],
-                range_id=primary["range_id"],
-                outcome_key=a.outcome,
-                outcome_mode=outcome_mode,
-                batch_outcomes=[(a.outcome, outcome_mode)],
-            )
-            persisted_run = insight_ledger.persist_analysis_run(
-                c, run_id=run["run_id"], verified=analysis,
-            )
-            insight_ledger.finalize_analysis_batch(
-                c, batch_id=batch["batch_id"],
-            )
-            run_id = persisted_run["run_id"]
-        else:
-            run_id = persisted["run_id"]
-        result = insight_ledger.promote_verified_finding(
-            c,
-            run_id=run_id,
-            verified=replay,
-            explicit=True,
-        )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(ledger_commands.hypothesis_promote(_command_context(), a)))
 
 
 def hypothesis_refresh_cmd(a):
-    insight_associations.validate_sha256_id(a.batch_id, "batch-id")
-    _phase5_schema_ready()
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        result = insight_ledger.refresh_batch_hypotheses(
-            c, batch_id=a.batch_id,
-        )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(ledger_commands.hypothesis_refresh(_command_context(), a)))
 
 
 def _phase5_annotation_payload():
-    text = sys.stdin.read()
-    try:
-        encoded = text.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise insight_ledger.LedgerError(
-            "validation_error", "stdin must be valid UTF-8", validation=True,
-        ) from exc
-    if not encoded or len(encoded) > 32_768:
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            "stdin must contain 1-32768 UTF-8 bytes",
-            validation=True,
-        )
-
-    def closed_object(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise insight_ledger.LedgerError(
-                    "validation_error",
-                    f"duplicate JSON key is not allowed: {key}",
-                    validation=True,
-                )
-            result[key] = value
-        return result
-
-    try:
-        payload = json.loads(text, object_pairs_hook=closed_object)
-    except insight_ledger.LedgerError:
-        raise
-    except (json.JSONDecodeError, ValueError, RecursionError) as exc:
-        detail = (
-            exc.msg
-            if isinstance(exc, json.JSONDecodeError)
-            else "JSON nesting exceeds the supported bound"
-            if isinstance(exc, RecursionError)
-            else "numeric literal exceeds the supported bound"
-        )
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            f"stdin is not valid JSON: {detail}",
-            validation=True,
-        ) from exc
-    if isinstance(payload, dict):
-        for key, value in payload.items():
-            for text_value in (key, value):
-                if isinstance(text_value, str):
-                    try:
-                        text_value.encode("utf-8")
-                    except UnicodeEncodeError as exc:
-                        raise insight_ledger.LedgerError(
-                            "validation_error",
-                            "annotation strings must be valid UTF-8",
-                            validation=True,
-                        ) from exc
-    if not isinstance(payload, dict) or set(payload) != _PHASE5_ANNOTATION_KEYS:
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            "hypothesis annotation fields do not match the closed contract",
-            validation=True,
-        )
-    evaluation_id = payload["evaluation_id"]
-    if (
-        evaluation_id is not None
-        and (
-            isinstance(evaluation_id, bool)
-            or not isinstance(evaluation_id, int)
-            or evaluation_id < 1
-            or evaluation_id > insight_ledger.SQLITE_MAX_ROWID
-        )
-    ):
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            "evaluation_id must be a positive SQLite row identifier",
-            validation=True,
-        )
-    return payload
+    return ledger_commands.annotation_payload(sys.stdin)
 
 
 def hypothesis_annotate_cmd(a):
-    payload = _phase5_annotation_payload()
-    _phase5_schema_ready()
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        result = insight_ledger.append_annotation(
-            c,
-            hypothesis_id=payload["hypothesis_id"],
-            evaluation_id=payload["evaluation_id"],
-            annotation_kind=payload["annotation_kind"],
-            content=payload["content"],
-            source=payload["source"],
-            synthesis_id=payload["synthesis_id"],
-            context_version=payload["context_version"],
-            prompt_sha256=payload["prompt_sha256"],
-            model_id=payload["model_id"],
-            provider=payload["provider"],
-            supersedes_id=payload["supersedes_id"],
-            annotation_id=payload["annotation_id"],
-        )
-        if result["input_sha256"] != payload["input_sha256"]:
-            raise insight_ledger.LedgerError(
-                "mismatched_annotation",
-                "input_sha256 does not match the canonical annotation",
-                validation=True,
-            )
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json({
-        "ok": True,
-        "contract_version": insight_ledger.LEDGER_CONTRACT_VERSION,
-        "annotation": result,
-    }))
+    print(canonical_json(ledger_commands.hypothesis_annotate(_command_context(), a, stdin=sys.stdin)))
 
 
 def hypotheses_cmd(a):
-    if not 1 <= a.limit <= 100:
-        raise insight_ledger.LedgerError(
-            "validation_error",
-            "--limit must be between 1 and 100",
-            validation=True,
-        )
-    if a.before is not None:
-        insight_associations.validate_sha256_id(a.before, "before")
-    if a.outcome is not None:
-        insight_associations.validate_options(
-            outcome_key=a.outcome,
-            mode="all",
-            min_n=insight_associations.DEFAULT_MIN_N,
-            interactions="pairwise",
-            top=100,
-        )
-    _phase5_schema_ready()
-    c = cx_ro()
-    try:
-        result = insight_ledger.list_hypotheses(
-            c,
-            status=a.status,
-            outcome_key=a.outcome,
-            limit=a.limit,
-            before=a.before,
-        )
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(ledger_commands.hypotheses(_command_context(), a)))
 
 
 def hypothesis_brief_cmd(a):
-    insight_associations.validate_sha256_id(a.hypothesis_id, "hypothesis-id")
-    _phase5_schema_ready()
-    c = cx_ro()
-    try:
-        result = insight_ledger.hypothesis_brief(c, a.hypothesis_id)
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(ledger_commands.hypothesis_brief(_command_context(), a)))
 
 
 def synthesis_record_cmd(a):
-    payload = insight_synthesis.parse_synthesis_json(sys.stdin.read())
-    insight_synthesis.validate_synthesis_record(payload)
-    _phase5_schema_ready()
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        result = insight_synthesis.record_synthesis(c, payload)
-        # Publish SQLite first. If the filesystem append then fails, an exact
-        # retry is a verified DB no-op and can safely finish the idempotent
-        # file append. No final file can outlive a failed DB commit.
-        c.commit()
-        markdown_path = None
-        if result["message_eligible"]:
-            vault_root = _vault_root()
-            markdown_path = insight_synthesis.write_synthesis_markdown(
-                c, result["synthesis_id"], vault_root=vault_root,
-            )
-    except Exception:
-        if c.in_transaction:
-            c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json({
-        **result,
-        "markdown_path": str(markdown_path) if markdown_path is not None else None,
-    }))
+    print(canonical_json(synthesis_commands.synthesis_record(_command_context(), a, stdin=sys.stdin)))
 
 
 def synthesis_prepare_cmd(a):
-    """Return ledger-owned references for one external Hermes synthesis turn."""
-
-    insight_associations.validate_sha256_id(a.batch_id, "batch-id")
-    _phase5_schema_ready()
-    c = cx_ro()
-    try:
-        batch = c.execute(
-            """SELECT batch_id,run_kind,anchor_date,status
-                 FROM analysis_batches WHERE batch_id=?""",
-            (a.batch_id,),
-        ).fetchone()
-        if batch is None:
-            raise insight_synthesis.SynthesisError(
-                "stale_reference", "analysis batch does not exist",
-            )
-        batch = dict(batch)
-        cadence = batch["run_kind"]
-        if cadence not in insight_synthesis.CADENCES:
-            raise insight_synthesis.SynthesisError(
-                "validation_error",
-                "analysis batch cadence cannot produce a Hermes synthesis",
-                validation=True,
-            )
-        refs = _phase6_refs_and_novelty(c, batch, cadence, None)
-        evidence_fingerprint = insight_synthesis.synthesis_evidence_fingerprint(
-            c,
-            analysis_batch_id=batch["batch_id"],
-            run_refs=refs["run_refs"],
-            finding_refs=refs["finding_refs"],
-            hypothesis_refs=refs["hypothesis_refs"],
-        )
-        freshness = insight_orchestrator.freshness_snapshot(
-            c, now=_now().astimezone(timezone.utc),
-        )
-        structured_slots = insight_orchestrator.structured_slots(
-            cadence=cadence,
-            run_rows=refs["runs"],
-            finding_rows=refs["finding_rows"],
-            evaluation_rows=refs["evaluation_rows"],
-            freshness=freshness,
-            suppressed_dependencies=[],
-        )
-    finally:
-        c.close()
-    print(canonical_json({
-        "ok": True,
-        "boundary": "synthesis-record",
-        "analysis_batch_id": batch["batch_id"],
-        "cadence": cadence,
-        "cutoff_date": batch["anchor_date"],
-        "context_version": insight_synthesis.SYNTHESIS_CONTEXT_VERSION,
-        "evidence_fingerprint": evidence_fingerprint,
-        "run_refs": refs["run_refs"],
-        "finding_refs": refs["finding_refs"],
-        "hypothesis_refs": refs["hypothesis_refs"],
-        "assessment_state": (
-            "assessed" if refs["finding_refs"] else "insufficient_data"
-        ),
-        "structured_slots": structured_slots,
-        "model_invoked": False,
-    }))
+    print(canonical_json(synthesis_commands.synthesis_prepare(_command_context(), a)))
 
 
 def synthesis_history_cmd(a):
-    if not 1 <= a.limit <= 100:
-        raise insight_synthesis.SynthesisError(
-            "validation_error",
-            "--limit must be between 1 and 100",
-            validation=True,
-        )
-    if a.before is not None:
-        insight_associations.validate_sha256_id(a.before, "before")
-    _phase5_schema_ready()
-    c = cx_ro()
-    try:
-        result = insight_synthesis.synthesis_history(
-            c, limit=a.limit, before=a.before,
-        )
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(synthesis_commands.synthesis_history(_command_context(), a)))
 
 
 # =========================================================== Phase 6 orchestration
 def _orchestration_payload():
-    return insight_orchestrator.parse_json_object(sys.stdin.read())
+    return orchestration_commands.payload(sys.stdin)
 
 
 def _orchestration_write(fn, *args):
-    """Run one queue/outbox transition under the canonical immediate fence."""
-
-    _phase5_schema_ready()
-    c = cx()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        insight_migrations.require_version(c, 4)
-        result = fn(c, *args)
-        c.commit()
-    except Exception:
-        c.rollback()
-        raise
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(orchestration_commands.write(_command_context(), fn, *args)))
 
 
 def insight_trigger_enqueue_cmd(a):
-    payload = _orchestration_payload()
-    insight_orchestrator.validate_trigger_enqueue(payload)
-    _orchestration_write(insight_orchestrator.enqueue_trigger, payload)
+    print(canonical_json(orchestration_commands.insight_trigger_enqueue(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_trigger_claim_cmd(a):
-    _orchestration_write(insight_orchestrator.claim_trigger, a.worker_id)
+    print(canonical_json(orchestration_commands.insight_trigger_claim(_command_context(), a)))
 
 
 def insight_trigger_renew_cmd(a):
-    payload = _orchestration_payload()
-    insight_orchestrator.validate_trigger_lease(payload)
-    _orchestration_write(insight_orchestrator.renew_trigger, payload)
+    print(canonical_json(orchestration_commands.insight_trigger_renew(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_trigger_complete_cmd(a):
-    payload = _orchestration_payload()
-    insight_orchestrator.validate_trigger_complete(payload)
-    _orchestration_write(insight_orchestrator.complete_trigger, payload)
+    print(canonical_json(orchestration_commands.insight_trigger_complete(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_trigger_fail_cmd(a):
-    payload = _orchestration_payload()
-    insight_orchestrator.validate_trigger_fail(payload)
-    _orchestration_write(insight_orchestrator.fail_trigger, payload)
+    print(canonical_json(orchestration_commands.insight_trigger_fail(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_notification_claim_cmd(a):
-    _orchestration_write(insight_orchestrator.claim_notification, a.worker_id)
+    print(canonical_json(orchestration_commands.insight_notification_claim(_command_context(), a)))
 
 
 def insight_notification_begin_dispatch_cmd(a):
-    payload = _orchestration_payload()
-    _orchestration_write(
-        insight_orchestrator.begin_notification_dispatch, payload,
-    )
+    print(canonical_json(orchestration_commands.insight_notification_begin_dispatch(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_notification_ack_cmd(a):
-    payload = _orchestration_payload()
-    _orchestration_write(insight_orchestrator.acknowledge_notification, payload)
+    print(canonical_json(orchestration_commands.insight_notification_ack(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_notification_fail_cmd(a):
-    payload = _orchestration_payload()
-    insight_orchestrator.validate_notification_fail(payload)
-    _orchestration_write(insight_orchestrator.fail_notification, payload)
+    print(canonical_json(orchestration_commands.insight_notification_fail(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_notification_resolve_cmd(a):
-    payload = _orchestration_payload()
-    _orchestration_write(insight_orchestrator.resolve_notification, payload)
+    print(canonical_json(orchestration_commands.insight_notification_resolve(_command_context(), a, stdin=sys.stdin)))
 
 
 def insight_run_status_cmd(a):
-    if not 1 <= a.limit <= 100:
-        raise insight_orchestrator.OrchestrationError(
-            "validation_error",
-            "--limit must be between 1 and 100",
-            validation=True,
-        )
-    _phase5_schema_ready()
-    c = cx_ro()
-    try:
-        result = insight_orchestrator.insight_run_status(c, limit=a.limit)
-    finally:
-        c.close()
-    print(canonical_json(result))
+    print(canonical_json(orchestration_commands.insight_run_status(_command_context(), a)))
 
 
 # =========================================================== cli
 def analysis_job_cmd(a):
-    from hermes_insights import analysis_jobs
-    analysis_jobs.cli(a.cmd, DB, a, {
-        "outcome-associations": outcome_associations_cmd,
-        "finding-evidence": finding_evidence_cmd,
-    }, _command_context().cli_path)
+    analysis_job_commands.analysis_job_cmd(
+            _command_context(), a, {
+                "outcome-associations": outcome_associations_cmd,
+                "finding-evidence": finding_evidence_cmd,
+            },
+        )
 
 
 def main():
-    """Launch the shared CLI with the remaining legacy handlers wired explicitly."""
+    """Launch the shared CLI with explicit command configuration."""
     insight_cli.run(
         _command_context(),
-        {
-            "analysis-job-start": analysis_job_cmd,
-            "analysis-job-status": analysis_job_cmd,
-            "analysis-job-work": analysis_job_cmd,
-            "analysis-job-execute": analysis_job_cmd,
-            "query": query,
-            "schema": schema,
-            "schema-status": schema_status_cmd,
-            "schema-plan": schema_plan_cmd,
-            "migrate": migrate_cmd,
-            "capture-raw": capture_raw_cmd,
-            "capture-resolve": capture_resolve_cmd,
-            "event-log": event_log_cmd,
-            "event-correct": event_correct_cmd,
-            "event-void": event_void_cmd,
-            "events": events_cmd,
-            "capture-completeness-set": capture_completeness_set_cmd,
-            "capture-completeness": capture_completeness_cmd,
-            "entity-alias-set": entity_alias_set_cmd,
-            "entity-alias-retire": entity_alias_retire_cmd,
-            "entity-alias-history": entity_alias_history_cmd,
-            "feature-registry": feature_registry_cmd,
-            "feature-frame": feature_frame_cmd,
-            "data-readiness": data_readiness_cmd,
-            "outcome-associations": outcome_associations_cmd,
-            "finding-evidence": finding_evidence_cmd,
-            "analysis-refresh": analysis_refresh_cmd,
-            "hypothesis-promote": hypothesis_promote_cmd,
-            "hypothesis-refresh": hypothesis_refresh_cmd,
-            "hypothesis-annotate": hypothesis_annotate_cmd,
-            "hypotheses": hypotheses_cmd,
-            "hypothesis-brief": hypothesis_brief_cmd,
-            "synthesis-prepare": synthesis_prepare_cmd,
-            "synthesis-record": synthesis_record_cmd,
-            "synthesis-history": synthesis_history_cmd,
-            "insight-trigger-enqueue": insight_trigger_enqueue_cmd,
-            "insight-trigger-claim": insight_trigger_claim_cmd,
-            "insight-trigger-renew": insight_trigger_renew_cmd,
-            "insight-trigger-complete": insight_trigger_complete_cmd,
-            "insight-trigger-fail": insight_trigger_fail_cmd,
-            "insight-notification-claim": insight_notification_claim_cmd,
-            "insight-notification-begin-dispatch": insight_notification_begin_dispatch_cmd,
-            "insight-notification-ack": insight_notification_ack_cmd,
-            "insight-notification-fail": insight_notification_fail_cmd,
-            "insight-notification-resolve": insight_notification_resolve_cmd,
-            "insight-run-status": insight_run_status_cmd,
-            "goal-list": goal_list_cmd,
-            "goal-set": goal_set_cmd,
-        },
+        {},
         argv=sys.argv[1:], output=out, parse_number=num,
         meal_types=MEAL_TYPES, restock_actions=RESTOCK_ACTIONS,
         scores_default_days=SCORES_DEFAULT_DAYS,

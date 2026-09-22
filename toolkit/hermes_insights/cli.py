@@ -25,6 +25,14 @@ from .commands import (
 )
 from .commands import labs as labs_commands, scores as scores_commands
 from .commands.hevy import import_csv
+from .contracts import canonical_json
+from .commands import (
+    schema as schema_commands,
+    events as event_commands, features as feature_commands,
+    associations as association_commands, analysis_jobs as analysis_job_commands,
+    ledger as ledger_commands, synthesis as synthesis_commands,
+    orchestration as orchestration_commands,
+)
 
 
 def out(payload):
@@ -617,8 +625,193 @@ def run(context, legacy_handlers, *, argv, output, parse_number,
     def labs(arguments):
         output(labs_commands.labs(context, arguments))
 
+    def analysis_job_cmd(arguments):
+        analysis_job_commands.analysis_job_cmd(
+                context, arguments, {
+                    "outcome-associations": outcome_associations_cmd,
+                    "finding-evidence": finding_evidence_cmd,
+                },
+            )
+
+    def analysis_refresh_cmd(arguments):
+        print(canonical_json(ledger_commands.analysis_refresh(context, arguments, stdin=stdin)))
+
+    def capture_completeness_cmd(arguments):
+        output(event_commands.capture_completeness_cmd(context, arguments))
+
+    def capture_completeness_set_cmd(arguments):
+        output(event_commands.capture_completeness_set_cmd(context, arguments))
+
+    def capture_raw_cmd(arguments):
+        output(event_commands.capture_raw_cmd(context, arguments, stdin=stdin))
+
+    def capture_resolve_cmd(arguments):
+        output(event_commands.capture_resolve_cmd(context, arguments, stdin=stdin))
+
+    def data_readiness_cmd(arguments):
+        output(feature_commands.data_readiness_cmd(context, arguments))
+
+    def entity_alias_history_cmd(arguments):
+        output(event_commands.entity_alias_history_cmd(context, arguments))
+
+    def entity_alias_retire_cmd(arguments):
+        output(event_commands.entity_alias_retire_cmd(context, arguments))
+
+    def entity_alias_set_cmd(arguments):
+        output(event_commands.entity_alias_set_cmd(context, arguments))
+
+    def event_correct_cmd(arguments):
+        output(event_commands.event_correct_cmd(context, arguments, stdin=stdin))
+
+    def event_log_cmd(arguments):
+        output(event_commands.event_log_cmd(context, arguments, stdin=stdin))
+
+    def event_void_cmd(arguments):
+        output(event_commands.event_void_cmd(context, arguments))
+
+    def events_cmd(arguments):
+        output(event_commands.events_cmd(context, arguments))
+
+    def feature_frame_cmd(arguments):
+        output(feature_commands.feature_frame_cmd(context, arguments))
+
+    def feature_registry_cmd(arguments):
+        output(feature_commands.feature_registry_cmd(context, arguments))
+
+    def finding_evidence_cmd(arguments):
+        print(canonical_json(association_commands.finding_evidence_cmd(context, arguments)))
+
+    def goal_list_cmd(arguments):
+        output(feature_commands.goal_list_cmd(context, arguments))
+
+    def goal_set_cmd(arguments):
+        output(feature_commands.goal_set_cmd(context, arguments))
+
+    def hypotheses_cmd(arguments):
+        print(canonical_json(ledger_commands.hypotheses(context, arguments)))
+
+    def hypothesis_annotate_cmd(arguments):
+        print(canonical_json(ledger_commands.hypothesis_annotate(context, arguments, stdin=stdin)))
+
+    def hypothesis_brief_cmd(arguments):
+        print(canonical_json(ledger_commands.hypothesis_brief(context, arguments)))
+
+    def hypothesis_promote_cmd(arguments):
+        print(canonical_json(ledger_commands.hypothesis_promote(context, arguments)))
+
+    def hypothesis_refresh_cmd(arguments):
+        print(canonical_json(ledger_commands.hypothesis_refresh(context, arguments)))
+
+    def insight_notification_ack_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_notification_ack(context, arguments, stdin=stdin)))
+
+    def insight_notification_begin_dispatch_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_notification_begin_dispatch(context, arguments, stdin=stdin)))
+
+    def insight_notification_claim_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_notification_claim(context, arguments)))
+
+    def insight_notification_fail_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_notification_fail(context, arguments, stdin=stdin)))
+
+    def insight_notification_resolve_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_notification_resolve(context, arguments, stdin=stdin)))
+
+    def insight_run_status_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_run_status(context, arguments)))
+
+    def insight_trigger_claim_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_trigger_claim(context, arguments)))
+
+    def insight_trigger_complete_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_trigger_complete(context, arguments, stdin=stdin)))
+
+    def insight_trigger_enqueue_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_trigger_enqueue(context, arguments, stdin=stdin)))
+
+    def insight_trigger_fail_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_trigger_fail(context, arguments, stdin=stdin)))
+
+    def insight_trigger_renew_cmd(arguments):
+        print(canonical_json(orchestration_commands.insight_trigger_renew(context, arguments, stdin=stdin)))
+
+    def migrate_cmd(arguments):
+        output(schema_commands.migrate_cmd(context, arguments))
+
+    def outcome_associations_cmd(arguments):
+        print(canonical_json(association_commands.outcome_associations_cmd(context, arguments)))
+
+    def query(arguments):
+        output(schema_commands.query(context, arguments))
+
+    def schema(arguments):
+        output(schema_commands.schema(context, arguments))
+
+    def schema_plan_cmd(arguments):
+        output(schema_commands.schema_plan_cmd(context, arguments))
+
+    def schema_status_cmd(arguments):
+        output(schema_commands.schema_status_cmd(context, arguments))
+
+    def synthesis_history_cmd(arguments):
+        print(canonical_json(synthesis_commands.synthesis_history(context, arguments)))
+
+    def synthesis_prepare_cmd(arguments):
+        print(canonical_json(synthesis_commands.synthesis_prepare(context, arguments)))
+
+    def synthesis_record_cmd(arguments):
+        print(canonical_json(synthesis_commands.synthesis_record(context, arguments, stdin=stdin)))
+
+
     handlers = {
         **legacy_handlers,
+        'analysis-job-execute': analysis_job_cmd,
+        'analysis-job-start': analysis_job_cmd,
+        'analysis-job-status': analysis_job_cmd,
+        'analysis-job-work': analysis_job_cmd,
+        'analysis-refresh': analysis_refresh_cmd,
+        'capture-completeness': capture_completeness_cmd,
+        'capture-completeness-set': capture_completeness_set_cmd,
+        'capture-raw': capture_raw_cmd,
+        'capture-resolve': capture_resolve_cmd,
+        'data-readiness': data_readiness_cmd,
+        'entity-alias-history': entity_alias_history_cmd,
+        'entity-alias-retire': entity_alias_retire_cmd,
+        'entity-alias-set': entity_alias_set_cmd,
+        'event-correct': event_correct_cmd,
+        'event-log': event_log_cmd,
+        'event-void': event_void_cmd,
+        'events': events_cmd,
+        'feature-frame': feature_frame_cmd,
+        'feature-registry': feature_registry_cmd,
+        'finding-evidence': finding_evidence_cmd,
+        'goal-list': goal_list_cmd,
+        'goal-set': goal_set_cmd,
+        'hypotheses': hypotheses_cmd,
+        'hypothesis-annotate': hypothesis_annotate_cmd,
+        'hypothesis-brief': hypothesis_brief_cmd,
+        'hypothesis-promote': hypothesis_promote_cmd,
+        'hypothesis-refresh': hypothesis_refresh_cmd,
+        'insight-notification-ack': insight_notification_ack_cmd,
+        'insight-notification-begin-dispatch': insight_notification_begin_dispatch_cmd,
+        'insight-notification-claim': insight_notification_claim_cmd,
+        'insight-notification-fail': insight_notification_fail_cmd,
+        'insight-notification-resolve': insight_notification_resolve_cmd,
+        'insight-run-status': insight_run_status_cmd,
+        'insight-trigger-claim': insight_trigger_claim_cmd,
+        'insight-trigger-complete': insight_trigger_complete_cmd,
+        'insight-trigger-enqueue': insight_trigger_enqueue_cmd,
+        'insight-trigger-fail': insight_trigger_fail_cmd,
+        'insight-trigger-renew': insight_trigger_renew_cmd,
+        'migrate': migrate_cmd,
+        'outcome-associations': outcome_associations_cmd,
+        'query': query,
+        'schema': schema,
+        'schema-plan': schema_plan_cmd,
+        'schema-status': schema_status_cmd,
+        'synthesis-history': synthesis_history_cmd,
+        'synthesis-prepare': synthesis_prepare_cmd,
+        'synthesis-record': synthesis_record_cmd,
         "build-daily-frame": build_daily_frame,
         "features": features,
         "correlate": correlate,

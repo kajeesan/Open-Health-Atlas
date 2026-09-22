@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import pathlib
 import random
 import sqlite3
@@ -16,8 +16,9 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-import health
-from hermes_insights import associations
+from hermes_insights import associations, migrations, runtime
+from hermes_insights.command_context import CommandContext
+from hermes_insights.commands import associations as association_commands
 from hermes_insights.associations import (
     AssociationError,
     _base_gate,
@@ -47,7 +48,7 @@ def _fixture():
     conn.executescript(
         (ROOT / "SCHEMA.sql").read_text()
     )
-    context = health._phase3_context()
+    context = runtime.adapter_context(clock=lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), timezone="Europe/Paris")
     definitions = build_registry(conn, context)
     selected = [
         item for item in definitions
@@ -157,23 +158,23 @@ def test_cli_rejects_bounds_and_abbreviated_flags_before_database_open(tmp_path)
 
 
 @pytest.mark.parametrize(
-    "version", (0, 1, 2, health.insight_migrations.AUTONOMOUS_SCHEMA_VERSION + 1),
+    "version", (0, 1, 2, migrations.AUTONOMOUS_SCHEMA_VERSION + 1),
 )
 def test_phase4_accepts_v3_through_current_additive_schema(monkeypatch, version):
     monkeypatch.setattr(
-        health.insight_migrations,
+        migrations,
         "schema_status",
         lambda _path: {"current_version": version},
     )
-    with pytest.raises(health.insight_migrations.SchemaError):
-        health._phase4_schema_ready()
-    for supported in range(3, health.insight_migrations.AUTONOMOUS_SCHEMA_VERSION + 1):
+    with pytest.raises(migrations.SchemaError):
+        runtime.require_analytical_schema("unused.db")
+    for supported in range(3, migrations.AUTONOMOUS_SCHEMA_VERSION + 1):
         monkeypatch.setattr(
-            health.insight_migrations,
+            migrations,
             "schema_status",
             lambda _path, supported=supported: {"current_version": supported},
         )
-        assert health._phase4_schema_ready()["current_version"] == supported
+        assert runtime.require_analytical_schema("unused.db")["current_version"] == supported
 
 
 def test_planted_prior_day_positive_all_day_modes_and_reproducibility():
@@ -271,7 +272,7 @@ def test_analysis_is_select_only_under_strict_authorizer():
 
 
 def test_phase4_command_handlers_are_end_to_end_pure_reads(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch
 ):
     database = tmp_path / "schema-v3.db"
     setup = sqlite3.connect(database)
@@ -279,7 +280,7 @@ def test_phase4_command_handlers_are_end_to_end_pure_reads(
     setup.executescript((ROOT / "SCHEMA.sql").read_text())
     setup.commit()
     setup.close()
-    health.insight_migrations.migrate(
+    migrations.migrate(
         str(database), 3, 0, "f" * 40
     )
     setup = sqlite3.connect(database)
@@ -297,30 +298,30 @@ def test_phase4_command_handlers_are_end_to_end_pure_reads(
         verify.close()
     statements: list[str] = []
     authorizer_actions: list[int] = []
-    original_cx_ro = health.cx_ro
+    original_cx_ro = runtime.connect_read_only
 
-    def traced_read_only_connection():
-        conn = original_cx_ro()
+    def traced_read_only_connection(database):
+        conn = original_cx_ro(database)
         conn.set_trace_callback(statements.append)
         conn.set_authorizer(
             lambda action, arg1, arg2, database_name, trigger: (
                 authorizer_actions.append(action)
-                or health._ro_authorizer(
+                or runtime.read_only_authorizer(
                     action, arg1, arg2, database_name, trigger
                 )
             )
         )
         return conn
 
-    monkeypatch.setattr(health, "DB", str(database))
-    monkeypatch.setattr(health, "cx_ro", traced_read_only_connection)
+    command_context = CommandContext(str(database), lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), "Europe/Paris", str(tmp_path / "vault"), str(ROOT / "health.py"))
+    monkeypatch.setattr(runtime, "connect_read_only", traced_read_only_connection)
     common = {
         "from_date": requested.start.isoformat(),
         "to_date": requested.end.isoformat(),
         "days": None,
         "all_dates": False,
     }
-    health.outcome_associations_cmd(SimpleNamespace(
+    analysis = association_commands.outcome_associations_cmd(command_context, SimpleNamespace(
         outcome="subjective.day_rating",
         mode="ordinal",
         min_n=30,
@@ -328,18 +329,16 @@ def test_phase4_command_handlers_are_end_to_end_pure_reads(
         top=1,
         **common,
     ))
-    analysis = __import__("json").loads(capsys.readouterr().out)
     assert analysis["ok"] is True
     assert analysis["meta"]["analysis_version"] == "outcome-v1"
     assert len(analysis["findings"]) == 1
 
-    health.finding_evidence_cmd(SimpleNamespace(
+    evidence = association_commands.finding_evidence_cmd(command_context, SimpleNamespace(
         outcome="subjective.day_rating",
         finding_id=analysis["findings"][0]["finding_id"],
         input_fingerprint=analysis["meta"]["input_fingerprint"],
         **common,
     ))
-    evidence = __import__("json").loads(capsys.readouterr().out)
     assert evidence["ok"] is True
     assert evidence["finding"]["finding_id"] == analysis["findings"][0]["finding_id"]
     assert "findings" not in evidence
@@ -869,7 +868,7 @@ def test_substance_relation_and_lagged_e1rm_temporal_boundary():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.executescript((ROOT / "SCHEMA.sql").read_text())
-    context = health._phase3_context()
+    context = runtime.adapter_context(clock=lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), timezone="Europe/Paris")
     definitions = build_registry(conn, context)
     caffeine = next(
         item for item in definitions if item.key == "substance.caffeine_mg"

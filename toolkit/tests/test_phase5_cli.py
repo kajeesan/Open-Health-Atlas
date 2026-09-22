@@ -15,7 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 HEALTH = ROOT / "health.py"
 sys.path.insert(0, str(ROOT))
 
-import health  # noqa: E402
+from datetime import datetime, timezone
+from hermes_insights import runtime, migrations, registry, ledger, synthesis
+from hermes_insights.command_context import CommandContext
+from hermes_insights.commands import analytical
+from hermes_insights.commands import ledger as ledger_commands
+from hermes_insights.commands import synthesis as synthesis_commands
 from hermes_insights import cli  # noqa: E402
 
 
@@ -137,25 +142,25 @@ def test_manual_refresh_fans_out_one_independent_engine_call_per_outcome_mode(
     requested = object()
     context = object()
     definitions = (object(),)
-    monkeypatch.setattr(health, "_phase5_schema_ready", lambda: None)
-    monkeypatch.setattr(health, "_phase3_context", lambda: context)
-    monkeypatch.setattr(health, "cx_ro", ReadConnection)
+    command_context = CommandContext("unused.db", lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), "UTC", "/unused-vault", str(HEALTH))
+    monkeypatch.setattr(ledger_commands, "require_phase5_schema", lambda _context: None)
+    monkeypatch.setattr(runtime, "connect_read_only", lambda _database: ReadConnection())
     monkeypatch.setattr(
-        health.insight_migrations, "require_version", lambda _conn, _version: None,
+        migrations, "require_version", lambda _conn, _version: None,
     )
     monkeypatch.setattr(
-        health, "_phase3_definitions", lambda _conn, _context: definitions,
+        analytical, "definitions", lambda _conn, _context: definitions,
     )
     monkeypatch.setattr(
-        health,
-        "_phase5_selected_outcomes",
+        ledger_commands,
+        "selected_outcomes",
         lambda _conn, _explicit: (
             ["subjective.day_rating", "subjective.energy"],
             "explicit_set",
         ),
     )
     monkeypatch.setattr(
-        health.insight_registry,
+        registry,
         "registry_content_checksum",
         lambda _definitions: "f" * 64,
     )
@@ -167,10 +172,11 @@ def test_manual_refresh_fans_out_one_independent_engine_call_per_outcome_mode(
         return {"sealed": kwargs}
 
     monkeypatch.setattr(
-        health.insight_ledger, "compute_verified_analysis", compute,
+        ledger, "compute_verified_analysis", compute,
     )
-    outcomes, selection, registry_hash, verified = health._phase5_compute_manual(
-        requested, ["subjective.day_rating", "subjective.energy"],
+    outcomes, selection, registry_hash, verified = ledger_commands.compute_manual(
+        command_context, requested, ["subjective.day_rating", "subjective.energy"],
+        adapter_context=context,
     )
     assert outcomes == ["subjective.day_rating", "subjective.energy"]
     assert selection == "explicit_set"
@@ -200,10 +206,10 @@ def test_batch_initiator_is_order_stable_and_bound_to_every_input_fingerprint():
         "green-vs-non-green",
         sealed("sha256:" + "2" * 64),
     )
-    key = health._phase5_input_bound_initiator(
+    key = ledger_commands.input_bound_initiator(
         "manual-analysis-refresh", [first, second],
     )
-    assert key == health._phase5_input_bound_initiator(
+    assert key == ledger_commands.input_bound_initiator(
         "manual-analysis-refresh", [second, first],
     )
     changed = (
@@ -211,7 +217,7 @@ def test_batch_initiator_is_order_stable_and_bound_to_every_input_fingerprint():
         second[1],
         sealed("sha256:" + "3" * 64),
     )
-    assert key != health._phase5_input_bound_initiator(
+    assert key != ledger_commands.input_bound_initiator(
         "manual-analysis-refresh", [first, changed],
     )
     assert key.startswith("manual-analysis-refresh/sha256:")
@@ -324,7 +330,7 @@ def test_phase5_pagination_values_fail_before_database_open(tmp_path):
 
 
 def test_synthesis_record_commits_ledger_before_append_only_file(
-    tmp_path, monkeypatch, capsys,
+    tmp_path, monkeypatch,
 ):
     class Connection:
         def __init__(self):
@@ -345,20 +351,19 @@ def test_synthesis_record_commits_ledger_before_append_only_file(
             pass
 
     connection = Connection()
-    monkeypatch.setattr(health.sys, "stdin", io.StringIO("{}"))
-    monkeypatch.setattr(health, "_phase5_schema_ready", lambda: {"current_version": 4})
-    monkeypatch.setattr(health, "cx", lambda: connection)
+    monkeypatch.setattr(analytical, "require_phase5_schema", lambda _context: {"current_version": 4})
+    monkeypatch.setattr(runtime, "connect", lambda _database: connection)
     monkeypatch.setattr(
-        health.insight_migrations, "require_version", lambda _conn, _version: None,
+        migrations, "require_version", lambda _conn, _version: None,
     )
     monkeypatch.setattr(
-        health.insight_synthesis, "parse_synthesis_json", lambda _text: {},
+        synthesis, "parse_synthesis_json", lambda _text: {},
     )
     monkeypatch.setattr(
-        health.insight_synthesis, "validate_synthesis_record", lambda payload: payload,
+        synthesis, "validate_synthesis_record", lambda payload: payload,
     )
     monkeypatch.setattr(
-        health.insight_synthesis,
+        synthesis,
         "record_synthesis",
         lambda _conn, _payload: {
             "ok": True,
@@ -374,11 +379,11 @@ def test_synthesis_record_commits_ledger_before_append_only_file(
         return tmp_path / "vault" / "personal" / "patterns" / "brief.md"
 
     monkeypatch.setattr(
-        health.insight_synthesis,
+        synthesis,
         "write_synthesis_markdown",
         append_after_commit,
     )
-    monkeypatch.setenv("HEALTH_VAULT", str(tmp_path / "vault"))
-    health.synthesis_record_cmd(SimpleNamespace())
+    command_context = CommandContext(str(tmp_path / "health.db"), lambda: datetime(2026, 7, 23, tzinfo=timezone.utc), "UTC", str(tmp_path / "vault"), str(HEALTH))
+    result = synthesis_commands.synthesis_record(command_context, SimpleNamespace(), stdin=io.StringIO("{}"))
     assert connection.committed is True
-    assert json.loads(capsys.readouterr().out)["created"] is True
+    assert result["created"] is True
