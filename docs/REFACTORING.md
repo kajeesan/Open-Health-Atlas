@@ -6,29 +6,21 @@ The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).
 It owns scope, architecture, milestone order, acceptance and continuation policy.
 Older entries below are dated history, including superseded approval checkpoints.
 
-All six Milestone 3 families are complete locally. The final family's production
-commit is `fee48cc404cbaed566adb453e92c4127bf18651a`; see the
-[CLI coordination evidence](#cli-coordination-extraction-22-september-2026).
-Milestone 4 now audits remaining compatibility consumers, completes documentation
-and integrated acceptance, and compares final performance with the corrected baseline.
-Continue on `codex/health-toolkit-modularization` and retain the accumulated local
-commits.
+The approved toolkit plan is complete locally. Milestone 4's production commit
+is `17851cfca77b33369a22a04d97f7f0a72c0ac908`, with tested tree
+`a817fecead2567ea7956c1183f6dba51338b2954`. See
+[final acceptance](#final-toolkit-acceptance-22-september-2026) for verification,
+package sealing and remaining qualification limits.
 
-On 22 September 2026, the owner authorized fresh-main continuation after each
-milestone's verification and independent-review gates, replacing routine approval
-before starting the next milestone. Push, merge, release, private-data, credential
-and live-integration boundaries remain unchanged. No merge is needed to continue
-authorized local work.
-
-Ownership of Milestone 4 transfers through the fresh-main handoff. Exact checkout,
-active task ownership, acceptance receipts and local evidence paths stay in the
-external handoff package. The successor must verify and explicitly accept the
-checkpoint before editing, then update this section at its milestone boundary.
+The branch remains `codex/health-toolkit-modularization`; accumulated commits
+are preserved. The plan ends with this milestone. Push, merge, hosted checks
+and release publication retain their separate authorization and review gates.
 
 The [corrected baseline record](#corrected-toolkit-baseline-22-september-2026)
-contains the evidence and inherited resampling/finding-ID tie-break caveat.
-Carry that caveat forward. Passing tests do not imply that every prepared
-evidence-selection slot is invariant under engine identity changes.
+contains the inherited resampling and finding-ID tie-break caveat. Final
+acceptance preserves that caveat and the collector failure-path limitation.
+Machine-specific execution records and raw evidence remain outside public
+source. Older entries below are historical checkpoints.
 
 ## Agreed requirements
 
@@ -1359,3 +1351,60 @@ proven obsolete plumbing, completes documentation and integrated verification,
 and compares final performance with the corrected baseline. Continue through
 the approved fresh-main relay on the same branch. Push, merge, publication,
 credentials and live/private-data boundaries remain separate.
+
+## Final toolkit acceptance, 22 September 2026
+
+Production commit `17851cfca77b33369a22a04d97f7f0a72c0ac908` matches the
+verified tree `a817fecead2567ea7956c1183f6dba51338b2954`. The closing
+checkpoint changes only this documentation and its release inventory.
+
+Milestone 4 removes 43 obsolete internal dispatch delegates and the empty legacy-handler overlay. The shared CLI registers every executable command centrally and dispatches it to its owning module. The facade retains database and clock seams, read-only guards, configured catalogs and older Python delegates. It contains no SQL, importer or domain-calculation implementation. The consumer inventory records evidence of the removal and the limits of auditing undocumented external imports.
+
+[Architecture](ARCHITECTURE.md#toolkit-command-boundaries) describes retained compatibility and direct registration. Its [calculation and test index](ARCHITECTURE.md#calculation-and-test-navigation) connects domain owners, callers and relevant tests. Numerical engines, schemas, transactions, broker permissions, public licensing and vendor bytes are unchanged in this milestone.
+
+Complete source verification covers 2,115 distinct passing identities: 2,095 application tests, 15 fictional end-to-end tests and five actual MCP tests. The initial restricted runs passed 2,086 application tests, 14 journeys and all five MCP tests. Nine application checks and one journey then passed with local socket/process permission. Only those unsuccessful identities were retried. Source hashes remained unchanged; focused checks and retry overlap are excluded from the total. The evidence comes from split environments; it does not establish three uninterrupted green runs.
+
+Earlier family corpora remain accepted through independently checked revision links and comparisons of owner bytes, handler bodies, binding values and configuration expressions. The fresh final-family comparison exercises 336 CLI cases per version and a separate 122-command parser inventory against the corrected baseline. Every exit status and stderr stream matches. Two synthesis outputs differ only in verified temporary vault paths. The other 334 output streams match byte for byte. Ten internal importer callback names retain their previously approved owner changes. Reversing only those names recovers the complete baseline parser inventory.
+
+Both CLI versions receive the same explicit migration-label input,
+`HERMES_CODE_VERSION=c427296a286237ff72ffb733bc9bbdb4e25fcc54`.
+Actual source identities are checked separately, and seeded fixture rows remain
+unchanged. The comparison does not claim default deployment-version equality.
+
+Comparisons between the source and packaged broker verify twenty non-job
+request/response envelopes byte for byte. Real child jobs complete with exact request and result
+bytes. Generated IDs, timestamps, cache keys and asynchronous poll sequences
+are checked against their own stored state and captured identity material.
+Canonical databases remain physically unchanged and vaults remain empty.
+Historical sidecar SQLite files are represented by complete logical snapshots
+and physical digests, without a claim of physical-byte equality.
+
+The fresh ad hoc app passed fourteen lifecycle checks and nine actual bundled
+MCP checks. Its isolated module probe and CLI traces verify that the runtime
+owners are contained and Git-exact. The packaged corpus preserves all 336 cases
+and the separate parser inventory. The single unknown-command stderr difference
+is the verified Python 3.11/3.12 change in quoting all 122 choices. Every other
+stderr stream matches. The two verified temporary-vault stdout differences remain.
+
+Package CLI/parser and module probes use bundled Python with `-I -B`. The
+broker runs with `-B` without `-I`. Its unchanged child inherits bytecode
+suppression. Read-only probes reproduce both the default broker and actual
+script CLI identities under bundled Python 3.12.13 before execution release.
+
+The corresponding-source ZIP contains all 547 Git-exact project files and two
+pinned dependency source archives. Its SHA-256 is
+`53ad3e8b0a8f1a36c179b010c1dcb76437c28c5fb54d6a81817689cf8c22f5e9`.
+After every execution owner released the app, final deep/strict signature
+verification passed. All 3,144 audited regular-file hashes remained unchanged,
+with zero findings. No bundle process ran after the seal.
+
+The corrected-baseline timing comparison uses 60 alternating fresh-process launches across five workloads, with cache-free Git exports, fixed fictional inputs and no native acceleration. All paired output streams and database/vault effects match. Median command times for schema, readiness and nutrition increase by approximately 5–6 milliseconds. Statistics and association medians decrease slightly in this sample. Independent review found no material unexplained regression. These measurements do not establish a general speed guarantee.
+
+The inherited readiness benchmark returns the same insufficient-data result, so its timing does not qualify populated readiness calculations. The statistical workload retains its 120 observations and fixed seeds. The association workload returns one finding. Filesystem caches were not forcibly cleared.
+
+The inherited engine-identity/resampling and tied-candidate caveat remains. Collector failure-provenance lock contention also remains. Current verification retains its original XML. The missing original XML in the earlier daily-frame family remains a limitation of that historical family. Source/history scans have bounded scope and do not provide exhaustive privacy certification.
+
+Push, merge, hosted checks and release publication remain separate gates. Local verification does not qualify GUI/charts, minimum OS, Developer ID, notarization, Gatekeeper or clean-customer installation.
+
+This closes Milestone 4 and the approved toolkit modularization plan. The
+feature branch and sealed local package remain unpublished.
