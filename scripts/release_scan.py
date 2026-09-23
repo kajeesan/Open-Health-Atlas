@@ -60,6 +60,7 @@ ALLOWED_URL_HOSTS = {
     "hevy.com",
     "localhost",
     "kajeesan.com",
+    "learn.chatgpt.com",
     "myaccount.google.com",
     "oauth2.googleapis.com",
     "openrouter.ai",

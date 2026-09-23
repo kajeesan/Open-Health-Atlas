@@ -54,6 +54,10 @@ before doing anything else. Finish with how to open and quit the app.
 
 ## 2. Connect your preferred AI
 
+For the unreleased step-by-step ChatGPT desktop flow, see
+[Guided ChatGPT desktop setup](DESKTOP_MCP.md#guided-chatgpt-desktop-setup-unreleased).
+The published installer still uses the copy-and-paste flow below.
+
 Do this while the **fictional workspace** is selected.
 
 1. Open **Desktop help & AI connection**. In a narrow window, find it under **More**.

@@ -9,6 +9,30 @@ optional connection lets a compatible AI client read your selected workspace
 and request deterministic calculations and supporting evidence. Your client
 provides the model and conversation.
 
+## Guided ChatGPT desktop setup (unreleased)
+
+The Connect AI page provides a step-by-step guide for supported ChatGPT desktop
+versions on the same Mac. Complete each action in ChatGPT, then select Next in
+Open Health Atlas. Back returns to the previous step. The guide uses the selected
+workspace and timezone. Start with fictional records.
+
+The guide starts with instructions for opening the desktop app and confirming
+the workspace. It then shows how to find MCP server settings, copy the local
+command and its separate arguments, save and restart, and check the server in
+ChatGPT. If MCP servers or STDIO are absent, use the in-page help and the
+[official OpenAI MCP guide](https://learn.chatgpt.com/docs/extend/mcp).
+ChatGPT web and phone sessions are not configured by this local guide.
+
+Selecting Next records progress through the instructions. The guide does not
+inspect ChatGPT, install a connection, or verify tool access. Confirm that the
+client actually discovers the health tools and completes a query with evidence.
+Before using personal records, approve which records may be sent to OpenAI.
+The page does not create a tunnel, edit client settings, or read health records.
+
+The published 0.2.6 installer retains the previous setup screen until a new
+installer is built and released. Other local AI clients can still use the
+secondary **Other AI apps / setup agent** instructions.
+
 ## Connect from the installed macOS app
 
 1. Install Open Health Atlas and open its fictional workspace.
