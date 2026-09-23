@@ -11,16 +11,16 @@ connecting your preferred AI and copy-paste instructions for a setup agent.
 
 ## Download and install
 
-The [0.2.5 Mac preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5)
-is prepared for publication on 20 September 2026. Check its release notes
-for the published artifact and verification results. Choose the **signed-notarized macOS Apple
+The [0.2.7 Mac preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
+is the current signed-notarized preview. Check its release notes and attached
+receipts for the exact artifact and verification results. Choose the **signed-notarized macOS Apple
 silicon DMG**, not a source archive or an older `local-unsigned` build.
-It is Developer ID signed, notarized and stapled. The release notes report
-native verification on macOS 26.6.2; clean-Mac installation and the minimum
-supported macOS remain unverified. Keep normal Gatekeeper protection enabled.
+The release receipts describe signing, notarization and native verification
+for this download. Clean-Mac installation and the minimum supported macOS remain unverified.
+Keep normal Gatekeeper protection enabled.
 Intel Macs and Windows/Linux desktop installers are not supported in this release.
 
-The [release notes and attached receipts](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5)
+The [release notes and attached receipts](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
 identify the exact downloadable artifact. The [acceptance record](DESKTOP_ACCEPTANCE.md)
 retains earlier candidate evidence and the separate stable-release gates.
 
@@ -74,8 +74,11 @@ not install a system background service or silently remove personal data.
 ## Optional AI connection
 
 The dashboard and local data tools work without an AI account. To connect an
-AI client, open **Desktop help & AI connection → Connect AI** and copy the selected
-workspace's setup instructions. Follow [Connect a local AI client](DESKTOP_MCP.md).
+AI client, open **Desktop help & AI connection → Connect AI**. Copy the selected
+workspace's instructions into a local setup agent first. If it cannot access
+local files and tools, choose **I need help**, confirm that ChatGPT Desktop
+shows Settings → MCP servers → Add server → STDIO, then follow the manual
+steps. See [Connect a local AI client](DESKTOP_MCP.md).
 
 The client must support launching a **local stdio MCP server**. The installed
 app supplies a stable executable and its own runtime. Configuration remains

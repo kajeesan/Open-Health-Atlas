@@ -1418,7 +1418,7 @@ and keeps the generic setup-agent instructions available. Loading failures,
 missing workspaces, unavailable MCP settings and copying failures have recovery
 paths. Completing the guide records only the user's confirmation. That
 confirmation does not prove that ChatGPT is connected. See
-[Guided ChatGPT desktop setup](DESKTOP_MCP.md#guided-chatgpt-desktop-setup-unreleased).
+[Guided ChatGPT desktop setup](DESKTOP_MCP.md#guided-chatgpt-desktop-setup).
 
 Forty focused desktop-guide, server-boundary, MCP-configuration and
 release-scanner tests passed. A fictional source preview verified the six-step

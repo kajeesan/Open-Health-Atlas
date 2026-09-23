@@ -9,10 +9,10 @@ optional connection lets a compatible AI client read your selected workspace
 and request deterministic calculations and supporting evidence. Your client
 provides the model and conversation.
 
-## Guided ChatGPT desktop setup (unreleased)
+## Guided ChatGPT desktop setup
 
 The Connect AI page starts with **Connect with your agent**. Copy the prepared
-instructions into a desktop agent that can access local files and tools, such
+instructions for ChatGPT Desktop into an agent that can access local files and tools, such
 as a local Codex task. The agent can back up and merge the connection settings,
 reconnect the client and check the health tools. A browser or phone chat cannot
 perform this local setup just from the copied text.
@@ -20,26 +20,28 @@ perform this local setup just from the copied text.
 Choose **It's connected** to try a small query in the selected workspace. This
 records your report; it does not verify the connection automatically. Personal
 records still require explicit sharing approval. Choose **I need help** to go
-directly to the manual steps. The MCP settings step includes help for clients
-without **MCP servers** or **STDIO** settings.
+directly to the manual steps. These require a ChatGPT Desktop client with
+**MCP servers** and **STDIO** settings; the guide includes help if those settings
+are missing. Browser, phone and URL-only clients cannot use this local connection.
 Back follows the route you took. The
 [official OpenAI MCP guide](https://learn.chatgpt.com/docs/extend/mcp) describes
 the supported desktop connection.
 
 The manual route keeps the existing workspace, command, arguments and restart
 instructions. Copying never advances the guide. The app itself does not edit
-another client's settings, create a tunnel or read health records. The published
-0.2.6 installer remains unchanged until a new release is built. Other local AI
+another client's settings, create a tunnel or read health records. The 0.2.7
+preview's exact artifact details live in its release notes and receipts. Other local AI
 clients can still use the secondary **Other AI apps / setup agent** instructions.
 
 ## Connect from the installed macOS app
 
 1. Install Open Health Atlas and open its fictional workspace.
-2. Open **Desktop help & AI connection → Connect AI** and choose **Copy setup instructions**. The copied text combines the task for your setup agent with the selected workspace's actual connection JSON.
-3. Paste into a setup agent such as Codex. It should verify local stdio support, adapt the configuration to your preferred AI client, preserve unrelated settings and reconnect that client.
-4. Verify that `health_catalog`, `health_query`, `health_analyze`, `health_evidence` and `health_task_status` are available and a fictional query and evidence check succeed.
+2. Open **Desktop help & AI connection → Connect AI** and check the selected workspace and scope. The timezone is included in the setup instructions.
+3. Choose **Copy setup instructions** and paste them into a local setup agent such as Codex. It must have access to local files and tools; a browser, phone or URL-only client cannot perform this setup.
+4. Choose **It's connected** only after the agent reports its work. The copied test message checks whether the five tools are usable and requests a fictional query and evidence reference.
+5. If the agent cannot access the Mac, choose **I need help**. Continue manually only after confirming ChatGPT Desktop shows Settings → MCP servers → Add server → STDIO.
 
-**View connection settings** reveals exactly what the button copies. The underlying configuration endpoint remains available for existing clients and packaged verification, but the help page uses one copy action. The common `mcpServers` JSON may need conversion to the chosen client's configuration format. Remote-only clients cannot use this local executable directly.
+**View setup instructions** reveals exactly what the agent-copy button copies. After the agent reports completion, **Copy test message** is a separate verification-message copy. The secondary **Other AI apps / setup agent** route retains **View connection settings** for existing generic setup. The underlying configuration endpoint remains available for existing clients and packaged verification, but the common `mcpServers` JSON may need conversion to the chosen client's configuration format. Remote-only clients cannot use this local executable directly.
 
 The command points to the installed app's stable
 `Contents/MacOS/openhealthatlas-mcp` executable. It includes its own runtime;
