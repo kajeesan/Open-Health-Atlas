@@ -23,16 +23,45 @@
     {% if help_section == 'ai' %}
     <section class="help-connection" id="ai-connection" aria-labelledby="connect-title">
       <h1 id="connect-title">Connect ChatGPT Desktop</h1>
-      <p class="desktop-intro">Follow each step on this Mac, then select Next.</p>
+      <p class="desktop-intro">Try your agent first. We’ll guide you manually if you need help.</p>
       <div class="help-wizard" id="chatgpt-wizard" aria-labelledby="connect-title">
         <div class="wizard-progress" aria-label="Connection progress">
-          <p id="wizard-progress-label" class="wizard-progress-label" role="status">Step 1 of 6</p>
+          <p id="wizard-progress-label" class="wizard-progress-label" role="status">Start here</p>
           <div class="wizard-progress-track" aria-hidden="true"><span id="wizard-progress-bar"></span></div>
         </div>
         <div id="wizard-load-status" class="wizard-status" role="status" aria-live="polite">Checking your workspace…</div>
         <button id="wizard-retry" class="wizard-retry" type="button" hidden>Try again</button>
         <a id="wizard-select-workspace" class="wizard-change-workspace" href="{{ url_for('desktop.setup', return_to=return_path) }}" hidden>Choose a workspace</a>
+        <div id="wizard-workspace-context" class="wizard-workspace-context" hidden>
+          <div id="wizard-workspace-summary" class="wizard-workspace" role="status">Loading the selected workspace…</div>
+          <p id="wizard-privacy-note" class="wizard-privacy-note">Choose a workspace before continuing.</p>
+          <label id="wizard-privacy-check" class="wizard-check"><input id="wizard-privacy-ack" type="checkbox"> I understand that ChatGPT may send records returned by this connection to OpenAI, and I approve personal data sharing before I test this workspace.</label>
+          <a class="wizard-change-workspace" href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a>
+        </div>
         <div class="wizard-panels">
+          <section class="wizard-step-panel wizard-agent-panel" data-wizard-mode="agent" aria-labelledby="wizard-agent-title">
+            <h2 id="wizard-agent-title" tabindex="-1">Connect with your agent</h2>
+            <p>Copy these instructions into a desktop agent with access to this Mac’s files and tools, such as a local Codex task.</p>
+            <p class="wizard-agent-scope"><span id="wizard-agent-scope">Checking your workspace…</span> <a href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a></p>
+            <div class="wizard-agent-copy-row">
+              <button id="wizard-agent-copy" class="help-primary" type="button" disabled>Copy setup instructions</button>
+            </div>
+            <p id="wizard-agent-copy-status" class="wizard-feedback" role="status" aria-live="polite"></p>
+            <div class="wizard-agent-actions">
+              <p>After your agent finishes:</p>
+              <button id="wizard-agent-connected" type="button" disabled>It’s connected</button>
+              <button id="wizard-agent-help" type="button">I need help</button>
+            </div>
+            <details id="wizard-agent-prompt-details" class="wizard-help-branch">
+              <summary>View setup instructions</summary>
+              <pre id="wizard-agent-prompt" class="wizard-prompt">The setup instructions are loading…</pre>
+            </details>
+            <details id="wizard-agent-help-panel" class="wizard-help-branch" hidden>
+              <summary>What should my agent be able to do?</summary>
+              <p>If it cannot access local files and tools, or it only accepts a remote URL, stop using the agent path. If you can see ChatGPT Desktop Settings → MCP servers → Add server → STDIO, select the option below for the manual steps. Do not use a browser or phone chat to change this Mac.</p>
+              <button id="wizard-agent-local-settings" type="button">I have local MCP settings</button>
+            </details>
+          </section>
           <section class="wizard-step-panel" data-wizard-step="1" aria-labelledby="wizard-step-1-title">
             <h2 id="wizard-step-1-title" tabindex="-1">Open ChatGPT Desktop on this Mac</h2>
             <p>Sign in to the supported ChatGPT Desktop app on the same Mac as Open Health Atlas. This guide is for the desktop app, not ChatGPT in a browser or on a phone.</p>
@@ -40,10 +69,7 @@
           </section>
           <section class="wizard-step-panel" data-wizard-step="2" aria-labelledby="wizard-step-2-title" hidden>
             <h2 id="wizard-step-2-title" tabindex="-1">Confirm your workspace and privacy choice</h2>
-            <div id="wizard-workspace-summary" class="wizard-workspace" role="status">Loading the selected workspace…</div>
-            <p id="wizard-privacy-note" class="wizard-privacy-note">Choose a workspace before continuing.</p>
-            <label id="wizard-privacy-check" class="wizard-check"><input id="wizard-privacy-ack" type="checkbox"> I understand that ChatGPT may send records returned by this connection to OpenAI, and I approve personal data sharing before I test this workspace.</label>
-            <a class="wizard-change-workspace" href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a>
+            <p>Review the workspace and privacy choice above before continuing to the manual MCP settings.</p>
           </section>
           <section class="wizard-step-panel" data-wizard-step="3" aria-labelledby="wizard-step-3-title" hidden>
             <h2 id="wizard-step-3-title" tabindex="-1">Open MCP server settings</h2>

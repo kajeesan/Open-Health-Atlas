@@ -1431,3 +1431,10 @@ The protected ChatGPT settings surface was not inspected. No client configuratio
 was changed, and no signed installer was modified. The published 0.2.6 release
 remains unchanged. The only scanner policy addition is the reviewed official
 documentation host `learn.chatgpt.com`.
+
+The subsequent local revision makes agent-assisted setup the first route. Users
+copy instructions for a local desktop agent, then choose **It's connected** to
+test the connection or **I need help** to check compatibility before using the
+manual steps. Personal-workspace approval remains required before the test, and
+Back follows the selected route. The supplied configuration and read-only
+connection are unchanged. This remains an unreleased interface change.

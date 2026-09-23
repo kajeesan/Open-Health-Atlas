@@ -88,6 +88,7 @@ class Element {
   addEventListener(type, callback) { this.listeners[type] = callback; }
   querySelector(selector) {
     if (selector === 'h2') return this.children.find(child => child.tagName === 'H2') || new Element('heading');
+    if (selector === 'summary') return this.children.find(child => child.tagName === 'SUMMARY') || new Element('summary');
     if (selector === '[role="status"]') return this.children.find(child => child.role === 'status') || new Element('feedback');
     return null;
   }
@@ -106,9 +107,14 @@ async function run(fictional, options = {}) {
   get('wizard-privacy-ack'); get('wizard-back'); get('wizard-next'); get('wizard-finish-status');
   get('wizard-copy-prompt'); get('wizard-validation-prompt'); get('wizard-full-config');
   get('wizard-config-fields'); get('copy-setup'); get('connection-status'); get('connection-instructions');
+  get('wizard-workspace-context'); get('wizard-agent-copy'); get('wizard-agent-connected');
+  get('wizard-agent-help'); get('wizard-agent-help-panel'); get('wizard-agent-local-settings');
+  get('wizard-agent-copy-status'); get('wizard-agent-prompt');
   get('copy-setup').disabled = true; get('wizard-copy-prompt').disabled = true;
   const panels = [];
   for (let n = 1; n <= 6; n++) { const panel = new Element(`step-${n}`); panel.dataset.wizardStep = String(n); panel.tagName = 'SECTION'; panel.children.push(Object.assign(new Element(`heading-${n}`), {tagName: 'H2'})); panels.push(panel); }
+  const agentPanel = new Element('agent-panel'); agentPanel.dataset.wizardMode = 'agent';
+  get('wizard-agent-help-panel').children.push(Object.assign(new Element('agent-summary'), {tagName: 'SUMMARY'}));
   const copies = [];
   let failConfig = Boolean(options.failConfig);
   const clipboardWorks = options.clipboardWorks !== false;
@@ -118,6 +124,7 @@ async function run(fictional, options = {}) {
   }}};
   const document = {
     getElementById: get,
+    querySelector: selector => selector === '[data-wizard-mode="agent"]' ? agentPanel : null,
     querySelectorAll: selector => selector === '[data-wizard-step]' ? panels : [],
     createElement: () => new Element('created'),
     body: {appendChild() {}},
@@ -134,14 +141,35 @@ async function run(fictional, options = {}) {
   };
   const context = {document, navigator: {clipboard: {writeText: async value => { if (!clipboardWorks) throw new Error(); copies.push(value); }}}, fetch, console, setTimeout, Promise};
   vm.runInNewContext(source, context, {filename: 'help.js'});
-  await deferredTick(); await deferredTick();
+  for (let tick = 0; tick < 10; tick++) await deferredTick();
   const next = get('wizard-next'), back = get('wizard-back'), ack = get('wizard-privacy-ack');
+  assert.equal(next.hidden, true, 'agent-first view hides the manual Next control');
+  assert.equal(get('wizard-agent-connected').disabled, Boolean(options.failConfig));
+  if (!options.failConfig) {
+    await get('wizard-agent-connected').listeners.click();
+    if (fictional) {
+      assert.equal(get('wizard-progress-label').textContent, 'Step 6 of 6');
+    } else {
+      assert.equal(get('wizard-progress-label').textContent, 'Step 2 of 6');
+      assert.equal(next.disabled, true);
+      ack.checked = true;
+      await ack.listeners.change();
+      await next.listeners.click();
+      assert.equal(get('wizard-progress-label').textContent, 'Step 6 of 6');
+    }
+    await back.listeners.click();
+    assert.equal(get('wizard-progress-label').textContent, 'Start here');
+  }
+  await get('wizard-agent-help').listeners.click();
+  assert.equal(get('wizard-agent-help-panel').hidden, false);
+  await get('wizard-agent-local-settings').listeners.click();
+  assert.equal(get('wizard-progress-label').textContent, 'Step 2 of 6');
   if (options.failConfig) {
     assert.equal(get('wizard-retry').hidden, false);
     assert.equal(next.disabled, true);
     failConfig = false;
     await get('wizard-retry').listeners.click();
-    await deferredTick(); await deferredTick();
+    for (let tick = 0; tick < 10; tick++) await deferredTick();
     assert.equal(get('wizard-retry').hidden, true);
     assert.equal(get('copy-setup').disabled, false);
   }
@@ -153,9 +181,6 @@ async function run(fictional, options = {}) {
     assert.match(copies.at(-1), /background tasks/);
     assert.match(copies.at(-1), /how to disconnect/);
   }
-  assert.equal(next.disabled, false);
-  await next.listeners.click();
-  assert.equal(get('wizard-progress-label').textContent, 'Step 2 of 6');
   assert.equal(next.disabled, fictional ? false : true, 'personal data must require acknowledgment');
   if (!fictional) { ack.checked = true; await ack.listeners.change(); }
   await next.listeners.click(); await next.listeners.click();

@@ -11,27 +11,26 @@ provides the model and conversation.
 
 ## Guided ChatGPT desktop setup (unreleased)
 
-The Connect AI page provides a step-by-step guide for supported ChatGPT desktop
-versions on the same Mac. Complete each action in ChatGPT, then select Next in
-Open Health Atlas. Back returns to the previous step. The guide uses the selected
-workspace and timezone. Start with fictional records.
+The Connect AI page starts with **Connect with your agent**. Copy the prepared
+instructions into a desktop agent that can access local files and tools, such
+as a local Codex task. The agent can back up and merge the connection settings,
+reconnect the client and check the health tools. A browser or phone chat cannot
+perform this local setup just from the copied text.
 
-The guide starts with instructions for opening the desktop app and confirming
-the workspace. It then shows how to find MCP server settings, copy the local
-command and its separate arguments, save and restart, and check the server in
-ChatGPT. If MCP servers or STDIO are absent, use the in-page help and the
-[official OpenAI MCP guide](https://learn.chatgpt.com/docs/extend/mcp).
-ChatGPT web and phone sessions are not configured by this local guide.
+Choose **It's connected** to try a small query in the selected workspace. This
+records your report; it does not verify the connection automatically. Personal
+records still require explicit sharing approval. Choose **I need help** if setup
+did not work. The guide explains unsupported clients before offering manual
+instructions for a desktop client with **MCP servers** and **STDIO** settings.
+Back follows the route you took. The
+[official OpenAI MCP guide](https://learn.chatgpt.com/docs/extend/mcp) describes
+the supported desktop connection.
 
-Selecting Next records progress through the instructions. The guide does not
-inspect ChatGPT, install a connection, or verify tool access. Confirm that the
-client actually discovers the health tools and completes a query with evidence.
-Before using personal records, approve which records may be sent to OpenAI.
-The page does not create a tunnel, edit client settings, or read health records.
-
-The published 0.2.6 installer retains the previous setup screen until a new
-installer is built and released. Other local AI clients can still use the
-secondary **Other AI apps / setup agent** instructions.
+The manual route keeps the existing workspace, command, arguments and restart
+instructions. Copying never advances the guide. The app itself does not edit
+another client's settings, create a tunnel or read health records. The published
+0.2.6 installer remains unchanged until a new release is built. Other local AI
+clients can still use the secondary **Other AI apps / setup agent** instructions.
 
 ## Connect from the installed macOS app
 

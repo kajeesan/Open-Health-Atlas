@@ -60,6 +60,19 @@
 .wizard-status.warning { color: var(--help-secondary); }
 .wizard-retry { margin: -4px 0 14px; }
 .wizard-step-panel { min-height: 170px; }
+.wizard-agent-panel { min-height: 170px; }
+.wizard-agent-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.wizard-agent-actions button { min-height: 44px; }
+.wizard-agent-actions > p { flex-basis: 100%; margin: 0; color: var(--help-secondary); font-size: 14px; }
+.wizard-agent-copy-row { margin-top: 16px; }
+.wizard-agent-scope { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: var(--help-secondary); }
+.wizard-agent-scope a { white-space: nowrap; }
+#wizard-agent-copy-status:empty { display: none; }
+.help-wizard[data-mode="agent"] .wizard-progress,
+.help-wizard[data-mode="agent"] .wizard-navigation,
+.help-wizard[data-mode="agent"] #wizard-workspace-context { display: none; }
+.help-wizard[data-mode="agent"] .wizard-status:not(.error):not(.warning) { display: none; }
+.wizard-agent-prompt { max-height: 220px !important; }
 .wizard-step-panel h2 { margin: 0 0 12px; font-size: 25px; line-height: 1.2; }
 .wizard-step-panel h2:focus { outline: none; }
 .wizard-kicker { margin: 0 0 8px !important; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
