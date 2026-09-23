@@ -18,11 +18,12 @@ the calculations; the external model provides the interpretation.
 [Connect an MCP client](docs/LOCAL_MCP.md) ·
 [Develop the project](docs/DEVELOPMENT.md)**
 
-**macOS desktop preview:** a bundled native app is being verified. See the
+**macOS desktop preview:** Open Health Atlas 0.2.7 is a signed-notarized Apple
+silicon preview. See the [0.2.7 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
+and its attached receipts for exact artifact verification. The
 [installation and build guide](docs/DESKTOP.md) and
-[tested/blocked acceptance matrix](docs/DESKTOP_ACCEPTANCE.md). A notarized
-public installer is not yet available; evaluation artifacts are not a normal
-public release.
+[tested/blocked acceptance matrix](docs/DESKTOP_ACCEPTANCE.md) record the
+remaining platform limits.
 
 ![Fictional Open Health Atlas dashboard with Muscle Balance and Athletic Profile radar charts, front and back strength-balance body diagrams, and the navigation sidebar.](docs/assets/fictional-demo-overview-v2.png)
 
@@ -39,7 +40,7 @@ Google Health, Hevy, Cronometer and a Hostinger VPS have their own sections on t
 | I want to… | Start here |
 | --- | --- |
 | See the interface without installing anything | [Open the browser demo](https://kajeesan.com/openhealthatlas-demo/) — a clickable, read-only fictional snapshot, with no backend or AI connected. |
-| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) (Apple silicon, signed and notarized 0.2.5 preview). |
+| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) (Apple silicon, signed and notarized 0.2.7 preview). |
 | Run the real panel and try fictional data locally | [Try the local demo](docs/TRY_DEMO.md#run-the-local-panel) — includes the local API and write broker. |
 | Use my preferred AI client with local data | [Connect an MCP client](docs/LOCAL_MCP.md) — copyable setup and a fictional query → analysis → evidence example. |
 | Change code or contribute | [Develop the project](docs/DEVELOPMENT.md) — environment, relevant tests and contribution guidance. |
@@ -88,9 +89,8 @@ entry point uses stdio. Clients requiring remote MCP need a separate transport
 setup.
 
 A macOS desktop packaging preview includes the existing dashboard, guided
-local workspaces and a bundled optional MCP executable. The [0.2.5 preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5)
-is prepared for Developer ID signing and Apple notarization; check its
-release notes for the exact published artifact. Clean-Mac
+local workspaces and a bundled optional MCP executable. The [0.2.7 preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
+has exact artifact and receipt details in its release notes. Clean-Mac
 installation and the minimum supported macOS remain unverified; this is not
 a stable-release qualification claim.
 Built-in API-key chat, a hosted multi-user service and a bundled always-on

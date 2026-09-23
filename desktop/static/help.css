@@ -1,4 +1,5 @@
 .help-page { --help-secondary: color-mix(in srgb, var(--ink) 78%, var(--bg-color)); }
+.help-page [hidden] { display: none !important; }
 .help-page .desktop-main { max-width: 820px; padding: 28px 40px 48px; }
 .help-page .desktop-header { margin-bottom: 30px; }
 .help-page h1 { font-size: clamp(34px, 4.8vw, 44px); letter-spacing: -.025em; margin-bottom: 14px; }
@@ -25,7 +26,7 @@
 .help-page .help-inline-details { margin-top: 12px; }
 .help-page summary { min-height: 44px; box-sizing: border-box; padding: 10px 0; margin: 0; font-size: 14px; }
 .help-page summary:hover { text-decoration: underline; text-underline-offset: 4px; }
-.help-page .help-prompt, .help-page .connection-config { font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: auto; max-height: 300px; border: 1px solid var(--card-border); padding: 16px; border-radius: 8px; background: var(--card-bg); color: var(--ink); scrollbar-color: var(--accent-soft) var(--bg-color); }
+.help-page .help-prompt, .help-page .connection-config, .help-page .wizard-prompt { box-sizing: border-box; max-width: 100%; min-width: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: auto; max-height: 300px; border: 1px solid var(--card-border); padding: 16px; border-radius: 8px; background: var(--card-bg); color: var(--ink); scrollbar-color: var(--accent-soft) var(--bg-color); }
 .help-page .help-privacy { margin: 22px 0 8px; padding-top: 18px; border-top: 1px solid var(--card-border); font-size: 14px; line-height: 1.65; color: var(--help-secondary); }
 .help-page .help-further { margin-top: 36px; }
 .help-page .help-further > h2, .help-page .help-advanced h2 { margin: 0 0 18px; font-size: 22px; }
@@ -49,6 +50,59 @@
 .help-page .help-optional > summary { font-size: 15px; }
 .help-page .help-optional p { font-size: 14px; color: var(--help-secondary); margin: 10px 0; }
 .help-page footer { color: var(--help-secondary); border-color: var(--card-border); font-size: 12px; }
+.help-wizard { margin-top: 28px; padding: 22px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; }
+.wizard-progress { display: grid; gap: 10px; margin-bottom: 20px; }
+.wizard-progress-label { margin: 0; color: var(--help-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.wizard-progress-track { height: 4px; overflow: hidden; border-radius: 999px; background: var(--chip); }
+.wizard-progress-track span { display: block; width: 16.667%; height: 100%; border-radius: inherit; background: var(--accent); transition: width 160ms ease; }
+.wizard-status { min-height: 0; margin: 0 0 8px; color: var(--help-secondary); font-size: 14px; }
+.wizard-status.error { color: var(--bad); }
+.wizard-status.warning { color: var(--help-secondary); }
+.wizard-retry { margin: -4px 0 14px; }
+.wizard-step-panel { min-height: 170px; }
+.wizard-agent-panel { min-height: 170px; }
+.wizard-agent-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.wizard-agent-actions button { min-height: 44px; }
+.wizard-agent-actions > p { flex-basis: 100%; margin: 0; color: var(--help-secondary); font-size: 14px; }
+.wizard-agent-copy-row { margin-top: 16px; }
+.wizard-agent-scope { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: var(--help-secondary); }
+.wizard-agent-scope a { white-space: nowrap; }
+#wizard-agent-copy-status:empty { display: none; }
+.help-wizard[data-mode="agent"] .wizard-progress,
+.help-wizard[data-mode="agent"] .wizard-navigation,
+.help-wizard[data-mode="agent"] #wizard-workspace-context { display: none; }
+.help-wizard[data-mode="agent"] .wizard-status:not(.error):not(.warning) { display: none; }
+.wizard-agent-prompt { max-height: 220px !important; }
+.wizard-step-panel h2 { margin: 0 0 12px; font-size: 25px; line-height: 1.2; }
+.wizard-step-panel h2:focus { outline: none; }
+.wizard-kicker { margin: 0 0 8px !important; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.wizard-step-panel > p:not(.wizard-kicker):not(.wizard-muted) { max-width: 62ch; }
+.wizard-muted { color: var(--help-secondary); font-size: 14px; }
+.wizard-workspace { margin: 18px 0 12px; padding: 12px 0; border-block: 1px solid var(--card-border); background: color-mix(in srgb, var(--ink) 3%, var(--card-bg)); font-weight: 650; overflow-wrap: anywhere; }
+.wizard-privacy-note { color: var(--help-secondary); }
+.wizard-check { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 12px; font-size: 14px; line-height: 1.55; }
+.wizard-check input { width: 18px; height: 18px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--accent); }
+.wizard-change-workspace { display: inline-flex; min-height: 44px; align-items: center; font-size: 14px; }
+.wizard-instructions { max-width: 60ch; padding-left: 24px; }
+.wizard-instructions li { margin: 0 0 14px; padding-left: 4px; }
+.wizard-help-branch { margin-top: 24px; border-top: 1px solid var(--card-border); }
+.wizard-help-branch summary { font-weight: 600; }
+.wizard-help-branch p { max-width: 62ch; color: var(--help-secondary); font-size: 14px; }
+.wizard-help-branch a { font-size: 14px; }
+.wizard-config-fields { display: grid; gap: 0; margin: 18px 0; }
+.wizard-config-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--card-border); }
+.wizard-config-value { min-width: 0; display: grid; gap: 4px; }
+.wizard-config-label { color: var(--help-secondary); font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+.wizard-config-value code { overflow-wrap: anywhere; word-break: break-word; color: var(--ink); background: transparent; font-size: 13px; }
+.wizard-copy-field { min-height: 40px !important; padding: 8px 12px !important; }
+.wizard-copy-feedback { min-width: 70px; color: var(--help-secondary); font-size: 12px; }
+.wizard-prompt { margin: 14px 0; max-height: 240px !important; }
+.wizard-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.wizard-feedback { min-height: 24px; margin: 14px 0 0; color: var(--help-secondary); font-size: 14px; }
+.wizard-navigation { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: space-between; gap: 12px; margin: 20px -22px -22px; padding: 14px 22px 22px; border-top: 1px solid var(--card-border); background: var(--card-bg); }
+.wizard-navigation button { min-width: 92px; min-height: 44px; }
+.help-secondary-setup { margin-top: 26px; padding-top: 2px; }
+.help-secondary-setup > summary { font-weight: 650; }
 @media (max-width: 560px) {
   .help-page .desktop-main { padding: 20px 22px 36px; }
   .help-page .desktop-header { margin-bottom: 20px; gap: 16px; }
@@ -59,4 +113,9 @@
   .help-page .help-primary { width: 100%; }
   .help-selection { gap: 0; }
   .help-page .integration-description, .help-page .integration-list details { margin-left: 0; }
+  .help-wizard { padding: 18px; }
+  .wizard-step-panel { min-height: 190px; }
+  .wizard-config-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wizard-copy-feedback { grid-column: 1 / -1; min-height: 18px; }
+  .wizard-navigation { margin-inline: -18px; margin-bottom: -18px; padding: 14px 18px 18px; }
 }

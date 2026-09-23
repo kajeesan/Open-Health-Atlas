@@ -22,22 +22,113 @@
     </nav>
     {% if help_section == 'ai' %}
     <section class="help-connection" id="ai-connection" aria-labelledby="connect-title">
-      <h1 id="connect-title">Let your agent set it up.</h1>
-      <p class="desktop-intro">Copy the instructions below and paste them into Codex or another setup agent. It will connect your preferred AI app and check that it works.</p>
-      <div class="help-selection">
-        <p id="connection-workspace" role="status">Checking your workspace…</p>
-        <a href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a>
+      <h1 id="connect-title">Connect ChatGPT Desktop</h1>
+      <p class="desktop-intro">Try your agent first. We’ll guide you manually if you need help.</p>
+      <div class="help-wizard" id="chatgpt-wizard" aria-labelledby="connect-title">
+        <div class="wizard-progress" aria-label="Connection progress">
+          <p id="wizard-progress-label" class="wizard-progress-label" role="status">Start here</p>
+          <div class="wizard-progress-track" aria-hidden="true"><span id="wizard-progress-bar"></span></div>
+        </div>
+        <div id="wizard-load-status" class="wizard-status" role="status" aria-live="polite">Checking your workspace…</div>
+        <button id="wizard-retry" class="wizard-retry" type="button" hidden>Try again</button>
+        <a id="wizard-select-workspace" class="wizard-change-workspace" href="{{ url_for('desktop.setup', return_to=return_path) }}" hidden>Choose a workspace</a>
+        <div id="wizard-workspace-context" class="wizard-workspace-context" hidden>
+          <div id="wizard-workspace-summary" class="wizard-workspace" role="status">Loading the selected workspace…</div>
+          <p id="wizard-privacy-note" class="wizard-privacy-note">Choose a workspace before continuing.</p>
+          <label id="wizard-privacy-check" class="wizard-check"><input id="wizard-privacy-ack" type="checkbox"> I understand that ChatGPT may send records returned by this connection to OpenAI, and I approve personal data sharing before I test this workspace.</label>
+          <a class="wizard-change-workspace" href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a>
+        </div>
+        <div class="wizard-panels">
+          <section class="wizard-step-panel wizard-agent-panel" data-wizard-mode="agent" aria-labelledby="wizard-agent-title">
+            <h2 id="wizard-agent-title" tabindex="-1">Connect with your agent</h2>
+            <p>Copy these instructions into a desktop agent with access to this Mac’s files and tools, such as a local Codex task.</p>
+            <p class="wizard-agent-scope"><span id="wizard-agent-scope">Checking your workspace…</span> <a href="{{ url_for('desktop.setup', return_to=return_path) }}">Change workspace</a></p>
+            <div class="wizard-agent-copy-row">
+              <button id="wizard-agent-copy" class="help-primary" type="button" disabled>Copy setup instructions</button>
+            </div>
+            <p id="wizard-agent-copy-status" class="wizard-feedback" role="status" aria-live="polite"></p>
+            <div class="wizard-agent-actions">
+              <p>After your agent finishes:</p>
+              <button id="wizard-agent-connected" type="button" disabled>It’s connected</button>
+              <button id="wizard-agent-help" type="button">I need help</button>
+            </div>
+            <details id="wizard-agent-prompt-details" class="wizard-help-branch">
+              <summary>View setup instructions</summary>
+              <pre id="wizard-agent-prompt" class="wizard-prompt">The setup instructions are loading…</pre>
+            </details>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="1" aria-labelledby="wizard-step-1-title">
+            <h2 id="wizard-step-1-title" tabindex="-1">Open ChatGPT Desktop on this Mac</h2>
+            <p>Sign in to the supported ChatGPT Desktop app on the same Mac as Open Health Atlas. This guide is for the desktop app, not ChatGPT in a browser or on a phone.</p>
+            <p class="wizard-muted">Keep this Open Health Atlas window open while you follow the steps in ChatGPT.</p>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="2" aria-labelledby="wizard-step-2-title" hidden>
+            <h2 id="wizard-step-2-title" tabindex="-1">Confirm your workspace and privacy choice</h2>
+            <p>Review the workspace and privacy choice above before continuing to the manual MCP settings.</p>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="3" aria-labelledby="wizard-step-3-title" hidden>
+            <h2 id="wizard-step-3-title" tabindex="-1">Open MCP server settings</h2>
+            <ol class="wizard-instructions">
+              <li>Open <strong>Settings</strong>.</li>
+              <li>Select <strong>MCP servers</strong>, then choose <strong>Add server</strong>.</li>
+              <li>Choose <strong>STDIO</strong> for the connection type.</li>
+            </ol>
+            <details id="wizard-missing-options" class="wizard-help-branch">
+              <summary>I don’t see MCP servers or STDIO</summary>
+              <p>Make sure you are signed in to the current ChatGPT Desktop app. An older desktop version may not show this menu yet; check its normal update path and the official guide. If the menu is still absent, stop here and use OpenAI support or another supported local MCP client rather than changing this app. ChatGPT on the web uses remote tools and does not read this local configuration.</p>
+              <a href="https://learn.chatgpt.com/docs/extend/mcp" target="_blank" rel="noopener noreferrer">Read the official MCP setup guide</a>
+            </details>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="4" aria-labelledby="wizard-step-4-title" hidden>
+            <h2 id="wizard-step-4-title" tabindex="-1">Add the local server</h2>
+            <p>Enter these values in separate fields and copy each value exactly.</p>
+            <div id="wizard-config-fields" class="wizard-config-fields" aria-live="polite">
+              <p class="wizard-muted">Connection settings are loading…</p>
+            </div>
+            <details class="wizard-help-branch">
+              <summary>If your form looks different</summary>
+              <p>Use the same server name, choose STDIO, then enter the command and each argument in order. Some clients offer one JSON editor instead; use this exact configuration there and do not turn it into a shell command.</p>
+              <pre id="wizard-full-config" class="wizard-prompt">The complete configuration is loading…</pre>
+            </details>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="5" aria-labelledby="wizard-step-5-title" hidden>
+            <h2 id="wizard-step-5-title" tabindex="-1">Save and restart the connection</h2>
+            <ol class="wizard-instructions">
+              <li>Select <strong>Save</strong>, then select <strong>Restart</strong> in ChatGPT’s MCP setup.</li>
+              <li>Return here when the server list is ready.</li>
+            </ol>
+            <p class="wizard-muted">Open Health Atlas cannot see or change ChatGPT’s settings. The next step is your confirmation.</p>
+          </section>
+          <section class="wizard-step-panel" data-wizard-step="6" aria-labelledby="wizard-step-6-title" hidden>
+            <h2 id="wizard-step-6-title" tabindex="-1">Ask ChatGPT to show the connection</h2>
+            <p>In ChatGPT Desktop, type <code>/mcp</code>. When <strong>openhealthatlas</strong> appears in the connected server list, copy this message into a chat to discover the tools and run a small read-only check.</p>
+            <details class="wizard-help-branch wizard-test-message">
+              <summary>Show the bounded test message</summary>
+              <pre id="wizard-validation-prompt" class="wizard-prompt">The validation prompt is loading…</pre>
+            </details>
+            <div class="wizard-actions"><button id="wizard-copy-prompt" class="help-primary" type="button" disabled>Copy test message</button></div>
+            <p id="wizard-finish-status" class="wizard-feedback" role="status" aria-live="polite"></p>
+            <p class="wizard-muted">Check the result in ChatGPT before finishing.</p>
+          </section>
+        </div>
+        <div class="wizard-navigation">
+          <button id="wizard-back" type="button" disabled>Back</button>
+          <button id="wizard-next" class="help-primary" type="button" disabled>Next</button>
+        </div>
       </div>
-      <p class="help-note">Try fictional records first. Your agent will need permission to change your AI app’s connection settings.</p>
-      <div class="help-actions"><button class="help-primary" id="copy-setup" type="button" disabled>Copy setup instructions</button></div>
-      <p id="connection-status" class="help-feedback" role="status" aria-live="polite"></p>
-      <details id="connection-details" class="help-inline-details">
-        <summary>View connection settings</summary>
-        <p class="help-note">This is the complete instruction your agent will receive, including the connection settings for this workspace.</p>
-        <pre id="connection-instructions" class="help-prompt">Choose a workspace to prepare your instructions.</pre>
+      <details id="generic-ai-setup" class="help-inline-details help-secondary-setup">
+        <summary>Other AI apps / setup agent</summary>
+        <p class="help-note">Use another AI app? Copy these instructions for a local setup agent.</p>
+        <div class="help-actions"><button class="help-primary" id="copy-setup" type="button" disabled>Copy setup instructions</button></div>
+        <p id="connection-status" class="help-feedback" role="status" aria-live="polite"></p>
+        <details id="connection-details" class="help-inline-details">
+          <summary>View connection settings</summary>
+          <p class="help-note">These are the exact local settings prepared for the selected workspace.</p>
+          <pre id="connection-instructions" class="help-prompt">Choose a workspace to prepare your instructions.</pre>
+        </details>
       </details>
-      <p class="help-privacy">Copies connection details and local folder paths, not health records or passwords. Your AI may send the records it later reads to its model provider. Review that choice before using personal data.</p>
-      <p class="help-note">Your dashboard works without AI. This connection can read records and calculate patterns; it cannot edit your health records.</p>
+      <p class="help-privacy">This connection copies configuration and local folder paths, not health records or passwords. Review any personal-data sharing choice in ChatGPT before using a personal workspace.</p>
+      <p class="help-note">Your dashboard works without AI. The MCP connection is read-only for health records and calculations.</p>
     </section>
     <section class="help-further" aria-labelledby="more-help-title">
       <h2 id="more-help-title">When you need a little more help</h2>

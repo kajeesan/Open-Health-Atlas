@@ -1408,3 +1408,34 @@ Push, merge, hosted checks and release publication remain separate gates. Local 
 
 This closes Milestone 4 and the approved toolkit modularization plan. The
 feature branch and sealed local package remain unpublished.
+
+## Guided ChatGPT desktop setup, 23 September 2026
+
+The Connect AI page now guides supported ChatGPT desktop users through one step
+at a time, with Back and Next controls. It preserves the selected workspace and
+exact command arguments, separates personal-data approval from fictional setup,
+and keeps the generic setup-agent instructions available. Loading failures,
+missing workspaces, unavailable MCP settings and copying failures have recovery
+paths. Completing the guide records only the user's confirmation. That
+confirmation does not prove that ChatGPT is connected. See
+[Guided ChatGPT desktop setup](DESKTOP_MCP.md#guided-chatgpt-desktop-setup).
+
+Forty focused desktop-guide, server-boundary, MCP-configuration and
+release-scanner tests passed. A fictional source preview verified the six-step
+flow, navigation, missing-settings help, copy feedback, the generic instructions,
+and desktop/narrow layouts. The first visual pass found that the initial screen
+was unnecessarily tall. One bounded correction kept navigation visible and
+simplified the configuration rows. The JavaScript harness covers clipboard
+payload handling. Browser feedback alone does not prove a client connection.
+The protected ChatGPT settings surface was not inspected. No client configuration
+was changed, and no signed installer was modified. The published 0.2.6 release
+remains unchanged. The only scanner policy addition is the reviewed official
+documentation host `learn.chatgpt.com`.
+
+The subsequent local revision makes agent-assisted setup the first route. Users
+copy instructions for a local desktop agent, then choose **It's connected** to
+test the connection or **I need help** to open the manual steps directly.
+The MCP settings step retains help for unsupported clients.
+Personal-workspace approval remains required before the test, and
+Back follows the selected route. The supplied configuration and read-only
+connection are unchanged. This remains an unreleased interface change.

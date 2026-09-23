@@ -2,7 +2,7 @@
 
 Install Open Health Atlas, connect your preferred AI, and try a question with fictional records. You can do this without Telegram, Hermes, Google Health, Hevy or a rented server.
 
-This guide covers the **0.2.5 Mac preview**, checked on 20 September 2026. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
+This guide covers the **0.2.7 Mac preview**. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
 
 **Your route:** Install → Try fictional data → Connect your AI → Ask your first question.
 
@@ -24,8 +24,8 @@ You still handle account sign-in, purchases, private credential entry and decisi
 
 ## 1. Install Open Health Atlas
 
-1. Open the [0.2.5 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5).
-2. Under **Assets**, download `openhealthatlas-0.2.5-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
+1. Open the [0.2.7 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7).
+2. Under **Assets**, download `openhealthatlas-0.2.7-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
 3. Open the downloaded file. Drag the **Open Health Atlas** icon onto **Applications**. If replacing an older version, first [back up your workspaces](DESKTOP.md#update-back-up-or-remove-the-app), quit the app and disconnect its AI clients.
 4. Eject the installer, then open **Open Health Atlas** from Applications.
 5. Select **Try fictional data**, check the timezone, and choose **Continue**. Wait for the dashboard to open.
@@ -38,7 +38,7 @@ You do not need to install Python, use Terminal or buy a model subscription for 
 
 ```text
 Help me install Open Health Atlas's Mac preview and open fictional data.
-Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.5 and
+Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7 and
 its matching documentation. Check my OS and Apple silicon compatibility.
 For this release, use the signed-notarized macos-arm64 DMG, verify it
 against the published checksum, and preserve normal Gatekeeper checks.
@@ -54,16 +54,20 @@ before doing anything else. Finish with how to open and quit the app.
 
 ## 2. Connect your preferred AI
 
+For the guided ChatGPT Desktop flow, see
+[Guided ChatGPT desktop setup](DESKTOP_MCP.md#guided-chatgpt-desktop-setup).
+
 Do this while the **fictional workspace** is selected.
 
 1. Open **Desktop help & AI connection**. In a narrow window, find it under **More**.
-2. Select the **Connect AI** tab and check the workspace shown.
-3. Choose **Copy setup instructions**. This copies one complete instruction, including the connection settings for that workspace.
-4. Paste it into Codex or another setup agent that can work with local apps and files. It will configure and test the connection in your preferred AI app.
+2. Select the **Connect AI** tab and check the workspace and scope shown. The timezone is included in the setup instructions.
+3. Choose **Copy setup instructions**. Paste it into a local desktop agent that can access files and tools on this Mac.
+4. When the agent reports that it finished, choose **It's connected**. The next message asks it to discover the five tools and run a small read-only check.
+5. If the agent cannot access the Mac, choose **I need help**. Continue manually only after confirming ChatGPT Desktop shows Settings → MCP servers → Add server → STDIO.
 
-**View connection settings** shows the exact instruction before you copy it. There is no separate settings download or second copy step in this flow. The copied text includes local file paths, but no health records or passwords. Keep it private.
+**View setup instructions** shows the exact agent instruction before you copy it. After the agent reports completion, the guide offers a separate **Copy test message** for the verification step. The copied text includes local file paths, but no health records or passwords. Keep it private.
 
-The agent should check that your AI app supports **local stdio MCP**. A remote-URL-only client cannot launch the bundled local connection. Model credentials belong in your AI app's secure settings, never in this instruction.
+The agent should check that your AI app supports **local stdio MCP**. A remote-URL-only client, browser chat or phone chat cannot launch the bundled local connection. Model credentials belong in your AI app's secure settings, never in this instruction.
 
 **Finished when:** the AI app can actually call `health_catalog`, `health_query`, `health_analyze`, `health_evidence` and `health_task_status`, and a fictional query and evidence check succeed. Saving settings alone is not a completed connection.
 
