@@ -26,7 +26,7 @@
 .help-page .help-inline-details { margin-top: 12px; }
 .help-page summary { min-height: 44px; box-sizing: border-box; padding: 10px 0; margin: 0; font-size: 14px; }
 .help-page summary:hover { text-decoration: underline; text-underline-offset: 4px; }
-.help-page .help-prompt, .help-page .connection-config { font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: auto; max-height: 300px; border: 1px solid var(--card-border); padding: 16px; border-radius: 8px; background: var(--card-bg); color: var(--ink); scrollbar-color: var(--accent-soft) var(--bg-color); }
+.help-page .help-prompt, .help-page .connection-config, .help-page .wizard-prompt { box-sizing: border-box; max-width: 100%; min-width: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: auto; max-height: 300px; border: 1px solid var(--card-border); padding: 16px; border-radius: 8px; background: var(--card-bg); color: var(--ink); scrollbar-color: var(--accent-soft) var(--bg-color); }
 .help-page .help-privacy { margin: 22px 0 8px; padding-top: 18px; border-top: 1px solid var(--card-border); font-size: 14px; line-height: 1.65; color: var(--help-secondary); }
 .help-page .help-further { margin-top: 36px; }
 .help-page .help-further > h2, .help-page .help-advanced h2 { margin: 0 0 18px; font-size: 22px; }

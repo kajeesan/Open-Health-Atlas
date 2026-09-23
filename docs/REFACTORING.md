@@ -1434,7 +1434,8 @@ documentation host `learn.chatgpt.com`.
 
 The subsequent local revision makes agent-assisted setup the first route. Users
 copy instructions for a local desktop agent, then choose **It's connected** to
-test the connection or **I need help** to check compatibility before using the
-manual steps. Personal-workspace approval remains required before the test, and
+test the connection or **I need help** to open the manual steps directly.
+The MCP settings step retains help for unsupported clients.
+Personal-workspace approval remains required before the test, and
 Back follows the selected route. The supplied configuration and read-only
 connection are unchanged. This remains an unreleased interface change.

@@ -19,9 +19,9 @@ perform this local setup just from the copied text.
 
 Choose **It's connected** to try a small query in the selected workspace. This
 records your report; it does not verify the connection automatically. Personal
-records still require explicit sharing approval. Choose **I need help** if setup
-did not work. The guide explains unsupported clients before offering manual
-instructions for a desktop client with **MCP servers** and **STDIO** settings.
+records still require explicit sharing approval. Choose **I need help** to go
+directly to the manual steps. The MCP settings step includes help for clients
+without **MCP servers** or **STDIO** settings.
 Back follows the route you took. The
 [official OpenAI MCP guide](https://learn.chatgpt.com/docs/extend/mcp) describes
 the supported desktop connection.

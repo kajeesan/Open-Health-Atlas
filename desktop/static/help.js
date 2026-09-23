@@ -32,8 +32,6 @@
     const agentCopy = document.getElementById('wizard-agent-copy');
     const agentConnected = document.getElementById('wizard-agent-connected');
     const agentHelp = document.getElementById('wizard-agent-help');
-    const agentHelpPanel = document.getElementById('wizard-agent-help-panel');
-    const agentLocalSettings = document.getElementById('wizard-agent-local-settings');
     const agentCopyStatus = document.getElementById('wizard-agent-copy-status');
     const agentPrompt = document.getElementById('wizard-agent-prompt');
     const agentScope = document.getElementById('wizard-agent-scope');
@@ -265,11 +263,6 @@ ${json}`;
       }
     });
     agentHelp.addEventListener('click', () => {
-      agentHelpPanel.hidden = false;
-      agentHelpPanel.open = true;
-      agentHelpPanel.querySelector('summary')?.focus({preventScroll: true});
-    });
-    agentLocalSettings.addEventListener('click', () => {
       state.mode = 'manual';
       state.step = 2;
       state.history = ['agent'];

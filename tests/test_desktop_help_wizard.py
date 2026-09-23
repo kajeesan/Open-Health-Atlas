@@ -108,13 +108,12 @@ async function run(fictional, options = {}) {
   get('wizard-copy-prompt'); get('wizard-validation-prompt'); get('wizard-full-config');
   get('wizard-config-fields'); get('copy-setup'); get('connection-status'); get('connection-instructions');
   get('wizard-workspace-context'); get('wizard-agent-copy'); get('wizard-agent-connected');
-  get('wizard-agent-help'); get('wizard-agent-help-panel'); get('wizard-agent-local-settings');
+  get('wizard-agent-help');
   get('wizard-agent-copy-status'); get('wizard-agent-prompt');
   get('copy-setup').disabled = true; get('wizard-copy-prompt').disabled = true;
   const panels = [];
   for (let n = 1; n <= 6; n++) { const panel = new Element(`step-${n}`); panel.dataset.wizardStep = String(n); panel.tagName = 'SECTION'; panel.children.push(Object.assign(new Element(`heading-${n}`), {tagName: 'H2'})); panels.push(panel); }
   const agentPanel = new Element('agent-panel'); agentPanel.dataset.wizardMode = 'agent';
-  get('wizard-agent-help-panel').children.push(Object.assign(new Element('agent-summary'), {tagName: 'SUMMARY'}));
   const copies = [];
   let failConfig = Boolean(options.failConfig);
   const clipboardWorks = options.clipboardWorks !== false;
@@ -161,8 +160,6 @@ async function run(fictional, options = {}) {
     assert.equal(get('wizard-progress-label').textContent, 'Start here');
   }
   await get('wizard-agent-help').listeners.click();
-  assert.equal(get('wizard-agent-help-panel').hidden, false);
-  await get('wizard-agent-local-settings').listeners.click();
   assert.equal(get('wizard-progress-label').textContent, 'Step 2 of 6');
   if (options.failConfig) {
     assert.equal(get('wizard-retry').hidden, false);
