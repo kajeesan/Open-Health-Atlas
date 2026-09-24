@@ -107,7 +107,7 @@ jobs:
           codesign --verify --deep --strict "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app"
           python scripts/audit_desktop_bundle.py "$RUNNER_TEMP/oha-desktop/Open Health Atlas.app" --report "$RUNNER_TEMP/oha-desktop/bundle-audit-after.json"
       - name: Archive reviewed evaluation outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openhealthatlas-macos-arm64-local-unsigned
           path: |
