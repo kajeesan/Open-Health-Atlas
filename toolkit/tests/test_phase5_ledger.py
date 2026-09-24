@@ -3761,3 +3761,138 @@ def test_all_time_no_data_and_bounded_sparse_ranges_are_honest(db):
         "2026-01-01",
         "2026-01-10",
     )
+
+
+def test_partial_finding_write_rolls_back_with_its_caller(db):
+    result = phase4_pair_result()
+    db.commit()
+    db.execute("""CREATE TEMP TRIGGER reject_pair_component
+        BEFORE INSERT ON analysis_finding_components WHEN NEW.position=2
+        BEGIN SELECT RAISE(ABORT, 'fictional component failure'); END""")
+    before = list(db.iterdump())
+
+    with pytest.raises(sqlite3.IntegrityError, match="fictional component failure"):
+        with db:
+            persist_fixture(db, result)
+
+    assert list(db.iterdump()) == before
+
+
+def test_partial_evaluation_write_rolls_back_with_its_caller(db):
+    create_initial(db)
+    result = phase4_result(
+        start="2026-04-01", end="2026-06-30", input_tag="rollback-replication"
+    )
+    batch, _ = persist_fixture(db, result)
+    db.commit()
+    db.execute("""CREATE TEMP TRIGGER reject_hypothesis_evidence
+        BEFORE INSERT ON hypothesis_evidence_items
+        BEGIN SELECT RAISE(ABORT, 'fictional evidence failure'); END""")
+    before = list(db.iterdump())
+
+    with pytest.raises(sqlite3.IntegrityError, match="fictional evidence failure"):
+        with db:
+            ledger.refresh_batch_hypotheses(
+                db, batch_id=batch["batch_id"], created_at=CREATED
+            )
+
+    assert list(db.iterdump()) == before
+
+
+def test_annotation_write_stays_in_the_callers_transaction(db):
+    hypothesis_id, *_ = create_initial(db)
+    db.commit()
+    before = list(db.iterdump())
+
+    ledger.append_annotation(
+        db, hypothesis_id=hypothesis_id, annotation_kind="owner_note",
+        content="Fictional owner observation", source="owner", created_at=CREATED,
+    )
+    db.rollback()
+
+    assert list(db.iterdump()) == before
+
+
+@pytest.mark.parametrize(
+    ("operation", "arguments", "code"),
+    [
+        ("create_analysis_batch", {
+            "run_kind": "manual", "anchor_date": "invalid",
+            "outcome_selection": "explicit_set", "outcomes": [], "ranges": [],
+            "registry_sha256_value": REGISTRY_HASH,
+        }, "validation_error"),
+        ("start_analysis_run", {
+            "batch_id": "invalid", "range_id": "invalid", "outcome_key": OUTCOME,
+            "outcome_mode": MODE, "batch_outcomes": [(OUTCOME, MODE)],
+        }, "invalid_engine_output"),
+        ("persist_analysis_run", {
+            "run_id": "invalid", "verified": {},
+        }, "unverified_engine_output"),
+        ("fail_analysis_run", {
+            "run_id": "invalid", "reason_code": "fictional_failure",
+        }, "invalid_engine_output"),
+        ("finalize_analysis_batch", {"batch_id": "invalid"}, "invalid_engine_output"),
+        ("refresh_batch_hypotheses", {"batch_id": "invalid"}, "invalid_engine_output"),
+        ("append_annotation", {
+            "hypothesis_id": "invalid", "annotation_kind": "owner_note",
+            "content": "Fictional owner observation", "source": "owner",
+        }, "invalid_engine_output"),
+    ],
+)
+def test_rejected_ledger_write_does_not_consult_the_clock(db, monkeypatch, operation, arguments, code):
+    def unavailable_clock():
+        raise AssertionError("clock accessed before the rejected field")
+
+    monkeypatch.setattr(ledger, "_now", unavailable_clock)
+
+    with pytest.raises(ledger.LedgerError) as rejected:
+        getattr(ledger, operation)(db, **arguments)
+
+    assert rejected.value.code == code
+
+
+def test_run_lifecycle_reads_each_current_facade_clock(db, monkeypatch):
+    result = phase4_result()
+    timestamps = [f"2026-04-02T12:00:0{second}+00:00" for second in range(4)]
+    readings = iter(timestamps)
+    monkeypatch.setattr(ledger, "_now", lambda: next(readings))
+
+    batch = ledger.create_analysis_batch(
+        db, run_kind="manual", anchor_date="2026-03-31",
+        outcome_selection="explicit_set", outcomes=[(OUTCOME, MODE)],
+        ranges=[{
+            "range_role": "primary", "requested_range_kind": "bounded",
+            "requested_from": "2026-01-01", "requested_to": "2026-03-31",
+        }],
+        registry_sha256_value=REGISTRY_HASH,
+    )
+    run = ledger.start_analysis_run(
+        db, batch_id=batch["batch_id"], range_id=batch["ranges"][0]["range_id"],
+        outcome_key=OUTCOME, outcome_mode=MODE, batch_outcomes=[(OUTCOME, MODE)],
+    )
+    terminal = ledger.persist_analysis_run(
+        db, run_id=run["run_id"], verified=seal_analysis(result)
+    )
+    finalized = ledger.finalize_analysis_batch(db, batch_id=batch["batch_id"])
+
+    assert [batch["started_at"], run["started_at"], terminal["completed_at"], finalized["completed_at"]] == timestamps
+
+
+def test_promotion_and_annotation_use_the_rebound_facade_clock(db, monkeypatch):
+    result = phase4_result(
+        quality="exploratory_screen", eligible=True, effect=0.20, ci=(0.01, 0.39)
+    )
+    _, run = persist_fixture(db, result)
+    monkeypatch.setattr(ledger, "_now", lambda: "2026-04-02T12:00:00+00:00")
+
+    promoted = ledger.promote_verified_finding(
+        db, run_id=run["run_id"], verified=sealed_replay(result)
+    )
+    monkeypatch.setattr(ledger, "_now", lambda: "2026-04-03T12:00:00+00:00")
+    annotation = ledger.append_annotation(
+        db, hypothesis_id=promoted["hypothesis_id"], annotation_kind="owner_note",
+        content="Fictional owner observation", source="owner",
+    )
+
+    assert promoted["evaluation"]["evaluation"]["created_at"] == "2026-04-02T12:00:00+00:00"
+    assert annotation["created_at"] == "2026-04-03T12:00:00+00:00"

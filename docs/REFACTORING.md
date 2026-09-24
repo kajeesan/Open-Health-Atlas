@@ -1,5 +1,27 @@
 # Refactoring checkpoint
 
+## Ledger storage owner, 24 September 2026
+
+Following independent acceptance of `462c977`, `_ledger_store.py` owns
+authenticated analysis reads and batch/run persistence. Explicit facade
+wrappers supply clock callbacks and timezone where needed. The run writer
+retains its facade schema/seal checks and reads the sealed payload lazily after
+the existing run and ancestry guards. SQL, validation order and caller-owned
+transactions remain unchanged.
+
+Twelve new rollback and clock-boundary cases passed unchanged production code
+before extraction. The focused ledger, Phase 5 CLI and synthesis suites passed
+215 tests in 63.59 seconds on Python 3.12.13, with no failures, errors or skips.
+The candidate count includes those twelve cases. Five payload/database cases
+and six exception cases remain exact. Structural checks reconstruct all moved
+bodies after substituting only the explicit clock, timezone and payload inputs.
+
+Public exports and signatures remain stable. The implementation owners of
+`add_analysis_range`, `assert_terminal_batch_integrity` and
+`require_ledger_schema` now live in the store module and remain facade exports.
+The new module is in the broad inventory; narrow numerical provenance is
+unchanged. Hypothesis and annotation coordination is the next bounded extraction.
+
 ## Ledger transition owner, 24 September 2026
 
 Following independent acceptance of `4b6fd3f`, `_ledger_transitions.py` now owns
