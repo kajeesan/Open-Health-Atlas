@@ -1535,6 +1535,86 @@ def test_private_engine_sealing_fails_closed(mutate, code):
     assert exc.value.code == code
 
 
+@pytest.mark.parametrize("seal", [seal_analysis, sealed_replay], ids=["analysis", "finding"])
+def test_verified_payload_isolated_from_caller_mutation(seal):
+    verified = seal(phase4_result())
+
+    exposed = verified.payload
+    exposed["meta"]["outcome"] = "caller.changed_outcome"
+
+    assert verified.payload["meta"]["outcome"] == OUTCOME
+
+
+@pytest.mark.parametrize(
+    ("sample_changes", "message"),
+    [
+        pytest.param(
+            {"eligible_n": True},
+            "sample.eligible_n must be a nonnegative integer",
+            id="boolean_eligible_count",
+        ),
+        pytest.param(
+            {"complete_n": 91, "missing_n": -1},
+            "sample.missing_n must be a nonnegative integer",
+            id="negative_missing_before_partition",
+        ),
+        pytest.param(
+            {"exposed_n": None},
+            "sample exposed_n/unexposed_n must both be null or counts",
+            id="paired_count_nullability",
+        ),
+    ],
+)
+def test_engine_validation_reports_sample_error_before_effect_error(sample_changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    finding["sample"].update(sample_changes)
+    finding["effect"]["estimate"] = None
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
+@pytest.mark.parametrize(
+    ("effect_changes", "message"),
+    [
+        pytest.param(
+            {"estimate": None, "ci95": [0.4, -0.1]},
+            "effect.ci95 bounds are reversed",
+            id="interval_before_estimate_nullability",
+        ),
+        pytest.param(
+            {"oriented_estimate": 0.3, "oriented_ci95": None},
+            "oriented effect must equal the raw effect times one orientation",
+            id="effect_before_interval_nullability",
+        ),
+        pytest.param(
+            {"oriented_ci95": [0.1, 0.4]},
+            "oriented confidence interval disagrees with effect orientation",
+            id="interval_orientation_before_testing",
+        ),
+    ],
+)
+def test_engine_validation_reports_effect_error_before_testing_error(effect_changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    finding["effect"].update(effect_changes)
+    finding["testing"]["p"] = 2.0
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
 @pytest.mark.parametrize(
     "mutate",
     [

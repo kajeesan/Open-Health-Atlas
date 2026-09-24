@@ -772,14 +772,7 @@ def _validate_interval(value: Any, name: str) -> list[float] | None:
     return [lower, upper]
 
 
-def _validate_numeric_finding(
-    finding: Mapping[str, Any],
-    *,
-    component_count: int,
-) -> None:
-    """Reject impossible engine counts, rates, effects, and test statistics."""
-
-    sample = finding["sample"]
+def _validate_sample_counts(sample: Mapping[str, Any]) -> int:
     eligible = _nonnegative_count(sample.get("eligible_n"), "sample.eligible_n")
     complete = _nonnegative_count(sample.get("complete_n"), "sample.complete_n")
     missing = _nonnegative_count(sample.get("missing_n"), "sample.missing_n")
@@ -810,18 +803,16 @@ def _validate_numeric_finding(
                 f"sample {left_name}/{right_name} do not partition complete_n",
             )
 
-    rates = finding["rates"]
-    effect = finding["effect"]
-    testing = finding["testing"]
-    method = effect.get("method")
-    estimate = _optional_finite_number(effect.get("estimate"), "effect.estimate")
-    oriented = _optional_finite_number(
-        effect.get("oriented_estimate"), "effect.oriented_estimate"
-    )
-    raw_ci = _validate_interval(effect.get("ci95"), "effect.ci95")
-    oriented_ci = _validate_interval(
-        effect.get("oriented_ci95"), "effect.oriented_ci95"
-    )
+    return complete
+
+
+def _validate_effect_orientation(
+    *,
+    estimate: float | None,
+    oriented: float | None,
+    raw_ci: list[float] | None,
+    oriented_ci: list[float] | None,
+) -> set[int]:
     if (estimate is None) != (oriented is None):
         raise _error(
             "invalid_engine_output",
@@ -869,6 +860,34 @@ def _validate_numeric_finding(
                 "invalid_engine_output",
                 "oriented confidence interval disagrees with effect orientation",
             )
+    return orientation_candidates
+
+
+def _validate_numeric_finding(
+    finding: Mapping[str, Any],
+    *,
+    component_count: int,
+) -> None:
+    sample = finding["sample"]
+    complete = _validate_sample_counts(sample)
+    rates = finding["rates"]
+    effect = finding["effect"]
+    testing = finding["testing"]
+    method = effect.get("method")
+    estimate = _optional_finite_number(effect.get("estimate"), "effect.estimate")
+    oriented = _optional_finite_number(
+        effect.get("oriented_estimate"), "effect.oriented_estimate"
+    )
+    raw_ci = _validate_interval(effect.get("ci95"), "effect.ci95")
+    oriented_ci = _validate_interval(
+        effect.get("oriented_ci95"), "effect.oriented_ci95"
+    )
+    orientation_candidates = _validate_effect_orientation(
+        estimate=estimate,
+        oriented=oriented,
+        raw_ci=raw_ci,
+        oriented_ci=oriented_ci,
+    )
     if method is None:
         if any(value is not None for value in (estimate, oriented, raw_ci, oriented_ci)):
             raise _error(

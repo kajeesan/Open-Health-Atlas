@@ -1,5 +1,30 @@
 # Refactoring checkpoint
 
+## Ledger validation extraction, 24 September 2026
+
+This batch starts from public `main` at
+`84e931000af3a13a631d3a860437ccd271baf9a2`. Sample-count and effect-orientation
+checks now have private helpers inside `ledger.py`. Validation order, error
+codes, seal types, clock seams and caller-owned transactions remain unchanged.
+The remaining numeric checks, transitions and persistence stay in place.
+
+The focused ledger, Phase 5 CLI, synthesis, provenance and exact-cache suites
+passed 254 tests on Python 3.12.13 in 63.99 seconds, with no failures, errors or
+skips. Eight new validation-precedence and seal-isolation cases also passed
+against unchanged production code before extraction. They are included in the
+254-test candidate count.
+
+Five fictional valid cases retain identical canonical payloads and complete
+database dumps; six invalid cases retain identical exception types, codes,
+validation flags and messages. Public exports and signatures match. The broad
+surface and exact-cache identities changed, while the narrow numerical
+provenance manifest and identity remain unchanged. No stored evidence or
+fixture fingerprint was refreshed.
+
+Independent review precedes the next validation-module extraction. Full-suite
+and packaged application verification remain integration checkpoints. Interface
+work proceeds separately; profile editing is excluded from this implementation.
+
 ## Quality audit, 24 September 2026
 
 This local batch starts from public `main` at
