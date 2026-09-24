@@ -17,6 +17,13 @@ conversation responses. Browser review and the integration suite remain pending
 at this checkpoint. Insufficient-result grouping and Nutrition setup help are
 the next UI batch; a panel profile writer remains outside scope.
 
+Review follow-ups preserve keyboard focus when opening shared evidence and
+leave absent readiness counts unavailable. A separate conversation fix ignores
+late send responses after switching context, preserving the current draft and
+selected evidence. Successful replies in the active conversation reload its
+stored messages. The same focused suites then passed 127 tests in 2.94 seconds,
+without skips; fake-response checks cover late success and error responses.
+
 ## Quality audit, 24 September 2026
 
 This local batch starts from public `main` at

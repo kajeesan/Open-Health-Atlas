@@ -277,6 +277,49 @@ async function unknownReadinessStates() {
   assert.ok(constructorState.textContent.includes('Fictional requirement'));
 }
 
+async function lateSendResponse(response) {
+  const h=setup(); await h.boot();
+  h.node('ins-input').value='A-only question';
+  h.node('ins-form').listeners.submit({preventDefault(){}});
+  const switching=h.change('B');
+  h.reply('/api/chat/conversations/B',{conversation:h.people.B}); await tick();
+  h.reply('/api/chat/conversations/B/messages?limit=100',{messages:[{role:'assistant',content:'B conversation history'}]}); await switching;
+  const result=evidenceResult(h);
+  result.meta.analysis_range=h.people.B.context.range;
+  result.findings[0].finding_id='fictional-B-finding';
+  await render(h,result,{meta:{range:h.people.B.context.range},features:[]});
+  const selected=descendants(h.node('finding-groups')).find(item=>item.dataset.evidenceFinding);
+  selected.listeners.click();
+  h.node('ins-input').value='B draft';
+  h.node('ins-chat-state').textContent='B local status';
+
+  h.reply('/api/chat/conversations/A/send',response);
+  await tick();
+
+  assert.equal(h.node('ins-chat').textContent,'B conversation history');
+  assert.equal(h.node('ins-input').value,'B draft');
+  assert.equal(h.node('ins-chat-state').textContent,'B local status');
+  assert.equal(h.node('ins-input').focused,undefined);
+  assert.equal(selected['aria-pressed'],'true');
+  assert.equal(h.node('ins-selected-evidence').hidden,false);
+  assert.equal(h.requests.length,0,'A late response must not reload B');
+}
+
+async function currentSendReloadsConversation() {
+  const h=setup(); await h.boot();
+  h.node('ins-input').value='Question in the current window';
+  h.node('ins-form').listeners.submit({preventDefault(){}});
+
+  h.reply('/api/chat/conversations/A/send',{reply:'Stored answer'}); await tick();
+  h.reply('/api/chat/conversations/A',{conversation:{...h.people.A,title:'Updated conversation title'}}); await tick();
+  h.reply('/api/chat/conversations/A/messages?limit=100',{messages:[{role:'assistant',content:'Stored answer'}]}); await tick();
+
+  assert.equal(h.node('ins-chat').textContent,'Stored answer');
+  assert.ok(h.node('ins-chat-subtitle').textContent.includes('Updated conversation title'));
+  assert.equal(h.node('ins-input').disabled,false);
+  assert.equal(h.node('ins-input').focused,true);
+}
+
 const scenarios={
   context:async()=>{for(const test of [analysisSwitch,detailReordering,messageReordering,currentAnalysisRenders]) await test();},
   readiness_details:readinessDetails,
@@ -286,6 +329,9 @@ const scenarios={
   promotion,
   context_clears_evidence:contextClearsEvidence,
   unknown_readiness_states:unknownReadinessStates,
+  late_send_success:()=>lateSendResponse({reply:'A-only reply'}),
+  late_send_error:()=>lateSendResponse({ok:false,error:'A-only error'}),
+  current_send:currentSendReloadsConversation,
 };
 const scenario=process.argv[2];
 Promise.resolve().then(()=>scenarios[scenario]()).then(()=>console.log(`PASS ${scenario}`)).catch(error=>{console.error(error);process.exitCode=1;});

@@ -408,11 +408,15 @@
 
   async function sendMessage(message) {
     if (!current || current.archived) return;
+    const conversation = current;
+    const generation = contextGeneration;
+    const isCurrentTurn = () => generation === contextGeneration
+      && current && current.id === conversation.id;
     const turnSelection = selectedFindings.map((item) => Object.assign({}, item));
     const selectionEvidence = turnSelection.length ? {
       contract: "openhealthatlas-chat-evidence-v1",
       kind: "selection",
-      range: current.context.range,
+      range: conversation.context.range,
       selected_findings: turnSelection,
     } : null;
     bubble("user", message, false, selectionEvidence);
@@ -421,26 +425,30 @@
     $("ins-send").disabled = true;
     try {
       const data = await mutate(
-        `/api/chat/conversations/${encodeURIComponent(current.id)}/send`,
+        `/api/chat/conversations/${encodeURIComponent(conversation.id)}/send`,
         "POST",
         {
           message,
           turn_id: crypto.randomUUID().toLowerCase(),
-          context: current.context,
+          context: conversation.context,
           ...(turnSelection.length ? { selected_findings: turnSelection } : {}),
         }
       );
       pending.remove();
+      if (!isCurrentTurn()) return;
       bubble("assistant", data.reply, false, data.evidence);
       clearSelectedFindings();
-      await reloadConversation(current.id, false);
+      await reloadConversation(conversation.id, generation);
     } catch (error) {
       pending.remove();
+      if (!isCurrentTurn()) return;
       bubble("assistant", "Could not send: " + error.message);
     } finally {
-      $("ins-input").disabled = current.archived;
-      $("ins-send").disabled = current.archived;
-      $("ins-input").focus();
+      if (isCurrentTurn()) {
+        $("ins-input").disabled = current.archived;
+        $("ins-send").disabled = current.archived;
+        $("ins-input").focus();
+      }
     }
   }
 
