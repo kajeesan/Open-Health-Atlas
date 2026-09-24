@@ -286,6 +286,7 @@ def _engine_manifest() -> list[dict[str, str]]:
         "hermes_insights/associations.py",
         "hermes_insights/interactions.py",
         "hermes_insights/_ledger_contracts.py",
+        "hermes_insights/_ledger_hypotheses.py",
         "hermes_insights/_ledger_store.py",
         "hermes_insights/_ledger_transitions.py",
         "hermes_insights/_ledger_validation.py",

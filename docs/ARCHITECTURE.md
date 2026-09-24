@@ -335,11 +335,12 @@ owns analytical result validation, including sample counts, orientation,
 statistical methods, stability, rates and coverage. `_ledger_transitions.py`
 owns ordered hypothesis decisions and lineage/window comparisons over loaded
 records. `_ledger_store.py` owns authenticated analysis reads and batch/run
-persistence on injected connections. `ledger.py` remains the public facade and
-owns verified seals, call-time clocks and hypothesis/annotation coordination.
-It re-exports the existing public contract objects and the
-fingerprint helper consumed by synthesis. Validation and transition owners
-neither create seals nor own transactions.
+persistence on injected connections. `_ledger_hypotheses.py` coordinates
+evaluations, evidence-item appends, annotations and hypothesis read views.
+`ledger.py` retains verified seals and public verified-write gates, and supplies
+call-time clocks and timezone to its explicit wrappers. It re-exports the
+existing public contract objects and the fingerprint helper consumed by
+synthesis. These internal owners do not begin or complete transactions.
 
 The job command keeps the configured stable CLI path and fixed association/finding
 handler map. Its existing engine retains child fencing, inherited lock descriptors,
