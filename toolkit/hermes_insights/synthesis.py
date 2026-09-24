@@ -1308,13 +1308,9 @@ def _load_hypothesis_evaluation_ancestors(
     return ancestors
 
 
-def _resolve_material(
+def _resolve_material_batch(
     conn: sqlite3.Connection,
-    *,
     analysis_batch_id: str,
-    run_refs: Sequence[Mapping[str, Any]],
-    finding_refs: Sequence[Mapping[str, Any]],
-    hypothesis_refs: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     batch = _fetch_one(
         conn, "SELECT * FROM analysis_batches WHERE batch_id=?", (analysis_batch_id,),
@@ -1378,7 +1374,16 @@ def _resolve_material(
         or batch["status_reason_code"] != expected_reason
     ):
         raise SynthesisError("integrity_error", "analysis batch terminal status drift")
+    return batch
 
+
+def _resolve_material_runs(
+    conn: sqlite3.Connection,
+    *,
+    analysis_batch_id: str,
+    batch: Mapping[str, Any],
+    run_refs: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], set[str], dict[str, dict[str, Any]]]:
     runs: list[dict[str, Any]] = []
     run_ids = {str(reference["run_id"]) for reference in run_refs}
     run_by_id: dict[str, dict[str, Any]] = {}
@@ -1410,7 +1415,17 @@ def _resolve_material(
         }
         runs.append(resolved_run)
         run_by_id[row["run_id"]] = resolved_run
+    return runs, run_ids, run_by_id
 
+
+def _resolve_material_findings(
+    conn: sqlite3.Connection,
+    *,
+    batch: Mapping[str, Any],
+    finding_refs: Sequence[Mapping[str, Any]],
+    run_ids: set[str],
+    run_by_id: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for reference in finding_refs:
         row, _unused = _load_finding(conn, str(reference["finding_id"]))
@@ -1456,7 +1471,250 @@ def _resolve_material(
             "evidence": evidence,
             "membership_run_ids": membership_run_ids,
         })
+    return findings
 
+
+def _validate_linked_evaluation(
+    conn: sqlite3.Connection,
+    evaluation: Mapping[str, Any],
+    *,
+    batch: Mapping[str, Any],
+    run_item: Mapping[str, Any],
+) -> None:
+    finding_row, _unused = _load_finding(conn, evaluation["finding_id"])
+    finding_evidence = _verify_finding(
+        conn,
+        finding_row,
+        run=run_item["row"],
+        batch=batch,
+        result=run_item["result"],
+    )
+    if finding_row["evidence_fingerprint"] != evaluation["evidence_fingerprint"]:
+        raise SynthesisError(
+            "integrity_error", "evaluation/finding evidence fingerprint drift",
+        )
+    if evaluation["evidence_for"] != finding_evidence["evidence_for"]:
+        raise SynthesisError(
+            "integrity_error", "evaluation evidence-for/finding drift",
+        )
+    if evaluation["evidence_against"] != finding_evidence["evidence_against"]:
+        raise SynthesisError(
+            "integrity_error", "evaluation evidence-against/finding drift",
+        )
+    for evaluation_field, finding_field in (
+        ("confounders", "confounders"),
+        ("sample_size", "sample"),
+        ("stability", "stability"),
+    ):
+        if evaluation[evaluation_field] != finding_evidence[finding_field]:
+            raise SynthesisError(
+                "integrity_error",
+                f"evaluation {evaluation_field}/finding drift",
+            )
+    expected_effect_summary = {
+        "effect": finding_evidence["effect"],
+        "rates": finding_evidence["rates"],
+        "testing": finding_evidence["testing"],
+        "quality": finding_evidence["quality"],
+        "direction": finding_row["direction"],
+        "provenance": {
+            key: finding_evidence["provenance"].get(key)
+            for key in (
+                "analysis_version",
+                "registry_version",
+                "engine_sha256",
+                "registry_sha256",
+            )
+        },
+    }
+    if evaluation["effect_summary"] != expected_effect_summary:
+        raise SynthesisError(
+            "integrity_error", "evaluation effect_summary/finding drift",
+        )
+
+
+def _validate_dormant_evaluation(
+    conn: sqlite3.Connection,
+    hypothesis: Mapping[str, Any],
+    evaluation: Mapping[str, Any],
+    hypothesis_components: Sequence[Mapping[str, Any]],
+    *,
+    batch: Mapping[str, Any],
+    run_item: Mapping[str, Any],
+) -> None:
+    try:
+        hypothesis_candidate_key = canonical_candidate_key(
+            hypothesis["outcome_key"],
+            hypothesis["outcome_mode"],
+            [
+                {
+                    "exposure_key": component["exposure_key"],
+                    "lag_days": component["lag_days"],
+                    "window_days": component["window_days"],
+                    "transform": component["transform"],
+                }
+                for component in hypothesis_components
+            ],
+        )
+    except ProvenanceError as exc:
+        raise SynthesisError(
+            "integrity_error",
+            "dormant hypothesis candidate identity is invalid",
+        ) from exc
+    result_findings = (
+        run_item["result"].get("findings", [])
+        if isinstance(run_item["result"], Mapping)
+        else []
+    )
+    audit_matches = [
+        item
+        for item in result_findings
+        if isinstance(item, Mapping)
+        and item.get("candidate_key") == hypothesis_candidate_key
+    ]
+    if len(audit_matches) > 1:
+        raise SynthesisError(
+            "integrity_error",
+            "dormant run repeats the hypothesis candidate",
+        )
+    audit_finding_row = None
+    audit_finding_evidence = None
+    if audit_matches:
+        audit_finding_id = audit_matches[0].get("finding_id")
+        if not isinstance(audit_finding_id, str):
+            raise SynthesisError(
+                "integrity_error",
+                "dormant audit finding identity is malformed",
+            )
+        audit_finding_row, _unused = _load_finding(
+            conn, audit_finding_id,
+        )
+        audit_finding_evidence = _verify_finding(
+            conn,
+            audit_finding_row,
+            run=run_item["row"],
+            batch=batch,
+            result=run_item["result"],
+        )
+    audit_fingerprint = (
+        audit_finding_row["evidence_fingerprint"]
+        if audit_finding_row is not None
+        else None
+    )
+    dormant_provenance = {
+        "analysis_version": evaluation["source_analysis_version"],
+        "registry_version": batch["registry_version"],
+        "engine_sha256": batch["engine_sha256"],
+        "registry_sha256": batch["registry_sha256"],
+        "input_fingerprint": evaluation["input_fingerprint"],
+    }
+    expected_dormant_fingerprint = sha256_id({
+        "contract_version": LEDGER_CONTRACT_VERSION,
+        "kind": "dormant_evidence",
+        "hypothesis_id": hypothesis["hypothesis_id"],
+        "run_id": evaluation["run_id"],
+        "input_fingerprint": evaluation["input_fingerprint"],
+        "reason": evaluation["evidence_class"],
+        "analysis_version": evaluation["source_analysis_version"],
+        "registry_version": batch["registry_version"],
+        "engine_sha256": batch["engine_sha256"],
+        "registry_sha256": batch["registry_sha256"],
+        "range_from": evaluation["range_from"],
+        "range_to": evaluation["range_to"],
+        "audit_finding_evidence_fingerprint": audit_fingerprint,
+    })
+    if audit_finding_evidence is None:
+        expected_dormant = {
+            "evidence_for": [],
+            "evidence_against": [],
+            "confounders": {
+                "checked": [],
+                "unchecked": [],
+                "sensitive_to": [],
+                "weighted_effect": None,
+            },
+            "sample_size": {
+                "eligible_n": 0,
+                "complete_n": 0,
+                "missing_n": 0,
+                "reason": evaluation["evidence_class"],
+            },
+            "effect_summary": {
+                "effect": None,
+                "rates": None,
+                "testing": None,
+                "quality": None,
+                "direction": "unknown",
+                "provenance": dormant_provenance,
+            },
+            "stability": {"status": "not_evaluated"},
+        }
+    else:
+        expected_dormant = {
+            "evidence_for": [],
+            "evidence_against": [],
+            "confounders": audit_finding_evidence["confounders"],
+            "sample_size": audit_finding_evidence["sample"],
+            "effect_summary": {
+                "effect": audit_finding_evidence["effect"],
+                "rates": audit_finding_evidence["rates"],
+                "testing": audit_finding_evidence["testing"],
+                "quality": audit_finding_evidence["quality"],
+                "direction": audit_finding_row["direction"],
+                "provenance": dormant_provenance,
+            },
+            "stability": audit_finding_evidence["stability"],
+        }
+    if evaluation["evidence_fingerprint"] != expected_dormant_fingerprint:
+        raise SynthesisError(
+            "integrity_error", "dormant evaluation fingerprint drift",
+        )
+    if any(evaluation[key] != value for key, value in expected_dormant.items()):
+        raise SynthesisError(
+            "integrity_error", "dormant evaluation structured evidence drift",
+        )
+
+
+def _validate_hypothesis_origin(
+    conn: sqlite3.Connection,
+    hypothesis: Mapping[str, Any],
+    hypothesis_components: Sequence[Mapping[str, Any]],
+) -> None:
+    created = _fetch_one(
+        conn,
+        "SELECT run_id FROM analysis_runs WHERE run_id=?",
+        (hypothesis["created_by_run"],),
+    )
+    if created is None or not _finding_is_member(
+        conn,
+        run_id=str(hypothesis["created_by_run"]),
+        finding_id=str(hypothesis["created_by_finding"]),
+    ):
+        raise SynthesisError(
+            "integrity_error", "hypothesis creation ancestry drift",
+        )
+    created_components = _fetch_all(
+        conn,
+        """SELECT position,exposure_key,lag_days,window_days,transform
+                 FROM analysis_finding_components
+                WHERE finding_id=? ORDER BY position""",
+        (hypothesis["created_by_finding"],),
+    )
+    if hypothesis_components != created_components:
+        raise SynthesisError(
+            "integrity_error", "hypothesis/finding component ancestry drift",
+        )
+
+
+def _resolve_material_hypotheses(
+    conn: sqlite3.Connection,
+    *,
+    analysis_batch_id: str,
+    batch: Mapping[str, Any],
+    hypothesis_refs: Sequence[Mapping[str, Any]],
+    run_ids: set[str],
+    run_by_id: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     hypotheses: list[dict[str, Any]] = []
     for reference in hypothesis_refs:
         hypothesis, evaluation = _load_evaluation(
@@ -1523,212 +1781,15 @@ def _resolve_material(
         if not hypothesis_components:
             raise SynthesisError("integrity_error", "hypothesis components are missing")
         if evaluation["finding_id"] is not None:
-            finding_row, _unused = _load_finding(conn, evaluation["finding_id"])
-            finding_evidence = _verify_finding(
-                conn,
-                finding_row,
-                run=run_item["row"],
-                batch=batch,
-                result=run_item["result"],
+            _validate_linked_evaluation(
+                conn, evaluation, batch=batch, run_item=run_item,
             )
-            if finding_row["evidence_fingerprint"] != evaluation["evidence_fingerprint"]:
-                raise SynthesisError(
-                    "integrity_error", "evaluation/finding evidence fingerprint drift",
-                )
-            if evaluation["evidence_for"] != finding_evidence["evidence_for"]:
-                raise SynthesisError(
-                    "integrity_error", "evaluation evidence-for/finding drift",
-                )
-            if evaluation["evidence_against"] != finding_evidence["evidence_against"]:
-                raise SynthesisError(
-                    "integrity_error", "evaluation evidence-against/finding drift",
-                )
-            for evaluation_field, finding_field in (
-                ("confounders", "confounders"),
-                ("sample_size", "sample"),
-                ("stability", "stability"),
-            ):
-                if evaluation[evaluation_field] != finding_evidence[finding_field]:
-                    raise SynthesisError(
-                        "integrity_error",
-                        f"evaluation {evaluation_field}/finding drift",
-                    )
-            expected_effect_summary = {
-                "effect": finding_evidence["effect"],
-                "rates": finding_evidence["rates"],
-                "testing": finding_evidence["testing"],
-                "quality": finding_evidence["quality"],
-                "direction": finding_row["direction"],
-                "provenance": {
-                    key: finding_evidence["provenance"].get(key)
-                    for key in (
-                        "analysis_version",
-                        "registry_version",
-                        "engine_sha256",
-                        "registry_sha256",
-                    )
-                },
-            }
-            if evaluation["effect_summary"] != expected_effect_summary:
-                raise SynthesisError(
-                    "integrity_error", "evaluation effect_summary/finding drift",
-                )
         else:
-            try:
-                hypothesis_candidate_key = canonical_candidate_key(
-                    hypothesis["outcome_key"],
-                    hypothesis["outcome_mode"],
-                    [
-                        {
-                            "exposure_key": component["exposure_key"],
-                            "lag_days": component["lag_days"],
-                            "window_days": component["window_days"],
-                            "transform": component["transform"],
-                        }
-                        for component in hypothesis_components
-                    ],
-                )
-            except ProvenanceError as exc:
-                raise SynthesisError(
-                    "integrity_error",
-                    "dormant hypothesis candidate identity is invalid",
-                ) from exc
-            result_findings = (
-                run_item["result"].get("findings", [])
-                if isinstance(run_item["result"], Mapping)
-                else []
+            _validate_dormant_evaluation(
+                conn, hypothesis, evaluation, hypothesis_components,
+                batch=batch, run_item=run_item,
             )
-            audit_matches = [
-                item
-                for item in result_findings
-                if isinstance(item, Mapping)
-                and item.get("candidate_key") == hypothesis_candidate_key
-            ]
-            if len(audit_matches) > 1:
-                raise SynthesisError(
-                    "integrity_error",
-                    "dormant run repeats the hypothesis candidate",
-                )
-            audit_finding_row = None
-            audit_finding_evidence = None
-            if audit_matches:
-                audit_finding_id = audit_matches[0].get("finding_id")
-                if not isinstance(audit_finding_id, str):
-                    raise SynthesisError(
-                        "integrity_error",
-                        "dormant audit finding identity is malformed",
-                    )
-                audit_finding_row, _unused = _load_finding(
-                    conn, audit_finding_id,
-                )
-                audit_finding_evidence = _verify_finding(
-                    conn,
-                    audit_finding_row,
-                    run=run_item["row"],
-                    batch=batch,
-                    result=run_item["result"],
-                )
-            audit_fingerprint = (
-                audit_finding_row["evidence_fingerprint"]
-                if audit_finding_row is not None
-                else None
-            )
-            dormant_provenance = {
-                "analysis_version": evaluation["source_analysis_version"],
-                "registry_version": batch["registry_version"],
-                "engine_sha256": batch["engine_sha256"],
-                "registry_sha256": batch["registry_sha256"],
-                "input_fingerprint": evaluation["input_fingerprint"],
-            }
-            expected_dormant_fingerprint = sha256_id({
-                "contract_version": LEDGER_CONTRACT_VERSION,
-                "kind": "dormant_evidence",
-                "hypothesis_id": hypothesis["hypothesis_id"],
-                "run_id": evaluation["run_id"],
-                "input_fingerprint": evaluation["input_fingerprint"],
-                "reason": evaluation["evidence_class"],
-                "analysis_version": evaluation["source_analysis_version"],
-                "registry_version": batch["registry_version"],
-                "engine_sha256": batch["engine_sha256"],
-                "registry_sha256": batch["registry_sha256"],
-                "range_from": evaluation["range_from"],
-                "range_to": evaluation["range_to"],
-                "audit_finding_evidence_fingerprint": audit_fingerprint,
-            })
-            if audit_finding_evidence is None:
-                expected_dormant = {
-                    "evidence_for": [],
-                    "evidence_against": [],
-                    "confounders": {
-                        "checked": [],
-                        "unchecked": [],
-                        "sensitive_to": [],
-                        "weighted_effect": None,
-                    },
-                    "sample_size": {
-                        "eligible_n": 0,
-                        "complete_n": 0,
-                        "missing_n": 0,
-                        "reason": evaluation["evidence_class"],
-                    },
-                    "effect_summary": {
-                        "effect": None,
-                        "rates": None,
-                        "testing": None,
-                        "quality": None,
-                        "direction": "unknown",
-                        "provenance": dormant_provenance,
-                    },
-                    "stability": {"status": "not_evaluated"},
-                }
-            else:
-                expected_dormant = {
-                    "evidence_for": [],
-                    "evidence_against": [],
-                    "confounders": audit_finding_evidence["confounders"],
-                    "sample_size": audit_finding_evidence["sample"],
-                    "effect_summary": {
-                        "effect": audit_finding_evidence["effect"],
-                        "rates": audit_finding_evidence["rates"],
-                        "testing": audit_finding_evidence["testing"],
-                        "quality": audit_finding_evidence["quality"],
-                        "direction": audit_finding_row["direction"],
-                        "provenance": dormant_provenance,
-                    },
-                    "stability": audit_finding_evidence["stability"],
-                }
-            if evaluation["evidence_fingerprint"] != expected_dormant_fingerprint:
-                raise SynthesisError(
-                    "integrity_error", "dormant evaluation fingerprint drift",
-                )
-            if any(evaluation[key] != value for key, value in expected_dormant.items()):
-                raise SynthesisError(
-                    "integrity_error", "dormant evaluation structured evidence drift",
-                )
-        created = _fetch_one(
-            conn,
-            "SELECT run_id FROM analysis_runs WHERE run_id=?",
-            (hypothesis["created_by_run"],),
-        )
-        if created is None or not _finding_is_member(
-            conn,
-            run_id=str(hypothesis["created_by_run"]),
-            finding_id=str(hypothesis["created_by_finding"]),
-        ):
-            raise SynthesisError(
-                "integrity_error", "hypothesis creation ancestry drift",
-            )
-        created_components = _fetch_all(
-            conn,
-            """SELECT position,exposure_key,lag_days,window_days,transform
-                 FROM analysis_finding_components
-                WHERE finding_id=? ORDER BY position""",
-            (hypothesis["created_by_finding"],),
-        )
-        if hypothesis_components != created_components:
-            raise SynthesisError(
-                "integrity_error", "hypothesis/finding component ancestry drift",
-            )
+        _validate_hypothesis_origin(conn, hypothesis, hypothesis_components)
         hypotheses.append({
             "reference": dict(reference),
             "hypothesis": hypothesis,
@@ -1745,6 +1806,29 @@ def _resolve_material(
                 through_evaluation_id=evaluation["id"],
             ),
         })
+    return hypotheses
+
+
+def _resolve_material(
+    conn: sqlite3.Connection,
+    *,
+    analysis_batch_id: str,
+    run_refs: Sequence[Mapping[str, Any]],
+    finding_refs: Sequence[Mapping[str, Any]],
+    hypothesis_refs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    batch = _resolve_material_batch(conn, analysis_batch_id)
+    runs, run_ids, run_by_id = _resolve_material_runs(
+        conn, analysis_batch_id=analysis_batch_id, batch=batch, run_refs=run_refs,
+    )
+    findings = _resolve_material_findings(
+        conn, batch=batch, finding_refs=finding_refs,
+        run_ids=run_ids, run_by_id=run_by_id,
+    )
+    hypotheses = _resolve_material_hypotheses(
+        conn, analysis_batch_id=analysis_batch_id, batch=batch,
+        hypothesis_refs=hypothesis_refs, run_ids=run_ids, run_by_id=run_by_id,
+    )
 
     return {
         "batch": batch,

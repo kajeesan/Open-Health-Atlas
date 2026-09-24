@@ -2191,6 +2191,63 @@ def test_noncanonical_result_json_fails_closed(
         _payload(conn)
 
 
+def test_material_resolution_checks_batch_before_missing_run(conn):
+    run_refs, finding_refs, hypothesis_refs = _refs()
+    run_refs[0]["run_id"] = sha256_id({"fixture": "missing-run"})
+    conn.execute(
+        "UPDATE analysis_batches SET completed_count=0 WHERE batch_id=?",
+        (BATCH_ID,),
+    )
+
+    with pytest.raises(SynthesisError, match="terminal counts drift") as rejected:
+        synthesis_evidence_fingerprint(
+            conn, analysis_batch_id=BATCH_ID, run_refs=run_refs,
+            finding_refs=finding_refs, hypothesis_refs=hypothesis_refs,
+        )
+
+    assert rejected.value.code == "integrity_error"
+
+
+def test_material_resolution_checks_run_before_missing_finding(conn):
+    run_refs, finding_refs, hypothesis_refs = _refs()
+    finding_refs[0]["finding_id"] = sha256_id({"fixture": "missing-finding"})
+    conn.execute(
+        "UPDATE analysis_runs SET result_json=' ' || result_json WHERE run_id=?",
+        (RUN_ID,),
+    )
+
+    with pytest.raises(SynthesisError, match="not canonical JSON") as rejected:
+        synthesis_evidence_fingerprint(
+            conn, analysis_batch_id=BATCH_ID, run_refs=run_refs,
+            finding_refs=finding_refs, hypothesis_refs=hypothesis_refs,
+        )
+
+    assert rejected.value.code == "integrity_error"
+
+
+def test_material_resolution_checks_finding_before_missing_hypothesis(conn):
+    run_refs, finding_refs, hypothesis_refs = _refs()
+    hypothesis_refs[0]["hypothesis_id"] = sha256_id({"fixture": "missing-hypothesis"})
+    row = conn.execute(
+        "SELECT evidence_json FROM analysis_findings WHERE finding_id=?",
+        (FINDING_ID,),
+    ).fetchone()
+    evidence = json.loads(row["evidence_json"])
+    evidence["provenance"]["input_fingerprint"] = sha256_id({"fixture": "changed-input"})
+    conn.execute(
+        "UPDATE analysis_findings SET evidence_json=? WHERE finding_id=?",
+        (canonical_json(evidence), FINDING_ID),
+    )
+
+    with pytest.raises(SynthesisError, match="input_fingerprint ancestry drift") as rejected:
+        synthesis_evidence_fingerprint(
+            conn, analysis_batch_id=BATCH_ID, run_refs=run_refs,
+            finding_refs=finding_refs, hypothesis_refs=hypothesis_refs,
+        )
+
+    assert rejected.value.code == "integrity_error"
+
+
 def test_finding_provenance_tamper_fails_closed(
     conn: sqlite3.Connection,
 ):
