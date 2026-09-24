@@ -1,5 +1,26 @@
 # Refactoring checkpoint
 
+## Ledger transition owner, 24 September 2026
+
+Following independent acceptance of `4b6fd3f`, `_ledger_transitions.py` now owns
+the ordered hypothesis policy and its lineage, range and evidence helpers.
+All 73 original ledger declarations retain identical syntax trees across their
+owners; 19 pure helpers moved. The facade retains persistence, clocks and seals.
+The transition owner is included in the broad source inventory; numerical
+provenance remains unchanged.
+
+Before/after replay of 43 existing fictional histories preserves the canonical
+JSON bytes for 112 complete decisions, their inputs and full database dumps.
+This covers terminal rejection, incompatibility before dormancy, overlap and
+new-observation accounting. Those replays are comparison evidence, not
+additional distinct tests. The focused ledger, CLI, synthesis, orchestration,
+reversal and weekly-no-novelty trace checks passed 228 tests in 147.43 seconds
+on Python 3.12.13, with no failures, errors or skips.
+
+An isolated desktop source-copy layout passed three fresh import orders and
+retained its source identities and seal boundaries. Independent review precedes
+the persistence extraction; full integrated qualification remains a later gate.
+
 ## Ledger validation owners, 24 September 2026
 
 Following independent acceptance of `1eadde3`, shared contracts and analytical
