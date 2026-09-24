@@ -5,8 +5,8 @@
 Following independent acceptance of `4b6fd3f`, `_ledger_transitions.py` now owns
 the ordered hypothesis policy and its lineage, range and evidence helpers.
 All 73 original ledger declarations retain identical syntax trees across their
-owners; 19 pure helpers moved. The facade retains persistence, clocks and seals.
-The transition owner is included in the broad source inventory; numerical
+owners. Nineteen pure helpers moved. The facade retains persistence, clocks and seals.
+The transition owner is included in the broad source inventory. Numerical
 provenance remains unchanged.
 
 Before/after replay of 43 existing fictional histories preserves the canonical
@@ -19,7 +19,7 @@ on Python 3.12.13, with no failures, errors or skips.
 
 An isolated desktop source-copy layout passed three fresh import orders and
 retained its source identities and seal boundaries. Independent review precedes
-the persistence extraction; full integrated qualification remains a later gate.
+the persistence extraction. Full integrated qualification remains a later gate.
 
 ## Ledger validation owners, 24 September 2026
 
@@ -28,7 +28,7 @@ validation move into private ledger modules. The
 [architecture guide](ARCHITECTURE.md#feature-ledger-and-orchestration-command-ownership)
 records their responsibilities. The facade retains seal creation, its single
 token, call-time clocks and all persistence. Public functions, error and result
-types retain explicit facade exports; their implementation module changes are
+types retain explicit facade exports. Their implementation module changes are
 recorded separately from behavioral compatibility.
 
 Four new first-failure cases passed unchanged production code before extraction.
@@ -43,9 +43,9 @@ Structural comparison accounts for every original declaration. The desktop
 builder's source-copy routine produced an isolated layout that passed three
 fresh import orders, seal-isolation checks and public compatibility checks.
 This is source-layout verification, not a native application build. Both new
-modules are registered in the broad surface inventory; the narrow numerical
+modules are registered in the broad surface inventory. The narrow numerical
 provenance identity remains unchanged. Independent review precedes transition
-extraction; integration owns the later full-suite and packaged application gates.
+extraction. Integration owns the later full-suite and packaged application gates.
 
 ## Ledger validation extraction, 24 September 2026
 
@@ -62,7 +62,7 @@ against unchanged production code before extraction. They are included in the
 254-test candidate count.
 
 Five fictional valid cases retain identical canonical payloads and complete
-database dumps; six invalid cases retain identical exception types, codes,
+database dumps. Six invalid cases retain identical exception types, codes,
 validation flags and messages. Public exports and signatures match. The broad
 surface and exact-cache identities changed, while the narrow numerical
 provenance manifest and identity remain unchanged. No stored evidence or
@@ -70,7 +70,53 @@ fixture fingerprint was refreshed.
 
 Independent review precedes the next validation-module extraction. Full-suite
 and packaged application verification remain integration checkpoints. Interface
-work proceeds separately; profile editing is excluded from this implementation.
+work proceeds separately. Profile editing is excluded from this implementation.
+
+## Result grouping and Nutrition setup help, 24 September 2026
+
+The Explorer now groups insufficient findings within each outcome mode, with
+counts, engine reasons and a Show all findings action. Every finding remains
+inspectable in its received order within the group. An all-insufficient window
+is labelled explicitly. Other findings and their conflicting evidence remain
+visible.
+
+Nutrition uses one shared setup explanation with the exact engine reason.
+Profile, weight and configuration are separate prerequisites. Help requires an
+explicit workspace database and timezone for CLI setup and distinguishes an
+authorized local operator from the read-only MCP connection. Logged totals,
+available water targets, meal/batch controls and persistent validation feedback
+remain in place. No profile writer, backend, broker or schema change is included.
+
+The focused Insights, Phase 7, Nutrition API, shell and nutrition workflow
+boundary suites passed 205 tests in 6.94 seconds, without skips. New browser
+harness cases cover grouping/order, conflicting evidence, expansion/selection,
+target refusal reasons, request failures, populated targets and batch errors.
+Live browser review and combined full-suite/package verification remain pending
+at this checkpoint.
+
+## Insight evidence readability, 24 September 2026
+
+This UI batch starts from merged `main` at
+`84e931000af3a13a631d3a860437ccd271baf9a2`. The Explorer labels all six
+readiness states and reveals the engine's feature prerequisites, gate failures
+and dates. Finding summaries retain sample counts, effects, intervals and
+limitations. Reversible evidence details keep full statistics and identifiers.
+Shared analysis metadata appears once, with differing finding provenance retained.
+
+Changes are confined to the Explorer script/template, scoped panel styles and
+its existing Node-backed browser tests. The focused Insights API and Phase 7
+conversation suites passed 123 tests in 2.53 seconds, without skips. These checks
+include safe text rendering, evidence identity, selection, promotion and stale
+conversation responses. Browser review and the integration suite remain pending
+at this checkpoint. Insufficient-result grouping and Nutrition setup help are
+the next UI batch. A panel profile writer remains outside scope.
+
+Review follow-ups preserve keyboard focus when opening shared evidence and
+leave absent readiness counts unavailable. A separate conversation fix ignores
+late send responses after switching context, preserving the current draft and
+selected evidence. Successful replies in the active conversation reload its
+stored messages. The same focused suites then passed 127 tests in 2.94 seconds,
+without skips. Fake-response checks cover late success and error responses.
 
 ## Quality audit, 24 September 2026
 

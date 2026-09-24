@@ -81,7 +81,7 @@
       <div class="row between wrap gap-2">
         <div>
           <h2 class="card-title" id="readiness-title">Is the data ready?</h2>
-          <p class="muted micro m0 mt-1">Every engine readiness state stays visible.</p>
+          <p class="muted micro m0 mt-1">See which records are missing and which features need more work. Readiness is for this query, not clinical reliability.</p>
         </div>
         <span class="chip" id="readiness-window"></span>
       </div>
@@ -98,12 +98,18 @@
         <h2 class="card-title" id="findings-title">Outcome findings</h2>
         <p class="muted micro m0 mt-1">Day-rating patterns grouped exactly as the analysis engine returns them.</p>
       </div>
-      <span class="chip" id="findings-meta">Not loaded</span>
+      <div class="row wrap gap-2">
+        <span class="chip" id="findings-meta">Not loaded</span>
+        <button class="btn quiet" id="findings-show-all" type="button" aria-controls="finding-groups" hidden>Show all findings</button>
+      </div>
     </div>
     <div class="window-pair mt-3">
       <div><span class="label">Analysis window</span><strong id="analysis-window">—</strong></div>
       <div><span class="label">Wider baseline used</span><strong id="baseline-window">—</strong></div>
     </div>
+    <div id="analysis-warnings" hidden></div>
+    <details class="evidence-details mt-3" id="analysis-evidence" hidden></details>
+    <p class="note-txt mt-3" id="findings-status" role="status" hidden></p>
     <div class="finding-groups mt-3" id="finding-groups" aria-busy="false"></div>
     <p class="muted note-txt m0 mt-2" id="findings-empty" hidden></p>
   </section>

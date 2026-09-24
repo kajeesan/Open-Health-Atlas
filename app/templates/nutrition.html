@@ -36,13 +36,13 @@
    the water & calories trends genuinely re-window on it (whitelisted `days`
    validated server-side; NO dead options). The KPI-4 row (r4, real targets in
    T45) reads today's real kcal/protein/water/item-count against real targets
-   once the engine is ok — honest "profile not set" otherwise, never a
+   once the engine is ok — honest unavailable-target state otherwise, never a
    fabricated denominator.
    - "% of personal target — today" (task 39 scaffold, wired live in T45):
      see the card's own comment below for the full honesty breakdown — every
      row is now real once the T44 targets engine has a profile to compute
-     from; the demo DB ships with no owner_profile row, so this renders its
-     honest "profile not set" default locally.
+     from. A shared setup disclosure preserves the reason when targets are
+     unavailable.
    Recipes tab: freezer menu, Eat-1-portion steppers, toasts, meal-type
    filter + the T47 filter pills (see the tab's own comment below). The old
    Log-by-grams card was removed by owner order in T47 — the validated
@@ -101,6 +101,30 @@
     </div>
   </div>
 
+  <section class="card nutrition-target-help" id="nTgtBanner" aria-labelledby="nTgtTitle" hidden>
+    <h2 class="card-title" id="nTgtTitle">Targets unavailable</h2>
+    <p class="note-txt mt-2" role="status"><strong id="nTgtReasonLabel">Engine reason</strong>: <span id="nTgtReason"></span></p>
+    <p class="muted note-txt m0">Your logged intake remains visible. Water uses its own target whenever the engine supplies one.</p>
+    <p class="note-txt mt-2" id="nTgtReload" hidden>Reload this page to try loading targets again.</p>
+    <details class="evidence-details" id="nutrition-target-setup">
+      <summary>How to set up targets</summary>
+      <p class="note-txt">Check the engine reason above against these separate prerequisites. More than one may be missing:</p>
+      <ul class="plain-list note-txt">
+        <li>Profile: height, sex and date of birth.</li>
+        <li>Weight: a body-weight record on or before today.</li>
+        <li>Configuration: micronutrient targets, phase offsets and protein targets.</li>
+      </ul>
+      <p class="note-txt">Setup currently uses the OpenHealthAtlas command-line toolkit, run by you or a local setup agent you authorize to edit this workspace. A connected read-only MCP client cannot save these values, and this page has no profile editor.</p>
+      <ol class="note-txt">
+        <li>Identify the intended workspace's active <code>health.db</code> and timezone. On the Mac app, use its current database generation, not the original file you imported.</li>
+        <li>Use an OpenHealthAtlas source checkout with its Python dependencies installed. Set <code>HEALTH_DB</code> explicitly to that database and <code>HERMES_TIMEZONE</code> to its timezone for every command; do not rely on the defaults.</li>
+        <li>Use <code>profile-set KEY VALUE</code> for <code>height_cm</code>, <code>sex</code> (male or female), and <code>dob</code> (YYYY-MM-DD). Record weight through the supported <code>log body_metrics</code> command or an importer. Check the nutrition configuration separately if the engine reports it missing.</li>
+        <li>Run <code>nutrition-targets</code> for the same workspace to check the result, then reload this page.</li>
+      </ol>
+      <p class="muted note-txt">Commands are subcommands of <code>python toolkit/health.py</code>. Use <code>--help</code> on a subcommand for its accepted arguments. A local setup agent must have access to the selected workspace and permission to run these tools; ordinary chat access alone is not enough.</p>
+    </details>
+  </section>
+
   <div class="subview on" data-pane="intake" data-group="nutri">
     {# KPI tile row (task 41, mock 36 top row; wired to real targets in T45):
        the design's 4-tile summary, reusing the repo's .kpis-4 stat-tile idiom.
@@ -110,9 +134,8 @@
          /api/nutrition/today totals) vs the T44 targets engine's real kcal/
          protein_g target + phase — band-colored fill + dashed 100%-target
          marker (nutrition.js fillBar/bandFor). When the engine reports
-         insufficient_data (no owner_profile row — true on the demo DB by
-         default), the bar stays an empty track and the sub-line reads the
-         honest short form "profile not set", never a fake /2,000 or 109%.
+         insufficient_data, the bar stays an empty track and the sub-line reads
+         "target unavailable", never a fake /2,000 or 109%.
        - Water: fully real — value + the engine's water_ml target (real even
          when the rest of the engine is insufficient_data — see loadWater's
          comment) + real % fill (bandFor) + real shortfall sub-line, all from
@@ -126,13 +149,13 @@
         <span class="label">Calories</span>
         <div class="kv mt-1"><span class="n" id="nKpiKcal">—</span><span class="kv-u">kcal</span></div>
         <div class="barbg mt-2" id="nKpiKcalBar"></div>
-        <p class="muted micro m0 mt-1" id="nKpiKcalSub">profile not set</p>
+        <p class="muted micro m0 mt-1" id="nKpiKcalSub">Loading target…</p>
       </div>
       <div class="card">
         <span class="label">Protein</span>
         <div class="kv mt-1"><span class="n" id="nKpiProtein">—</span><span class="kv-u">g</span></div>
         <div class="barbg mt-2" id="nKpiProteinBar"></div>
-        <p class="muted micro m0 mt-1" id="nKpiProteinSub">profile not set</p>
+        <p class="muted micro m0 mt-1" id="nKpiProteinSub">Loading target…</p>
       </div>
       <div class="card">
         <span class="label">Water</span>
@@ -168,16 +191,14 @@
          `ok` — real % fill, band color, dashed 100%-target marker, and the
          value column reads `{pct}% · target {n}{unit}`; the row LABEL always
          shows the real logged amount from /api/nutrition/today regardless of
-         engine status. When the engine is NOT ok (no owner_profile — the
-         demo DB's default), every one of these rows honestly reads "profile
-         not set" and the bar stays an empty track — never the mock's
+         engine status. When the engine is NOT ok, these target values show
+         dashes and the bars stay empty — never the mock's
          fabricated /2,000, /180 g, 109%, 125% etc.
        - Fibre never gets a numeric target (no Cronometer alias for it — see
          the T44 engine), so once the engine IS ok it reads "not in
          Cronometer export" instead of a %; the other five micros read "no
          Cronometer data today" specifically when nothing was imported today
-         (as opposed to "profile not set", which covers the engine itself
-         being unreachable).
+         (unavailable targets are explained by the shared setup disclosure).
        - Maintenance-band shading: drawn for real on the Calories card's trend
          below (markArea across band_low..band_high) — the legend chip here
          just names it, it isn't redrawn a second time on these linear bars.
@@ -194,26 +215,17 @@
         <h3 class="card-title">% of personal target — today</h3>
         <div class="row gap-2">
           <span class="muted micro">PHASE</span>
-          <div class="seg" role="group" aria-label="Diet phase — read-only, set via the coach">
+          <div class="seg" role="group" aria-label="Diet phase — read-only">
             <button type="button" id="nPhaseCut" disabled aria-disabled="true" aria-pressed="false"
-              title="Phase is set via the coach">Cut</button>
+              title="Current phase indicator">Cut</button>
             <button type="button" id="nPhaseMaintain" disabled aria-disabled="true" aria-pressed="false"
-              title="Phase is set via the coach">Maintain</button>
+              title="Current phase indicator">Maintain</button>
             <button type="button" id="nPhaseBulk" disabled aria-disabled="true" aria-pressed="false"
-              title="Phase is set via the coach">Bulk</button>
+              title="Current phase indicator">Bulk</button>
           </div>
         </div>
       </div>
-      <p class="muted micro m0 mb-2" id="nPhaseCaption">Phase is set via the coach (profile-set /
-        phase-set).</p>
-
-      <div class="banner mb-2" id="nTgtBanner">
-        <span class="banner-ic" aria-hidden="true">◔</span>
-        <div>
-          <div class="strong">Targets need your profile.</div>
-          <p class="muted note-txt m0">Targets need your profile — height, sex &amp; birth date are set via the coach (profile-set). Water above/below already uses a real target regardless; every other row here is honestly pending until then — nothing is estimated.</p>
-        </div>
-      </div>
+      <p class="muted micro m0 mb-2" id="nPhaseCaption">Loading phase…</p>
 
       <div class="row gap-2 wrap mb-2 micro muted">
         <span class="chip muted"><span class="dot bad"></span>too little</span>
@@ -227,27 +239,27 @@
         <div class="goal-row">
           <span class="goal-label" id="nTgtCalLabel">Calories</span>
           <div class="barbg" id="nTgtCalBar"></div>
-          <span class="goal-val" id="nTgtCal">profile not set</span>
+          <span class="goal-val" id="nTgtCal">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtProteinLabel">Protein</span>
           <div class="barbg" id="nTgtProteinBar"></div>
-          <span class="goal-val" id="nTgtProtein">profile not set</span>
+          <span class="goal-val" id="nTgtProtein">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtCarbsLabel">Carbs</span>
           <div class="barbg" id="nTgtCarbsBar"></div>
-          <span class="goal-val" id="nTgtCarbs">profile not set</span>
+          <span class="goal-val" id="nTgtCarbs">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtFatLabel">Fat</span>
           <div class="barbg" id="nTgtFatBar"></div>
-          <span class="goal-val" id="nTgtFat">profile not set</span>
+          <span class="goal-val" id="nTgtFat">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtFibreLabel">Fibre</span>
           <div class="barbg" id="nTgtFibreBar"></div>
-          <span class="goal-val" id="nTgtFibre">profile not set</span>
+          <span class="goal-val" id="nTgtFibre">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label">Water</span>
@@ -257,27 +269,27 @@
         <div class="goal-row">
           <span class="goal-label" id="nTgtVitDLabel">Vit D</span>
           <div class="barbg" id="nTgtVitDBar"></div>
-          <span class="goal-val" id="nTgtVitD">profile not set</span>
+          <span class="goal-val" id="nTgtVitD">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtMgLabel">Magnesium</span>
           <div class="barbg" id="nTgtMgBar"></div>
-          <span class="goal-val" id="nTgtMg">profile not set</span>
+          <span class="goal-val" id="nTgtMg">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtFeLabel">Iron</span>
           <div class="barbg" id="nTgtFeBar"></div>
-          <span class="goal-val" id="nTgtFe">profile not set</span>
+          <span class="goal-val" id="nTgtFe">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtZnLabel">Zinc</span>
           <div class="barbg" id="nTgtZnBar"></div>
-          <span class="goal-val" id="nTgtZn">profile not set</span>
+          <span class="goal-val" id="nTgtZn">—</span>
         </div>
         <div class="goal-row">
           <span class="goal-label" id="nTgtOmegaLabel">Omega-3</span>
           <div class="barbg" id="nTgtOmegaBar"></div>
-          <span class="goal-val" id="nTgtOmega">profile not set</span>
+          <span class="goal-val" id="nTgtOmega">—</span>
         </div>
       </div>
       <p class="muted micro m0 mt-2">Micronutrients use today's Cronometer total when available;
@@ -305,7 +317,7 @@
           <div id="nCalMeter" class="gauge-sm"></div>
           <div id="nCalTrend" class="h150 grow"></div>
         </div>
-        <p class="muted micro m0 center" id="nCalCap">daily intake · profile not set</p>
+        <p class="muted micro m0 center" id="nCalCap">daily intake · loading target…</p>
       </div>
 
       <div class="card">
@@ -343,7 +355,7 @@
        (server-ranked via /api/nutrition/recipe-gaps, a PRESENTATION ranking
        recomputed per request so deficits shrink as meals are logged) · High
        protein (client sort by real per-portion protein). When the targets
-       engine has no profile, selecting the gaps pill shows the honest
+       engine cannot calculate targets, selecting the gaps pill shows the honest
        no-ranking line in place of the list — never a dead-looking control,
        never a fake ranking. Reuses the existing .pills/.pill classes (no new
        CSS).

@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -19,6 +20,21 @@ from app import auth as auth_mod
 from app import bridge, create_app
 
 SCHEMA = (pathlib.Path(__file__).resolve().parent.parent / "toolkit" / "SCHEMA.sql").read_text()
+
+
+@pytest.mark.parametrize("scenario", [
+    "ready", "missing_profile", "missing_weight", "missing_configuration",
+    "transport_error", "batch_error",
+])
+def test_browser_nutrition_target_states(scenario):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for the Nutrition browser regression")
+    subprocess.run(
+        [node, "tests/fixtures/nutrition_browser.js", scenario],
+        cwd=pathlib.Path(__file__).parents[1], check=True, capture_output=True,
+        text=True, timeout=20,
+    )
 
 
 @pytest.fixture()
