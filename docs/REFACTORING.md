@@ -1,5 +1,29 @@
 # Refactoring checkpoint
 
+## Ledger hypothesis coordination owner, 24 September 2026
+
+Following independent acceptance of the storage commit `0dd2125`,
+`_ledger_hypotheses.py` now coordinates evaluations, evidence items, annotations
+and read views. Fourteen functions moved with explicit clock/timezone inputs
+where needed. Their reconstructed bodies preserve SQL and guard order. The
+facade retains its seal types, token, verified-write checks and call-time clock
+bindings. `hypothesis_brief` and `list_hypotheses` remain public facade exports
+whose implementation owner is now the hypothesis module.
+
+The focused ledger, Phase 5/6 CLI, synthesis, orchestration, provenance and
+exact-cache suites passed 308 tests in 158.79 seconds on Python 3.12.13, with
+no failures, errors or skips. This includes the twelve rollback and clock cases
+introduced in the storage batch. All 43 retained histories and 112 complete
+decisions, their arguments and full database dumps remain byte-identical to
+the pre-extraction records. The observer attaches to the current coordination
+owner; no production dependency was added for observation.
+
+Public exports/signatures and narrow numerical provenance remain unchanged.
+The broad source inventory includes the new owner. An isolated desktop
+source-copy layout passed three fresh import orders, facade alias checks and
+seal isolation. Independent review and the combined application/UI full-suite
+and packaged application checkpoint precede synthesis-internal extraction.
+
 ## Ledger storage owner, 24 September 2026
 
 Following independent acceptance of `462c977`, `_ledger_store.py` owns
