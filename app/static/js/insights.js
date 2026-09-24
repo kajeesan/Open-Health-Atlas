@@ -135,9 +135,12 @@
   function sharedEvidenceLink() {
     const link = el("a", "note-txt", "Shared analysis evidence");
     link.href = "#analysis-evidence";
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
       $("analysis-evidence").open = true;
-      $("analysis-evidence-summary").focus();
+      const summary = $("analysis-evidence-summary");
+      summary.focus();
+      summary.scrollIntoView({ block: "nearest" });
     });
     return link;
   }
@@ -629,8 +632,11 @@
     const grid = $("readiness-states");
     grid.replaceChildren();
     states.forEach((state) => {
-      const [label, help] = READINESS_STATES[state] || [human(state), "An additional engine state; inspect its returned details below."];
-      const count = stateCounts ? (stateCounts[state] ?? 0) : null;
+      const [label, help] = Object.prototype.hasOwnProperty.call(READINESS_STATES, state)
+        ? READINESS_STATES[state]
+        : [human(state), "An additional engine state; inspect its returned details below."];
+      const count = stateCounts && Object.prototype.hasOwnProperty.call(stateCounts, state)
+        ? stateCounts[state] : null;
       const card = el("details", "readiness-state");
       const summary = el("summary");
       summary.append(el("strong", "", label), el("span", "muted micro", `Count: ${raw(count)}`));

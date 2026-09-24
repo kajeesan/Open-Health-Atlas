@@ -16,6 +16,7 @@ class Element {
   setAttribute(k,v) { this[k]=v; }
   addEventListener(k,f) { this.listeners[k]=f; }
   focus() { this.focused=true; }
+  scrollIntoView() { this.scrolled=true; }
   remove() {}
   set innerHTML(value) { throw new Error('Unsafe HTML rendering: '+value); }
 }
@@ -189,10 +190,13 @@ async function sharedMetadata() {
   await render(h,result);
   const cards=descendants(h.node('finding-groups')).filter(item=>item.tagName==='article');
   const link=descendants(cards[0]).find(item=>item.tagName==='a');
-  link.listeners.click();
+  let defaultPrevented=false;
+  link.listeners.click({preventDefault(){ defaultPrevented=true; }});
 
   assert.equal(h.node('analysis-evidence').open,true);
   assert.equal(h.node('analysis-evidence-summary').focused,true);
+  assert.equal(h.node('analysis-evidence-summary').scrolled,true);
+  assert.equal(defaultPrevented,true,'Fragment navigation must not override disclosure focus');
   assert.ok(h.node('analysis-evidence').textContent.includes('sha256:fictional-source-manifest'));
   assert.ok(h.node('analysis-evidence').textContent.includes('sha256:fictional-analysis-fingerprint'));
   assert.ok(!cards[0].textContent.includes('sha256:fictional-analysis-fingerprint'));
@@ -253,6 +257,26 @@ async function contextClearsEvidence() {
   assert.equal(h.node('readiness-states').textContent,'');
 }
 
+async function unknownReadinessStates() {
+  const h=setup(); await h.boot();
+  const readiness={meta:{state_counts:{constructor:1}},features:[
+    {feature_key:'future.constructor-feature',state:'constructor',needed:'Fictional requirement'},
+    {feature_key:'future.prototype-feature',state:'__proto__',needed:'Another fictional requirement'},
+  ]};
+
+  await render(h,evidenceResult(h),readiness);
+  const states=h.node('readiness-states').children;
+  const constructorState=states.find(item=>item.textContent.includes('future.constructor-feature'));
+  const prototypeState=states.find(item=>item.textContent.includes('future.prototype-feature'));
+
+  assert.ok(visibleText(constructorState).includes('Count: 1'));
+  assert.ok(visibleText(prototypeState).includes('Count: Not available'));
+  assert.ok(visibleText(states[0]).includes('Count: Not available'));
+  assert.ok(!visibleText(states[0]).includes('Count: 0'));
+  assert.ok(prototypeState.textContent.includes('__proto__'));
+  assert.ok(constructorState.textContent.includes('Fictional requirement'));
+}
+
 const scenarios={
   context:async()=>{for(const test of [analysisSwitch,detailReordering,messageReordering,currentAnalysisRenders]) await test();},
   readiness_details:readinessDetails,
@@ -261,6 +285,7 @@ const scenarios={
   selection,
   promotion,
   context_clears_evidence:contextClearsEvidence,
+  unknown_readiness_states:unknownReadinessStates,
 };
 const scenario=process.argv[2];
 Promise.resolve().then(()=>scenarios[scenario]()).then(()=>console.log(`PASS ${scenario}`)).catch(error=>{console.error(error);process.exitCode=1;});

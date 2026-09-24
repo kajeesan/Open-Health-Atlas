@@ -1008,7 +1008,7 @@ def test_browser_analysis_stays_with_its_conversation():
 
 @pytest.mark.parametrize("scenario", [
     "readiness_details", "finding_summary", "shared_metadata",
-    "selection", "promotion", "context_clears_evidence",
+    "selection", "promotion", "context_clears_evidence", "unknown_readiness_states",
 ])
 def test_browser_evidence_disclosures(scenario):
     node = shutil.which("node")
