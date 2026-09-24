@@ -493,7 +493,6 @@ def adherence(c, days, *, clock, timezone="UTC", medication_aliases=None):
     excluded from the kept/broke contrast (it is neither side's evidence)."""
     if not _table_exists(c, "commitments_log"):
         return {"insufficient_data": True, "reason": "no follow-through data logged yet"}
-        return
     dates, rows, cov = _daily_frame(
         c, days, clock=clock, medication_aliases=medication_aliases,
     )

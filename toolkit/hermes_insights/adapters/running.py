@@ -5,11 +5,10 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 import hashlib
-import statistics
 from typing import Any, Iterable, Mapping
 
 from . import (
-    DefinitionIndex, REGISTRY_VERSION, canonical_json, context_value, date_where,
+    DefinitionIndex, REGISTRY_VERSION, canonical_json, context_value,
     finite, has_columns, identity_parts, in_range, interval_dates,
     make_observation, range_bounds, source_sync_intervals,
 )
@@ -35,17 +34,6 @@ def workout_natural_keys(rows: Iterable[Mapping[str, Any]]) -> list[str]:
         seen[payload] += 1
         result.append(f"workouts:{digest}:{seen[payload]}")
     return result
-
-
-def _consecutive_complete_no_run(
-    run_dates: set[str], complete_dates: set[str], end: date,
-) -> int:
-    count = 0
-    current = end
-    while current.isoformat() in complete_dates and current.isoformat() not in run_dates:
-        count += 1
-        current -= timedelta(days=1)
-    return count
 
 
 def stop_restart_events(

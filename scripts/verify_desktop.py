@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import http.cookiejar
 import json
-import os
 from pathlib import Path
 import queue
 import re
-import signal
 import sqlite3
 import subprocess
 import tempfile

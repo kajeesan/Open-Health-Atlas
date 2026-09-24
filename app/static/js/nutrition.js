@@ -805,10 +805,17 @@
     if (!f.hidden) document.getElementById("bp-portions").focus();
   });
   document.getElementById("bp-btn").addEventListener("click", async () => {
+    const status = document.getElementById("bp-status");
+    status.hidden = true;
+    status.textContent = "";
     const recipe = document.getElementById("bp-recipe").value;
     const portions = document.getElementById("bp-portions").value.trim();
     const grams = document.getElementById("bp-grams").value.trim();
-    if (!recipe || !portions) { toast("Pick a recipe and enter portions", "bad"); return; }
+    if (!recipe || !portions) {
+      status.textContent = "Pick a recipe and enter portions.";
+      status.hidden = false;
+      return;
+    }
     const btn = document.getElementById("bp-btn");
     btn.disabled = true;
     try {
@@ -822,7 +829,10 @@
       document.getElementById("nBatchForm").hidden = true;
       resetTodayCaches();  // prep touches freezer stock, not today's totals, but stay consistent
       loadMenu(); loadGaps();
-    } catch (e) { toast("Couldn't log batch: " + e.message, "bad"); }
+    } catch (e) {
+      status.textContent = "Couldn't log batch: " + e.message;
+      status.hidden = false;
+    }
     finally { btn.disabled = false; }
   });
   // Meal-type dd re-filters the already-loaded freezer (no refetch needed).

@@ -1,8 +1,7 @@
-"""OpenHealthAtlas — Flask application factory.
+"""Compose the OpenHealthAtlas panel, authentication and validated broker client.
 
-Phase 1: shell + security headers. Phase 2: passkey (WebAuthn) login —
-every route except the auth endpoints and /healthz requires a valid
-server-side session. No DB access to health data yet (Phase 3).
+Protected routes require a server-side passkey session. Health records are
+read through request-scoped connections; mutations cross the write broker.
 """
 import os
 

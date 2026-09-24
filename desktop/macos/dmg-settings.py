@@ -1,13 +1,13 @@
 """Finder presentation only; no customer data or account settings are used."""
 from pathlib import Path
 
-application = Path(defines['app'])
+application = Path(defines['app'])  # noqa: F821 - injected by dmgbuild
 files = [str(application)]
 symlinks = {'Applications': '/Applications'}
 # Do not set hidden-extension FinderInfo on the already signed app.
 # Finder normally hides the app suffix; signing metadata must stay untouched.
 icon = str(application / 'Contents/Resources/AppIcon.icns')
-background = defines['background']
+background = defines['background']  # noqa: F821 - injected by dmgbuild
 format = 'UDZO'
 filesystem = 'HFS+'
 window_rect = ((180, 160), (640, 400))

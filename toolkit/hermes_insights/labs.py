@@ -167,7 +167,6 @@ def lab_ingest(c, a, text, *, report_date):
             "note": LAB_CATALOG_NOTE}
     if not a.commit:
         return base
-        return
     panel_default = a.panel or "Uncategorized"
     committed, confirmed_written, skipped_blocked = 0, [], 0
     for r in result:
@@ -248,9 +247,7 @@ def labs(c, a, *, clock):
                 "stale_after_days": LABS_STALE_DAYS}
         if len(series) < 2:
             return {**base, "insufficient_data": True, "series": series}
-            return
         return {**base, "series": series}
-        return
 
     # latest row per test (max date, then id) — the table's headline values
     q = ("SELECT * FROM labs" + (" WHERE date>=?" if lo else "")
@@ -262,7 +259,6 @@ def labs(c, a, *, clock):
     if not latest:
         return {"insufficient_data": True,
              "reason": "no lab results ingested yet"}
-        return
     panels = {}
     for name, r in latest.items():
         low, high = _row_range(r)
