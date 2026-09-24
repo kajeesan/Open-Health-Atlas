@@ -1616,6 +1616,46 @@ def test_engine_validation_reports_effect_error_before_testing_error(effect_chan
 
 
 @pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        pytest.param(
+            {"effect": {"method": "unknown"}, "testing": {"p": 2.0}},
+            "effect.method is unknown",
+            id="method_before_testing",
+        ),
+        pytest.param(
+            {"testing": {"p": 2.0}, "stability": {"full": 0.9}},
+            "testing.p must be between zero and one",
+            id="testing_before_stability",
+        ),
+        pytest.param(
+            {"stability": {"full": 0.9}, "rates": {"risk_difference": 0.99}},
+            "stability.full must equal the oriented full-sample effect",
+            id="stability_before_rates",
+        ),
+        pytest.param(
+            {"confounders": {"weighted_effect": True}, "rates": {"risk_difference": 0.99}},
+            "confounders.weighted_effect must be a finite number",
+            id="confounder_effect_before_rates",
+        ),
+    ],
+)
+def test_engine_validation_reports_earliest_numeric_fault(changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    for section, values in changes.items():
+        finding[section].update(values)
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
+@pytest.mark.parametrize(
     "mutate",
     [
         lambda finding: finding["sample"].update(

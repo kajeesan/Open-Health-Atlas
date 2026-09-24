@@ -1,5 +1,31 @@
 # Refactoring checkpoint
 
+## Ledger validation owners, 24 September 2026
+
+Following independent acceptance of `1eadde3`, shared contracts and analytical
+validation move into private ledger modules. The
+[architecture guide](ARCHITECTURE.md#feature-ledger-and-orchestration-command-ownership)
+records their responsibilities. The facade retains seal creation, its single
+token, call-time clocks and all persistence. Public functions, error and result
+types retain explicit facade exports; their implementation module changes are
+recorded separately from behavioral compatibility.
+
+Four new first-failure cases passed unchanged production code before extraction.
+The focused ledger, Phase 5 CLI, synthesis, provenance, exact-cache, Phase 6 CLI
+and orchestration suites passed 296 tests in 156.87 seconds on Python 3.12.13,
+with no failures, errors or skips. The candidate total includes those four cases.
+Five valid payload/database comparisons and six exception comparisons preserve
+all values, codes, validation flags and messages. Error class ownership moves
+to `_ledger_contracts`, while callers still catch the same facade-exported type.
+
+Structural comparison accounts for every original declaration. The desktop
+builder's source-copy routine produced an isolated layout that passed three
+fresh import orders, seal-isolation checks and public compatibility checks.
+This is source-layout verification, not a native application build. Both new
+modules are registered in the broad surface inventory; the narrow numerical
+provenance identity remains unchanged. Independent review precedes transition
+extraction; integration owns the later full-suite and packaged application gates.
+
 ## Ledger validation extraction, 24 September 2026
 
 This batch starts from public `main` at

@@ -329,6 +329,14 @@ and finalizes separately. Finalization rechecks any trigger lease before writing
 Synthesis recording commits SQLite before its idempotent Markdown append. If the
 file append fails, an exact retry can complete it from the durable record.
 
+The ledger's private `_ledger_contracts.py` owns shared value validation,
+canonical identifiers, errors and transition result types. `_ledger_validation.py`
+owns analytical result validation, including sample counts, orientation,
+statistical methods, stability, rates and coverage. `ledger.py` remains the
+public facade and owns verified seals, clocks and persistence. It re-exports
+the existing public contract objects and the fingerprint helper consumed by
+synthesis. Validation modules neither create seals nor own transactions.
+
 The job command keeps the configured stable CLI path and fixed association/finding
 handler map. Its existing engine retains child fencing, inherited lock descriptors,
 bounded output and error serialization. Canonical analytical JSON and legacy query
