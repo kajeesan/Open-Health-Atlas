@@ -38,7 +38,6 @@ def vtaper(c, days, *, clock):
         return {**base, "insufficient_data": True,
              "reason": "no measurement with BOTH waist_cm and chest_cm in the window "
                        "— log a tape session (or Hevy measurements once synced)"}
-        return
     cur = series[-1]
     trend = round(cur["wcr"] - series[0]["wcr"], 3) if len(series) >= 2 else None
     return {**base, "current": cur, "at_target": cur["wcr"] <= VTAPER_TARGET_WCR,

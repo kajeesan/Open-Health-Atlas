@@ -441,7 +441,6 @@ def muscle_volume(c, source, days, by, *, clock):
                                       "fitness tests (quarterly isolation "
                                       "battery), not training volume — not "
                                       "captured yet"}}
-        return
     source = source or "planned"
     rows = muscle_rows(c, source, days, clock=clock)
     if source == "logged":

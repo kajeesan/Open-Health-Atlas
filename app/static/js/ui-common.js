@@ -10,12 +10,26 @@
   const rangeSubs = {};    // dd name -> [fn]
   const tabSubs = {};      // group -> [fn]
 
-  function closeAll() {
-    document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open"));
+  function setOpen(dropdown, open) {
+    dropdown.classList.toggle("open", open);
+    dropdown.querySelector(".ddbtn").setAttribute("aria-expanded", String(open));
   }
 
+  function closeAll() {
+    document.querySelectorAll(".dd.open").forEach((d) => setOpen(d, false));
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const open = document.querySelector(".dd.open");
+    if (!open) return;
+    closeAll();
+    open.querySelector(".ddbtn").focus();
+    event.preventDefault();
+  });
+
   document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".ddbtn");
+    const btn = e.target.closest(".dd .ddbtn");
     const opt = e.target.closest(".ddmenu button");
     const tab = e.target.closest(".tabrow button");
 
@@ -23,7 +37,7 @@
       const dd = btn.closest(".dd");
       const wasOpen = dd.classList.contains("open");
       closeAll();
-      if (!wasOpen) dd.classList.add("open");
+      if (!wasOpen) setOpen(dd, true);
       return;
     }
     if (opt) {
@@ -33,7 +47,8 @@
       rangeState[name] = val;
       dd.querySelector(".ddbtn").innerHTML = val + ' <span class="cv">▾</span>';
       dd.querySelectorAll(".ddmenu button").forEach((b) => b.classList.toggle("on", b === opt));
-      dd.classList.remove("open");
+      setOpen(dd, false);
+      dd.querySelector(".ddbtn").focus();
       (rangeSubs[name] || []).forEach((fn) => fn(val));
       return;
     }
@@ -53,6 +68,7 @@
   /* seed initial dd state from the .on option (or button label) */
   function seed() {
     document.querySelectorAll(".dd[data-dd]").forEach((dd) => {
+      setOpen(dd, dd.classList.contains("open"));
       const on = dd.querySelector(".ddmenu button.on");
       if (on && !(dd.dataset.dd in rangeState)) rangeState[dd.dataset.dd] = on.dataset.val;
     });

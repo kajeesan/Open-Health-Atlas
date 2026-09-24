@@ -83,6 +83,10 @@ export TZ=Europe/Paris HERMES_TIMEZONE=Europe/Paris
 
 ## Automated repository checks
 
+The application suite runs on Python 3.11 and 3.12. The desktop workflow uses
+3.12, with its exact bundled runtime pinned separately in `scripts/build_desktop.py`.
+Changing that runtime also requires rebuilding and verifying the desktop package.
+
 GitHub Actions verifies the release manifest and scans current source and Git
 history for privacy findings on every pull request and push to `main`.
 Documentation, reviewed documentation images, community templates and release
@@ -98,6 +102,39 @@ outside the checkout.
 CI uses a unique directory beneath `/tmp` for installer-test safety and aligns
 the test clocks with the retained example timezone. Completed runs report the
 slowest tests so long statistical checks can be distinguished from a stall.
+
+### Static checks and dependency updates
+
+Install the development-only analyzers in your existing environment:
+
+```bash
+python -m pip install -r requirements-quality.txt
+ruff check .
+ruff check --select F401 app desktop scripts
+```
+
+The repository owns its Ruff configuration. The initial gate checks undefined
+names, invalid syntax and related correctness errors. Unused imports are also
+enforced in the panel, desktop and scripts. Toolkit compatibility exports need
+individual review before expanding that gate. Formatting is a separate change.
+
+For an advisory dead-code review, run:
+
+```bash
+vulture app toolkit desktop scripts deploy tests tools --min-confidence 80
+```
+
+Lower confidence to 60 to include unused-function candidates. Check callers,
+registrations and exports before deleting anything. Flask hooks and the
+`toolkit/health.py` compatibility facade can be reported despite being required.
+
+Dependabot is configured to propose weekly Python and GitHub Actions updates.
+Updates require review and passing checks. Dependency changes also require a
+refreshed [release inventory](../RELEASE_MANIFEST.md#regenerate). Desktop updates
+must keep runtime/build lockfiles and `desktop/dependency-sources.json` aligned.
+See [Desktop release](DESKTOP_RELEASE.md). Updating a requirements file alone
+does not update the bundled application. GitHub security-alert settings are
+managed separately from this configuration.
 
 ## Find the code and prepare a contribution
 

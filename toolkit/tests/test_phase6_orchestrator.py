@@ -261,6 +261,42 @@ def test_stale_source_suppresses_only_dependent_candidates():
     }]
 
 
+@pytest.mark.parametrize(
+    ("q_value", "estimate"),
+    [(None, 0.4), (0.01, None)],
+    ids=["missing-q-value", "missing-effect"],
+)
+def test_structured_slots_rank_missing_statistics_after_complete_findings(q_value, estimate):
+    complete = {
+        "finding_id": "complete-finding",
+        "evidence_fingerprint": "fictional-evidence",
+        "candidate_key": "subjective.day_rating|fixture",
+        "outcome_key": "subjective.day_rating",
+        "outcome_mode": "green-vs-non-green",
+        "direction": "positive",
+        "quality_tier": "exploratory_unreplicated",
+        "eligible_for_hypothesis": 0,
+        "evidence_json": canonical_json({
+            "testing": {"q": 0.01}, "effect": {"oriented_estimate": 0.4},
+        }),
+    }
+    partial_evidence = {
+        "testing": {"q": q_value}, "effect": {"oriented_estimate": estimate},
+    }
+    partial = {**complete, "finding_id": "partial-finding",
+               "evidence_json": canonical_json(partial_evidence)}
+
+    slots = orchestrator.structured_slots(
+        cadence="weekly", run_rows=[], finding_rows=[partial, complete],
+        evaluation_rows=[], freshness={"sources": []}, suppressed_dependencies=[],
+    )
+
+    assert [item["finding_id"] for item in slots["findings"]] == [
+        "complete-finding", "partial-finding",
+    ]
+    assert slots["findings"][1]["structured_evidence"] == partial_evidence
+
+
 def test_structured_slots_use_stored_evidence_and_explicit_missing_values():
     evidence = {
         "testing": {"q": 0.01},

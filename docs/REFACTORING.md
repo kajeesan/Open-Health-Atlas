@@ -1,5 +1,28 @@
 # Refactoring checkpoint
 
+## Quality audit, 24 September 2026
+
+This local batch starts from public `main` at
+`03a3aacca8572fa534d8f594530de3afb63f098e`. It fixes finding ranking when
+statistics are missing, dropdown keyboard behavior, batch-entry error feedback
+and accessible control names. Reviewed dead code and unused imports are removed.
+The [development guide](DEVELOPMENT.md#static-checks-and-dependency-updates)
+describes the new static checks and dependency-update policy.
+
+Verification used fictional data on Python 3.12.13: 2,100 application tests,
+15 end-to-end journeys and five actual MCP tests passed, with no failures,
+errors or skips. The unchanged baseline passed 2,118 tests. Two new regression
+cases failed before the missing import was fixed. Eighty focused compatibility
+checks also passed on Python 3.11.15. Browser checks covered desktop and narrow
+navigation, persisted meal/batch entries, invalid-input recovery and analysis
+waiting states. Independent source review found no remaining actionable issue
+in the reviewed changes. These checks do not qualify a replacement installer.
+
+Larger ledger and synthesis refactors remain separate work. Readability work
+should also address technical result summaries and missing-profile setup routes.
+The older sections below are historical records. Use the current README and
+release documentation for installation and publication status.
+
 ## Current toolkit project
 
 The current plan is [Health toolkit modularization](TOOLKIT_MODULARIZATION.md).

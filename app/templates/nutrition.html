@@ -384,11 +384,12 @@
     <div class="card" id="nBatchForm" hidden>
       <h3 class="card-title mb-2">Log a prep batch</h3>
       <div class="add-ex">
-        <select id="bp-recipe" class="select"></select>
-        <input id="bp-portions" type="number" placeholder="portions" min="1" max="20" inputmode="numeric">
-        <input id="bp-grams" type="number" placeholder="total g (optional)" min="1" max="20000" inputmode="numeric">
+        <select id="bp-recipe" class="select" aria-label="Recipe"></select>
+        <input id="bp-portions" type="number" aria-label="Portions" placeholder="portions" min="1" max="20" inputmode="numeric" aria-describedby="bp-status">
+        <input id="bp-grams" type="number" aria-label="Total cooked weight in grams (optional)" placeholder="total g (optional)" min="1" max="20000" inputmode="numeric" aria-describedby="bp-status">
         <button id="bp-btn" class="save-btn" type="button">Add to freezer</button>
       </div>
+      <p id="bp-status" class="micro" role="alert" hidden></p>
       <p class="muted micro m0">Adds portions to the freezer via the coach's validated
         <code>prep</code> — enter total grams to also set/update the batch weight.</p>
     </div>

@@ -61,6 +61,15 @@ and UI state.
 
 ## Major packages
 
+### OpenHealthAtlas and the Hermes names
+
+`toolkit/hermes_insights/` is OpenHealthAtlas product code, including its
+deterministic calculations. Its historical package name does not mean that
+Hermes must be installed. `hermes_surface.py` and the deployment adapters connect
+to the optional external Hermes agent. Existing `HERMES_*` settings and broker
+names remain compatibility interfaces. The [agent boundary](#deterministic-interpretive-and-agent-boundaries)
+defines the separate responsibilities.
+
 | Area | Location | Responsibility |
 |---|---|---|
 | Web application | `app/` | Authentication, security middleware, HTML, JSON APIs, read models, bridge client |
