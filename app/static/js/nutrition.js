@@ -5,11 +5,8 @@
    bridge passthrough) into every "no target yet" surface: loadTargets()
    fetches it ONCE per page load (shared, cached promise — see below) and
    loadToday/loadWater/loadTargetCard/loadCalories/loadGaps all consume that
-   same object. The demo DB ships with no `owner_profile` row, so the engine
-   replies `insufficient_data` locally by default and every dependent surface
-   shows its honest "profile not set" state — that IS the page's correct
-   local default, not a bug (populated states are proven separately, see the
-   T45 report's screenshots).
+   same object. The shared setup help preserves the engine's reason when
+   targets are unavailable, including missing profile, weight or configuration.
    - Food quality (T46): loadFoodQuality() fetches /api/nutrition/coverage
      (the shared T44-targets-sourced scorer, same as the dashboard ring's
      nutrition score) windowed by its own dd->days mapping (see
@@ -116,14 +113,7 @@
   /* ------- T45: the targets engine, shared/cached, and the display rules
      every consumer bands its numbers with. ------- */
 
-  // Exact honest wording (T45 brief, verbatim) for when the targets engine
-  // reports anything other than status "ok" — most commonly
-  // insufficient_data because no owner_profile row exists yet (the demo DB's
-  // default). LONG is the one-time banner text; SHORT is reused everywhere
-  // compact (tile sub-lines, goal-row values, captions).
-  const PROFILE_MISSING_LONG = "Targets need your profile — height, sex & birth date are " +
-    "set via the coach (profile-set).";
-  const PROFILE_MISSING_SHORT = "profile not set";
+  const TARGETS_UNAVAILABLE = "target unavailable";
   const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   // user's fixed meal-log schedule (Q13) — a plain client constant, not a
   // schema field or engine output, so it never claims to be measured data.
@@ -138,10 +128,22 @@
   function loadTargets() {
     if (!targetsPromise) {
       targetsPromise = fetchJSON("/api/nutrition/targets")
-        .then((d) => d.result)
-        .catch(() => ({ status: "error" }));
+        .then((d) => d.result || { status: "error", reason: "The target response was incomplete." })
+        .catch((error) => ({ status: "error", reason: error.message || "The target request failed." }))
+        .then((targets) => {
+          renderTargetHelp(targets);
+          return targets;
+        });
     }
     return targetsPromise;
+  }
+
+  function renderTargetHelp(targets) {
+    const banner = document.getElementById("nTgtBanner");
+    banner.hidden = targets.status === "ok";
+    document.getElementById("nTgtReasonLabel").textContent = targets.status === "error" ? "Request error" : "Engine reason";
+    document.getElementById("nTgtReason").textContent = targets.reason || "The engine did not return a reason.";
+    document.getElementById("nTgtReload").hidden = targets.status !== "error";
   }
 
   // Task 61 fix C: same cached-promise shape as loadTargets above, for the
@@ -207,12 +209,8 @@
      dashboard ring's nutrition score (/api/nutrition/coverage ->
      health.py's _nutrition_day_score). Chip = today's (latest row's)
      "score · band"; chart = the per-day score trend over this card's own
-     dd window (COVERAGE_RANGE_DAYS). Honest-empty when the engine reports
-     insufficient_data (no profile, or no nutrition data in the window) --
-     one message covers both, matching the brief's exact wording; it does
-     NOT distinguish "no profile" vs "no data" the way the %-of-target card
-     does, since this card has no per-field rows to hang a second message
-     on. */
+     dd window (COVERAGE_RANGE_DAYS). Missing targets can prevent coverage
+     even when intake is logged, so check them before claiming no data. */
   // T55 flag 4: engine band -> the existing .flag band classes (the same
   // good/warn/bad -> in/bd/out mapping every banded chip uses — see
   // consistency_habits.js FLAG_CLASS); no new CSS classes.
@@ -229,8 +227,10 @@
     const cov = d.result || {};
     if (cov.status !== "ok" || !cov.rows || !cov.rows.length) {
       chip.className = "chip muted"; chip.textContent = "—";
-      empty("nFoodQual", "No nutrition data in this window yet — the coverage score starts " +
-        "when you log a recipe or import a Cronometer day.");
+      const targets = await loadTargets();
+      empty("nFoodQual", targets.status !== "ok"
+        ? "Coverage unavailable while nutrition targets are unavailable."
+        : "No nutrition data in this window yet — the coverage score starts when you log a recipe or import a Cronometer day.");
       return;
     }
     const rows = cov.rows;
@@ -260,7 +260,7 @@
       const protein = Math.round(d.totals.protein_g || 0);
       document.getElementById("nCalMeta").textContent = ok
         ? `${kcal.toLocaleString()} kcal today · of ${Math.round(t.targets.kcal.target).toLocaleString()} kcal · ${phaseLabel}`
-        : `${kcal.toLocaleString()} kcal today · ${PROFILE_MISSING_SHORT}`;
+        : `${kcal.toLocaleString()} kcal today · ${TARGETS_UNAVAILABLE}`;
 
       document.getElementById("nKpiKcal").textContent = kcal.toLocaleString();
       document.getElementById("nKpiProtein").textContent = protein.toLocaleString();
@@ -276,9 +276,9 @@
         document.getElementById("nKpiProteinSub").textContent = `of ${Math.round(pt.target)} g · ${phaseLabel}`;
       } else {
         fillBar("nKpiKcalBar", null, null);
-        document.getElementById("nKpiKcalSub").textContent = PROFILE_MISSING_SHORT;
+        document.getElementById("nKpiKcalSub").textContent = TARGETS_UNAVAILABLE;
         fillBar("nKpiProteinBar", null, null);
-        document.getElementById("nKpiProteinSub").textContent = PROFILE_MISSING_SHORT;
+        document.getElementById("nKpiProteinSub").textContent = TARGETS_UNAVAILABLE;
       }
 
       // Log coverage: real count vs the user's fixed schedule constant —
@@ -350,13 +350,13 @@
       chart("nCalMeter").setOption(gOpt);
     } else {
       const gOpt = gaugeOpt({ value: 0, min: 0, max: 100, width: 12,
-        color: P.track, detail: "—", detailSize: 22, fmt: () => PROFILE_MISSING_LONG });
+        color: P.track, detail: "—", detailSize: 22, fmt: () => TARGETS_UNAVAILABLE });
       gOpt.animation = false;
       chart("nCalMeter").setOption(gOpt);
     }
     document.getElementById("nCalCap").textContent = ok
       ? `daily intake · ${WINDOW_LABEL[r]} · band = maintenance ±10%`
-      : `daily intake · ${WINDOW_LABEL[r]} · ${PROFILE_MISSING_SHORT}`;
+      : `daily intake · ${WINDOW_LABEL[r]} · ${TARGETS_UNAVAILABLE}`;
 
     let rows = [];
     try { rows = (await fetchJSON(`/api/nutrition/calories?days=${RANGE_DAYS[r]}`)).rows || []; }
@@ -467,7 +467,7 @@
 
   /* ------- "% of personal target — today" (task 39 scaffold, wired in
      T45): every row real once the targets engine is ok; a single honest
-     banner (#nTgtBanner) + "profile not set" per row otherwise — except
+     banner (#nTgtBanner) explains unavailable targets; their rows show dashes — except
      Water, which stays real regardless (see loadWater's comment for why).
      Micro rows use a Cronometer daily total when available and otherwise a
      deterministic total from today's logged recipe portions. Fibre has no
@@ -478,7 +478,7 @@
     const v = document.getElementById(prefix);
     if (!l || !v) return;
     l.textContent = amount != null ? `${name} — ${Math.round(amount)} ${unit} logged` : name;
-    if (!ok) { v.textContent = PROFILE_MISSING_SHORT; fillBar(prefix + "Bar", null, null); return; }
+    if (!ok) { v.textContent = "—"; fillBar(prefix + "Bar", null, null); return; }
     v.textContent = `${Math.round(pct)}% · target ${Math.round(target)}${unit}`;
     fillBar(prefix + "Bar", pct, bandVar(pct, lo, hi));
   }
@@ -487,7 +487,7 @@
     const v = document.getElementById(prefix);
     if (!l || !v) return;
     l.textContent = amount != null ? `${label} — ${Math.round(amount * 10) / 10} ${unit} logged` : label;
-    if (!ok) { v.textContent = PROFILE_MISSING_SHORT; fillBar(prefix + "Bar", null, null); return; }
+    if (!ok) { v.textContent = "—"; fillBar(prefix + "Bar", null, null); return; }
     if (target == null) { v.textContent = "target not configured"; fillBar(prefix + "Bar", null, null); return; }
     if (amount == null) { v.textContent = "no nutrient data today"; fillBar(prefix + "Bar", null, null); return; }
     const pct = amount / target * 100;
@@ -497,9 +497,6 @@
   async function loadTargetCard() {
     const t = await loadTargets();
     const ok = t.status === "ok";
-    const banner = document.getElementById("nTgtBanner");
-    if (banner) banner.hidden = ok;
-
     let totals = {}, micros = {};
     try {
       const d = await loadNutritionToday();
@@ -567,9 +564,9 @@
     const captionEl = document.getElementById("nPhaseCaption");
     if (captionEl) {
       captionEl.textContent = !ok
-        ? "Phase is set via the coach (profile-set / phase-set)."
+        ? "Phase unavailable until targets can be calculated."
         : t.phase.set
-          ? `Phase is set via the coach — currently ${titleCase(t.phase.phase)} (since ${t.phase.started}).`
+          ? `Current phase: ${titleCase(t.phase.phase)} (since ${t.phase.started}).`
           : "No phase set — treating as Maintain.";
     }
   }
@@ -577,8 +574,8 @@
   /* ------- Recipes: Today's-gaps banner (task 45: gated on the targets
      engine instead of scores.nutrition/scores.water). Real kcal/protein/
      water gap lines once the engine is ok, computed from today's logged vs
-     the real targets. Without a profile (the demo DB's default — no
-     owner_profile row) the water line STAYS real (T55 flag 5 — its target
+     the real targets. When macro targets are unavailable, the water line
+     stays real (T55 flag 5 — its target
      is always computed) and one honest sentence covers the pending macro
      gaps. We never claim micro gaps and never re-sort recipes: both would
      need more than this task builds. */
@@ -590,7 +587,7 @@
       // T55 flag 5: water_ml is the one target the engine ALWAYS computes,
       // even when the rest reports insufficient_data (see loadWater's
       // comment) — so the real water-shortfall line still renders here,
-      // above the honest line; only the macro gaps are pending on profile.
+      // above the unavailable-target line; macro gaps stay unavailable.
       const waterTarget = t.targets && t.targets.water_ml ? t.targets.water_ml.target : null;
       let waterMl = null;
       try { waterMl = (await loadDashToday()).water_ml; } catch (_) { /* honest line below */ }
@@ -600,7 +597,7 @@
         else if (waterMl < waterTarget) gaps.push(`water (${Math.round(waterTarget - waterMl)} ml short)`);
       }
       banner.classList.toggle("has-gaps", gaps.length > 0);
-      const pending = "Protein and calorie gaps need your profile (set via the coach).";
+      const pending = "Protein and calorie gaps are unavailable until targets can be calculated.";
       txt.innerHTML = (gaps.length
         ? `<b class="ink">Today's gaps:</b> ${esc(gaps.join(", "))}.<br>` : "") + esc(pending);
       return;
@@ -704,9 +701,10 @@
     let rank = null;
     if (activePill === "gaps") {
       if (!gapsRank || gapsRank.status !== "ok") {
-        list.innerHTML = gapsRank && gapsRank.status === "insufficient_data"
-          ? '<p class="dim">Gap ranking needs your profile (set via the coach).</p>'
-          : '<p class="dim">Gap ranking unavailable right now.</p>';
+        const message = document.createElement("p");
+        message.className = "dim";
+        message.textContent = "Gap ranking unavailable. " + (gapsRank && gapsRank.reason ? gapsRank.reason : "Select another recipe filter or reload this page to try again.");
+        list.replaceChildren(message);
         return;
       }
       rank = new Map(gapsRank.recipes.map((g) => [g.recipe_id, g]));

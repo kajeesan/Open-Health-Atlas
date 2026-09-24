@@ -184,15 +184,11 @@ def test_care_page_renders(authed):
 
 
 def test_nutrition_page_renders(authed):
-    """Owner-review r3 mock chrome + task 45's real targets-engine wiring.
-    The demo DB ships with no owner_profile row, so the engine returns
-    insufficient_data and this checks the page's honest LOCAL DEFAULT state
-    (no fabricated numbers/scores/phase anywhere)."""
     r = authed.get("/nutrition")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     for item in ("Food quality score", "Calories", "Water", "Logged today",
-                 "Targets coverage", "profile not set", "hydration vs target"):
+                 "Targets coverage", "hydration vs target"):
         assert item in html, f"{item!r} missing from /nutrition"
     # the header range dd exists with all five whitelisted options
     assert 'data-dd="nutrition"' in html
@@ -211,7 +207,6 @@ def test_nutrition_page_renders(authed):
 
 
 def test_nutrition_target_card_is_honest_scaffold(authed):
-    """Missing-profile targets retain nutrient rows and disabled phase controls."""
     r = authed.get("/nutrition")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
@@ -224,12 +219,12 @@ def test_nutrition_target_card_is_honest_scaffold(authed):
         assert chip in html, f"legend chip {chip!r} missing"
     # PHASE is a read-only INDICATOR, not a control — every button stays
     # natively disabled + aria-disabled (assistive tech + the "not a dead
-    # control" grep) permanently; task 45 retitles it "set via the coach".
+    # control" grep) permanently.
     assert html.count('aria-disabled="true"') >= 3
     for phase in ("Cut", "Maintain", "Bulk"):
         assert f">{phase}<" in html
-    # Missing-profile state remains visible alongside the target controls.
-    assert "profile not set" in html
+    assert 'id="nTgtReason"' in html
+    assert 'id="nutrition-target-setup"' in html
 
 
 def test_insights_page_links_conversations_card(authed):

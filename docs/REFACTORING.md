@@ -1,5 +1,211 @@
 # Refactoring checkpoint
 
+## Dependabot commit metadata, 25 September 2026
+
+The pull-request privacy check encountered Dependabot's public support-address
+sign-off in newly fetched dependency-update branches. The scanner now recognizes
+only the exact terminal trailer after a blank line, with the canonical
+Dependabot author name and account email. All preceding message content and
+other metadata fields still pass through the existing privacy checks.
+
+Five new regression cases failed unchanged code. The complete scanner suite
+then passed 34 tests on both Python 3.12.13 and 3.11.15, with no failures or
+skips. Tests cover lookalikes, misplaced or duplicate trailers, private content
+and actual Git history. The source/history scan passes with all public branches
+and the pull-request merge reference included. Application code and its
+previously verified behavior are unchanged.
+
+## Synthesis material resolution, 24 September 2026
+
+This bounded batch starts from runtime commit `8f8a497` after the accepted M4
+integration checkpoint. `_resolve_material` is now a coordinator for batch,
+run, finding and hypothesis resolution within `synthesis.py`. Separate helpers
+validate linked evaluations, dormant evidence and hypothesis origins. The
+existing ancestor loaders, fingerprint/cutoff ordering, recorder, renderer and
+SQLite-before-file publication behavior remain unchanged.
+
+Three paired-fault precedence cases passed unchanged production code before
+extraction. The focused synthesis, ledger, Phase 5/6 CLI and orchestration
+suites passed 256 tests in 145.67 seconds on Python 3.12.13, with no failures,
+errors or skips. The candidate total includes those three cases.
+
+Eight positive cases and three paired faults retain exact material,
+fingerprints, rendered bytes, SQL read sequences, database dumps and errors.
+Comparisons use one verified fictional database snapshot without timestamp
+normalization. Resolution preserves database and transaction state. Inlining
+the seven new private helpers reconstructs the entire original module syntax
+tree, including SQL string bytes and all other function bodies.
+
+Public exports/signatures and narrow numerical provenance remain unchanged.
+Only `synthesis.py` changes in the broad runtime source inventory. Three fresh
+isolated desktop source-copy imports reproduce the same material, SQL and
+fingerprint. These focused checks do not replace the final combined full-suite
+and native package qualification. No integration-only UI trace pins changed.
+
+## Ledger hypothesis coordination owner, 24 September 2026
+
+Following independent acceptance of the storage commit `0dd2125`,
+`_ledger_hypotheses.py` now coordinates evaluations, evidence items, annotations
+and read views. Fourteen functions moved with explicit clock/timezone inputs
+where needed. Their reconstructed bodies preserve SQL and guard order. The
+facade retains its seal types, token, verified-write checks and call-time clock
+bindings. `hypothesis_brief` and `list_hypotheses` remain public facade exports
+whose implementation owner is now the hypothesis module.
+
+The focused ledger, Phase 5/6 CLI, synthesis, orchestration, provenance and
+exact-cache suites passed 308 tests in 158.79 seconds on Python 3.12.13, with
+no failures, errors or skips. This includes the twelve rollback and clock cases
+introduced in the storage batch. All 43 retained histories and 112 complete
+decisions, their arguments and full database dumps remain byte-identical to
+the pre-extraction records. The observer attaches to the current coordination
+owner. No production dependency was added for observation.
+
+Public exports/signatures and narrow numerical provenance remain unchanged.
+The broad source inventory includes the new owner. An isolated desktop
+source-copy layout passed three fresh import orders, facade alias checks and
+seal isolation. Independent review and the combined application/UI full-suite
+and packaged application checkpoint precede synthesis-internal extraction.
+
+## Ledger storage owner, 24 September 2026
+
+Following independent acceptance of `462c977`, `_ledger_store.py` owns
+authenticated analysis reads and batch/run persistence. Explicit facade
+wrappers supply clock callbacks and timezone where needed. The run writer
+retains its facade schema/seal checks and reads the sealed payload lazily after
+the existing run and ancestry guards. SQL, validation order and caller-owned
+transactions remain unchanged.
+
+Twelve new rollback and clock-boundary cases passed unchanged production code
+before extraction. The focused ledger, Phase 5 CLI and synthesis suites passed
+215 tests in 63.59 seconds on Python 3.12.13, with no failures, errors or skips.
+The candidate count includes those twelve cases. Five payload/database cases
+and six exception cases remain exact. Structural checks reconstruct all moved
+bodies after substituting only the explicit clock, timezone and payload inputs.
+
+Public exports and signatures remain stable. The implementation owners of
+`add_analysis_range`, `assert_terminal_batch_integrity` and
+`require_ledger_schema` now live in the store module and remain facade exports.
+The new module is in the broad inventory. Narrow numerical provenance is
+unchanged. Hypothesis and annotation coordination is the next bounded extraction.
+
+## Ledger transition owner, 24 September 2026
+
+Following independent acceptance of `4b6fd3f`, `_ledger_transitions.py` now owns
+the ordered hypothesis policy and its lineage, range and evidence helpers.
+All 73 original ledger declarations retain identical syntax trees across their
+owners. Nineteen pure helpers moved. The facade retains persistence, clocks and seals.
+The transition owner is included in the broad source inventory. Numerical
+provenance remains unchanged.
+
+Before/after replay of 43 existing fictional histories preserves the canonical
+JSON bytes for 112 complete decisions, their inputs and full database dumps.
+This covers terminal rejection, incompatibility before dormancy, overlap and
+new-observation accounting. Those replays are comparison evidence, not
+additional distinct tests. The focused ledger, CLI, synthesis, orchestration,
+reversal and weekly-no-novelty trace checks passed 228 tests in 147.43 seconds
+on Python 3.12.13, with no failures, errors or skips.
+
+An isolated desktop source-copy layout passed three fresh import orders and
+retained its source identities and seal boundaries. Independent review precedes
+the persistence extraction. Full integrated qualification remains a later gate.
+
+## Ledger validation owners, 24 September 2026
+
+Following independent acceptance of `1eadde3`, shared contracts and analytical
+validation move into private ledger modules. The
+[architecture guide](ARCHITECTURE.md#feature-ledger-and-orchestration-command-ownership)
+records their responsibilities. The facade retains seal creation, its single
+token, call-time clocks and all persistence. Public functions, error and result
+types retain explicit facade exports. Their implementation module changes are
+recorded separately from behavioral compatibility.
+
+Four new first-failure cases passed unchanged production code before extraction.
+The focused ledger, Phase 5 CLI, synthesis, provenance, exact-cache, Phase 6 CLI
+and orchestration suites passed 296 tests in 156.87 seconds on Python 3.12.13,
+with no failures, errors or skips. The candidate total includes those four cases.
+Five valid payload/database comparisons and six exception comparisons preserve
+all values, codes, validation flags and messages. Error class ownership moves
+to `_ledger_contracts`, while callers still catch the same facade-exported type.
+
+Structural comparison accounts for every original declaration. The desktop
+builder's source-copy routine produced an isolated layout that passed three
+fresh import orders, seal-isolation checks and public compatibility checks.
+This is source-layout verification, not a native application build. Both new
+modules are registered in the broad surface inventory. The narrow numerical
+provenance identity remains unchanged. Independent review precedes transition
+extraction. Integration owns the later full-suite and packaged application gates.
+
+## Ledger validation extraction, 24 September 2026
+
+This batch starts from public `main` at
+`84e931000af3a13a631d3a860437ccd271baf9a2`. Sample-count and effect-orientation
+checks now have private helpers inside `ledger.py`. Validation order, error
+codes, seal types, clock seams and caller-owned transactions remain unchanged.
+The remaining numeric checks, transitions and persistence stay in place.
+
+The focused ledger, Phase 5 CLI, synthesis, provenance and exact-cache suites
+passed 254 tests on Python 3.12.13 in 63.99 seconds, with no failures, errors or
+skips. Eight new validation-precedence and seal-isolation cases also passed
+against unchanged production code before extraction. They are included in the
+254-test candidate count.
+
+Five fictional valid cases retain identical canonical payloads and complete
+database dumps. Six invalid cases retain identical exception types, codes,
+validation flags and messages. Public exports and signatures match. The broad
+surface and exact-cache identities changed, while the narrow numerical
+provenance manifest and identity remain unchanged. No stored evidence or
+fixture fingerprint was refreshed.
+
+Independent review precedes the next validation-module extraction. Full-suite
+and packaged application verification remain integration checkpoints. Interface
+work proceeds separately. Profile editing is excluded from this implementation.
+
+## Result grouping and Nutrition setup help, 24 September 2026
+
+The Explorer now groups insufficient findings within each outcome mode, with
+counts, engine reasons and a Show all findings action. Every finding remains
+inspectable in its received order within the group. An all-insufficient window
+is labelled explicitly. Other findings and their conflicting evidence remain
+visible.
+
+Nutrition uses one shared setup explanation with the exact engine reason.
+Profile, weight and configuration are separate prerequisites. Help requires an
+explicit workspace database and timezone for CLI setup and distinguishes an
+authorized local operator from the read-only MCP connection. Logged totals,
+available water targets, meal/batch controls and persistent validation feedback
+remain in place. No profile writer, backend, broker or schema change is included.
+
+The focused Insights, Phase 7, Nutrition API, shell and nutrition workflow
+boundary suites passed 205 tests in 6.94 seconds, without skips. New browser
+harness cases cover grouping/order, conflicting evidence, expansion/selection,
+target refusal reasons, request failures, populated targets and batch errors.
+Live browser review and combined full-suite/package verification remain pending
+at this checkpoint.
+
+## Insight evidence readability, 24 September 2026
+
+This UI batch starts from merged `main` at
+`84e931000af3a13a631d3a860437ccd271baf9a2`. The Explorer labels all six
+readiness states and reveals the engine's feature prerequisites, gate failures
+and dates. Finding summaries retain sample counts, effects, intervals and
+limitations. Reversible evidence details keep full statistics and identifiers.
+Shared analysis metadata appears once, with differing finding provenance retained.
+
+Changes are confined to the Explorer script/template, scoped panel styles and
+its existing Node-backed browser tests. The focused Insights API and Phase 7
+conversation suites passed 123 tests in 2.53 seconds, without skips. These checks
+include safe text rendering, evidence identity, selection, promotion and stale
+conversation responses. Browser review and the integration suite remain pending
+at this checkpoint. Insufficient-result grouping and Nutrition setup help are
+the next UI batch. A panel profile writer remains outside scope.
+
+Review follow-ups preserve keyboard focus when opening shared evidence and
+leave absent readiness counts unavailable. A separate conversation fix ignores
+late send responses after switching context, preserving the current draft and
+selected evidence. Successful replies in the active conversation reload its
+stored messages. The same focused suites then passed 127 tests in 2.94 seconds,
+without skips. Fake-response checks cover late success and error responses.
+
 ## Quality audit, 24 September 2026
 
 This local batch starts from public `main` at

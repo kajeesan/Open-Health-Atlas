@@ -329,6 +329,26 @@ and finalizes separately. Finalization rechecks any trigger lease before writing
 Synthesis recording commits SQLite before its idempotent Markdown append. If the
 file append fails, an exact retry can complete it from the durable record.
 
+Within `synthesis.py`, material resolution checks the terminal batch, runs,
+finding membership and hypothesis evidence in order. Separate validators cover
+linked findings, dormant evidence and hypothesis origins. Existing ancestor
+loaders remain pinned to the referenced evaluation. Recording and history reads
+retain fingerprint verification before cadence/cutoff validation. These readers
+validate stored versions rather than requiring a current-engine seal.
+
+The ledger's private `_ledger_contracts.py` owns shared value validation,
+canonical identifiers, errors and transition result types. `_ledger_validation.py`
+owns analytical result validation, including sample counts, orientation,
+statistical methods, stability, rates and coverage. `_ledger_transitions.py`
+owns ordered hypothesis decisions and lineage/window comparisons over loaded
+records. `_ledger_store.py` owns authenticated analysis reads and batch/run
+persistence on injected connections. `_ledger_hypotheses.py` coordinates
+evaluations, evidence-item appends, annotations and hypothesis read views.
+`ledger.py` retains verified seals and public verified-write gates, and supplies
+call-time clocks and timezone to its explicit wrappers. It re-exports the
+existing public contract objects and the fingerprint helper consumed by
+synthesis. These internal owners do not begin or complete transactions.
+
 The job command keeps the configured stable CLI path and fixed association/finding
 handler map. Its existing engine retains child fencing, inherited lock descriptors,
 bounded output and error serialization. Canonical analytical JSON and legacy query

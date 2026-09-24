@@ -1535,6 +1535,126 @@ def test_private_engine_sealing_fails_closed(mutate, code):
     assert exc.value.code == code
 
 
+@pytest.mark.parametrize("seal", [seal_analysis, sealed_replay], ids=["analysis", "finding"])
+def test_verified_payload_isolated_from_caller_mutation(seal):
+    verified = seal(phase4_result())
+
+    exposed = verified.payload
+    exposed["meta"]["outcome"] = "caller.changed_outcome"
+
+    assert verified.payload["meta"]["outcome"] == OUTCOME
+
+
+@pytest.mark.parametrize(
+    ("sample_changes", "message"),
+    [
+        pytest.param(
+            {"eligible_n": True},
+            "sample.eligible_n must be a nonnegative integer",
+            id="boolean_eligible_count",
+        ),
+        pytest.param(
+            {"complete_n": 91, "missing_n": -1},
+            "sample.missing_n must be a nonnegative integer",
+            id="negative_missing_before_partition",
+        ),
+        pytest.param(
+            {"exposed_n": None},
+            "sample exposed_n/unexposed_n must both be null or counts",
+            id="paired_count_nullability",
+        ),
+    ],
+)
+def test_engine_validation_reports_sample_error_before_effect_error(sample_changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    finding["sample"].update(sample_changes)
+    finding["effect"]["estimate"] = None
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
+@pytest.mark.parametrize(
+    ("effect_changes", "message"),
+    [
+        pytest.param(
+            {"estimate": None, "ci95": [0.4, -0.1]},
+            "effect.ci95 bounds are reversed",
+            id="interval_before_estimate_nullability",
+        ),
+        pytest.param(
+            {"oriented_estimate": 0.3, "oriented_ci95": None},
+            "oriented effect must equal the raw effect times one orientation",
+            id="effect_before_interval_nullability",
+        ),
+        pytest.param(
+            {"oriented_ci95": [0.1, 0.4]},
+            "oriented confidence interval disagrees with effect orientation",
+            id="interval_orientation_before_testing",
+        ),
+    ],
+)
+def test_engine_validation_reports_effect_error_before_testing_error(effect_changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    finding["effect"].update(effect_changes)
+    finding["testing"]["p"] = 2.0
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        pytest.param(
+            {"effect": {"method": "unknown"}, "testing": {"p": 2.0}},
+            "effect.method is unknown",
+            id="method_before_testing",
+        ),
+        pytest.param(
+            {"testing": {"p": 2.0}, "stability": {"full": 0.9}},
+            "testing.p must be between zero and one",
+            id="testing_before_stability",
+        ),
+        pytest.param(
+            {"stability": {"full": 0.9}, "rates": {"risk_difference": 0.99}},
+            "stability.full must equal the oriented full-sample effect",
+            id="stability_before_rates",
+        ),
+        pytest.param(
+            {"confounders": {"weighted_effect": True}, "rates": {"risk_difference": 0.99}},
+            "confounders.weighted_effect must be a finite number",
+            id="confounder_effect_before_rates",
+        ),
+    ],
+)
+def test_engine_validation_reports_earliest_numeric_fault(changes, message):
+    result = phase4_result()
+    finding = result["findings"][0]
+    for section, values in changes.items():
+        finding[section].update(values)
+    finding["provenance"]["evidence_fingerprint"] = evidence_fingerprint(finding)
+
+    with pytest.raises(ledger.LedgerError) as invalid:
+        seal_analysis(result)
+
+    assert message in str(invalid.value)
+    assert invalid.value.code == "invalid_engine_output"
+    assert invalid.value.validation is False
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
@@ -3641,3 +3761,138 @@ def test_all_time_no_data_and_bounded_sparse_ranges_are_honest(db):
         "2026-01-01",
         "2026-01-10",
     )
+
+
+def test_partial_finding_write_rolls_back_with_its_caller(db):
+    result = phase4_pair_result()
+    db.commit()
+    db.execute("""CREATE TEMP TRIGGER reject_pair_component
+        BEFORE INSERT ON analysis_finding_components WHEN NEW.position=2
+        BEGIN SELECT RAISE(ABORT, 'fictional component failure'); END""")
+    before = list(db.iterdump())
+
+    with pytest.raises(sqlite3.IntegrityError, match="fictional component failure"):
+        with db:
+            persist_fixture(db, result)
+
+    assert list(db.iterdump()) == before
+
+
+def test_partial_evaluation_write_rolls_back_with_its_caller(db):
+    create_initial(db)
+    result = phase4_result(
+        start="2026-04-01", end="2026-06-30", input_tag="rollback-replication"
+    )
+    batch, _ = persist_fixture(db, result)
+    db.commit()
+    db.execute("""CREATE TEMP TRIGGER reject_hypothesis_evidence
+        BEFORE INSERT ON hypothesis_evidence_items
+        BEGIN SELECT RAISE(ABORT, 'fictional evidence failure'); END""")
+    before = list(db.iterdump())
+
+    with pytest.raises(sqlite3.IntegrityError, match="fictional evidence failure"):
+        with db:
+            ledger.refresh_batch_hypotheses(
+                db, batch_id=batch["batch_id"], created_at=CREATED
+            )
+
+    assert list(db.iterdump()) == before
+
+
+def test_annotation_write_stays_in_the_callers_transaction(db):
+    hypothesis_id, *_ = create_initial(db)
+    db.commit()
+    before = list(db.iterdump())
+
+    ledger.append_annotation(
+        db, hypothesis_id=hypothesis_id, annotation_kind="owner_note",
+        content="Fictional owner observation", source="owner", created_at=CREATED,
+    )
+    db.rollback()
+
+    assert list(db.iterdump()) == before
+
+
+@pytest.mark.parametrize(
+    ("operation", "arguments", "code"),
+    [
+        ("create_analysis_batch", {
+            "run_kind": "manual", "anchor_date": "invalid",
+            "outcome_selection": "explicit_set", "outcomes": [], "ranges": [],
+            "registry_sha256_value": REGISTRY_HASH,
+        }, "validation_error"),
+        ("start_analysis_run", {
+            "batch_id": "invalid", "range_id": "invalid", "outcome_key": OUTCOME,
+            "outcome_mode": MODE, "batch_outcomes": [(OUTCOME, MODE)],
+        }, "invalid_engine_output"),
+        ("persist_analysis_run", {
+            "run_id": "invalid", "verified": {},
+        }, "unverified_engine_output"),
+        ("fail_analysis_run", {
+            "run_id": "invalid", "reason_code": "fictional_failure",
+        }, "invalid_engine_output"),
+        ("finalize_analysis_batch", {"batch_id": "invalid"}, "invalid_engine_output"),
+        ("refresh_batch_hypotheses", {"batch_id": "invalid"}, "invalid_engine_output"),
+        ("append_annotation", {
+            "hypothesis_id": "invalid", "annotation_kind": "owner_note",
+            "content": "Fictional owner observation", "source": "owner",
+        }, "invalid_engine_output"),
+    ],
+)
+def test_rejected_ledger_write_does_not_consult_the_clock(db, monkeypatch, operation, arguments, code):
+    def unavailable_clock():
+        raise AssertionError("clock accessed before the rejected field")
+
+    monkeypatch.setattr(ledger, "_now", unavailable_clock)
+
+    with pytest.raises(ledger.LedgerError) as rejected:
+        getattr(ledger, operation)(db, **arguments)
+
+    assert rejected.value.code == code
+
+
+def test_run_lifecycle_reads_each_current_facade_clock(db, monkeypatch):
+    result = phase4_result()
+    timestamps = [f"2026-04-02T12:00:0{second}+00:00" for second in range(4)]
+    readings = iter(timestamps)
+    monkeypatch.setattr(ledger, "_now", lambda: next(readings))
+
+    batch = ledger.create_analysis_batch(
+        db, run_kind="manual", anchor_date="2026-03-31",
+        outcome_selection="explicit_set", outcomes=[(OUTCOME, MODE)],
+        ranges=[{
+            "range_role": "primary", "requested_range_kind": "bounded",
+            "requested_from": "2026-01-01", "requested_to": "2026-03-31",
+        }],
+        registry_sha256_value=REGISTRY_HASH,
+    )
+    run = ledger.start_analysis_run(
+        db, batch_id=batch["batch_id"], range_id=batch["ranges"][0]["range_id"],
+        outcome_key=OUTCOME, outcome_mode=MODE, batch_outcomes=[(OUTCOME, MODE)],
+    )
+    terminal = ledger.persist_analysis_run(
+        db, run_id=run["run_id"], verified=seal_analysis(result)
+    )
+    finalized = ledger.finalize_analysis_batch(db, batch_id=batch["batch_id"])
+
+    assert [batch["started_at"], run["started_at"], terminal["completed_at"], finalized["completed_at"]] == timestamps
+
+
+def test_promotion_and_annotation_use_the_rebound_facade_clock(db, monkeypatch):
+    result = phase4_result(
+        quality="exploratory_screen", eligible=True, effect=0.20, ci=(0.01, 0.39)
+    )
+    _, run = persist_fixture(db, result)
+    monkeypatch.setattr(ledger, "_now", lambda: "2026-04-02T12:00:00+00:00")
+
+    promoted = ledger.promote_verified_finding(
+        db, run_id=run["run_id"], verified=sealed_replay(result)
+    )
+    monkeypatch.setattr(ledger, "_now", lambda: "2026-04-03T12:00:00+00:00")
+    annotation = ledger.append_annotation(
+        db, hypothesis_id=promoted["hypothesis_id"], annotation_kind="owner_note",
+        content="Fictional owner observation", source="owner",
+    )
+
+    assert promoted["evaluation"]["evaluation"]["created_at"] == "2026-04-02T12:00:00+00:00"
+    assert annotation["created_at"] == "2026-04-03T12:00:00+00:00"

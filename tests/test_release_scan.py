@@ -3,6 +3,8 @@
 import hashlib
 import subprocess
 
+import pytest
+
 from scripts import release_scan
 
 
@@ -197,3 +199,105 @@ def test_actual_history_accepts_only_reviewed_github_fields(tmp_path):
     assert [item.as_dict() for item in findings] == [{
         'category': 'non_example_email', 'path': 'history/<commit-metadata>',
     }]
+
+
+def _dependabot_metadata_fields():
+    address = "@".join(("support", "github.com"))
+    return [
+        'a' * 40, 'dependabot[bot]',
+        "@".join(("49699333+dependabot[bot]", "users.noreply.github.com")),
+        'GitHub', "@".join(("noreply", "github.com")),
+        f'Bump a fictional dependency.\n\nSigned-off-by: dependabot[bot] <{address}>',
+    ]
+
+
+@pytest.mark.parametrize('ending', ['', '\n'], ids=['git-log-no-final-lf', 'final-lf'])
+def test_dependabot_public_signoff_is_accepted_for_canonical_author(ending):
+    fields = _dependabot_metadata_fields()
+    fields[5] += ending
+
+    assert release_scan._commit_metadata_findings('\n'.join(fields)) == []
+
+
+@pytest.mark.parametrize(('field', 'before', 'after'), [
+    pytest.param(1, 'dependabot[bot]', 'Public Contributor', id='wrong-author'),
+    pytest.param(2, '49699333', '49699334', id='wrong-account-id'),
+    pytest.param(2, 'users.noreply.github.com', 'unapproved.test', id='wrong-author-domain'),
+    pytest.param(2, 'dependabot', 'Dependabot', id='author-case'),
+    pytest.param(5, '\n\nSigned-off-by:', '\nSigned-off-by:', id='missing-blank-boundary'),
+    pytest.param(5, 'Signed-off-by:', 'Signed-Off-By:', id='changed-label'),
+    pytest.param(5, 'Signed-off-by:', ' Signed-off-by:', id='indented-footer'),
+    pytest.param(5, 'dependabot[bot]', 'another[bot]', id='wrong-signatory'),
+    pytest.param(5, 'support', 'Support', id='changed-address-case'),
+    pytest.param(5, 'github.com', 'github.com.unapproved.test', id='address-suffix'),
+    pytest.param(5, '>', '> ', id='trailing-space'),
+    pytest.param(5, '>', '>\nLater content', id='nonterminal-footer'),
+    pytest.param(5, '>', '>\r\n', id='unreviewed-crlf'),
+])
+def test_dependabot_signoff_lookalikes_remain_rejected(field, before, after):
+    fields = _dependabot_metadata_fields()
+    fields[field] = fields[field].replace(before, after)
+
+    findings = release_scan._commit_metadata_findings('\n'.join(fields))
+
+    assert 'non_example_email' in {item.category for item in findings}
+    assert "@".join(("support", "github.com")) not in repr(findings)
+
+
+@pytest.mark.parametrize(('prefix', 'category'), [
+    pytest.param("@".join(("support", "github.com")), 'non_example_email', id='address-in-body'),
+    pytest.param('Signed-off-by: dependabot[bot] <' + "@".join(("support", "github.com")) + '>',
+                 'non_example_email', id='duplicate-earlier-footer'),
+    pytest.param('/' + 'Users/fictional/private-records', 'private_absolute_home_path', id='private-path'),
+    pytest.param('client_' + 'secret = "highentropyfixturevalue"', 'literal_secret_assignment', id='secret'),
+])
+def test_dependabot_footer_does_not_hide_other_message_findings(prefix, category):
+    fields = _dependabot_metadata_fields()
+    fields[5] = prefix + '\n\n' + fields[5]
+
+    findings = release_scan._commit_metadata_findings('\n'.join(fields))
+
+    assert {item.category for item in findings} == {category}
+    assert prefix not in repr(findings)
+
+
+@pytest.mark.parametrize('field', [1, 3, 4], ids=['author-name', 'committer-name', 'committer-email'])
+def test_dependabot_footer_does_not_allow_address_in_other_metadata(field):
+    fields = _dependabot_metadata_fields()
+    fields[field] = "@".join(("support", "github.com"))
+
+    findings = release_scan._commit_metadata_findings('\n'.join(fields))
+
+    assert 'non_example_email' in {item.category for item in findings}
+
+
+@pytest.mark.parametrize('path', ['README.md', 'history/<references>'])
+def test_dependabot_signoff_remains_rejected_outside_commit_messages(path):
+    body = _dependabot_metadata_fields()[5]
+
+    assert [item.category for item in release_scan._text_findings(body, path)] == ['non_example_email']
+
+
+def test_actual_dependabot_history_keeps_other_message_emails_private(tmp_path):
+    fields = _dependabot_metadata_fields()
+
+    def git(*args):
+        subprocess.run(['git', '-C', str(tmp_path), *args], check=True, capture_output=True)
+
+    git('init', '--quiet')
+    git('config', 'user.name', fields[3])
+    git('config', 'user.email', fields[4])
+    git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '--quiet',
+        '--author', f'{fields[1]} <{fields[2]}>', '-m', fields[5])
+    assert release_scan._history_scan(tmp_path) == ([], 0)
+
+    private_email = "@".join(("private-contact", "unapproved.test"))
+    git('-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '--quiet',
+        '--author', f'{fields[1]} <{fields[2]}>', '-m', private_email + '\n\n' + fields[5])
+    findings, blobs = release_scan._history_scan(tmp_path)
+
+    assert blobs == 0
+    assert [item.as_dict() for item in findings] == [{
+        'category': 'non_example_email', 'path': 'history/<commit-metadata>',
+    }]
+    assert private_email not in repr(findings)

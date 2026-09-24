@@ -999,92 +999,25 @@ def test_browser_analysis_stays_with_its_conversation():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is required for the browser context regression")
-    script = r"""
-const fs = require('node:fs');
-const vm = require('node:vm');
-const assert = require('node:assert/strict');
-const source = 'app/static/js/insights.js';
-const script = fs.readFileSync(source, 'utf8');
-const tick = async () => { for (let n=0;n<30;n++) await Promise.resolve(); };
-const deferred = () => { let resolve, reject; const promise=new Promise((a,b)=>{resolve=a;reject=b;}); return {promise,resolve,reject}; };
-class Element {
-  constructor(id='') { this.id=id; this.children=[]; this.dataset={}; this.listeners={}; this.disabled=false; this.hidden=false; this.value=''; this._text=''; this.classList={toggle(){}}; }
-  set textContent(s) { this._text=String(s); this.children=[]; }
-  get textContent() { return this._text+this.children.map(x=>x.textContent||'').join(''); }
-  get childNodes() { return this.children; }
-  append(...xs) { this.children.push(...xs); }
-  appendChild(x) { this.children.push(x); return x; }
-  replaceChildren(...xs) { this._text=''; this.children=xs; }
-  setAttribute(k,v) { this[k]=v; }
-  addEventListener(k,f) { this.listeners[k]=f; }
-  focus() {}
-  remove() {}
-}
-function setup() {
-  const nodes=new Map(), storage=new Map(), requests=[], jobs=[];
-  const node=id=>{ if(!nodes.has(id)) nodes.set(id,new Element(id)); return nodes.get(id); };
-  node('ins-granularity').value='month';
-  const people=Object.fromEntries(['A','B','C'].map((id,i)=>[id,{id,title:`Conversation ${id}`,lens:'general',archived:false,context:{version:1,range:{kind:'bounded',from:`2026-0${i+1}-01`,to:`2026-0${i+1}-28`},selected_region_ids:[]}}]));
-  function fetch(url,opts={}) { const d=deferred(); requests.push({url,opts,d}); return d.promise; }
-  const context={document:{getElementById:node,querySelector:()=>({content:'csrf'}),querySelectorAll:()=>[],createElement:()=>new Element()},Node:Element,fetch,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{assign(){}},window:{HermesAnalysisJobs:{remembered:()=>null,wait:options=>{const d=deferred();jobs.push({options,d});return d.promise;}}},AbortController,DOMException,URLSearchParams,crypto:require('node:crypto').webcrypto,console};
-  vm.runInNewContext(script,context,{filename:source});
-  function reply(url,body) { const index=requests.findIndex(x=>x.url===url); assert.notEqual(index,-1,`Expected request ${url}; have ${requests.map(x=>x.url)}`); const [r]=requests.splice(index,1); r.d.resolve({status:200,ok:true,json:async()=>({ok:true,...body})}); return r; }
-  async function boot() { reply('/api/chat/conversations?archived=0&limit=100',{conversations:Object.values(people)}); await tick(); reply('/api/chat/conversations/A',{conversation:people.A}); await tick(); reply('/api/chat/conversations/A/messages?limit=100',{messages:[]}); await tick(); }
-  function change(id) { node('ins-conversation').value=id; return node('ins-conversation').listeners.change({target:{value:id}}); }
-  function analyze() { return node('ins-analyze').listeners.click({target:node('ins-analyze')}); }
-  function result(id) { const range=people[id].context.range; return {status:'completed',result:{meta:{analysis_range:range,baseline_range:range},coverage:{},findings:[{finding_id:`finding-${id}`,outcome:{mode:'ordinal'},exposure:{components:[{display:`ONLY-${id}`}]}}]}}; }
-  return {node,people,requests,jobs,reply,boot,change,analyze,result,storage};
-}
-async function analysisSwitch() {
-  const h=setup(); await h.boot();
-  const analysis=h.analyze(); assert.equal(h.jobs.length,1);
-  const readiness=h.requests.find(r=>r.url.startsWith('/api/insights/readiness?'));
-  h.reply(readiness.url,{result:{meta:{range:h.people.A.context.range},features:[]}}); await tick();
-  const switching=h.change('B');
-  assert.equal(h.node('ins-analyze').disabled,true);
-  await h.analyze(); assert.equal(h.jobs.length,1,'Analyze must not start while switching');
-  h.reply('/api/chat/conversations/B',{conversation:h.people.B}); await tick();
-  h.jobs[0].d.resolve(h.result('A')); await tick(); await analysis;
-  assert.ok(!h.node('finding-groups').textContent.includes('ONLY-A'),'Late A analysis leaked into B');
-  assert.ok(h.node('ins-window').textContent.includes('2026-02-01'));
-  assert.equal(h.node('ins-analyze').disabled,true,'Analyze must wait for conversation messages');
-  h.reply('/api/chat/conversations/B/messages?limit=100',{messages:[]}); await switching; await tick();
-  assert.equal(h.node('ins-analyze').disabled,false);
-  assert.equal(h.node('finding-groups').children.length,0);
-}
-async function detailReordering() {
-  const h=setup(); await h.boot();
-  const b=h.change('B'), c=h.change('C');
-  h.reply('/api/chat/conversations/C',{conversation:h.people.C}); await tick();
-  h.reply('/api/chat/conversations/C/messages?limit=100',{messages:[{role:'assistant',content:'ONLY-C-MESSAGE'}]}); await c; await tick();
-  h.reply('/api/chat/conversations/B',{conversation:h.people.B}); await b; await tick();
-  assert.equal(h.storage.get('hermes.insight.conversation'),'C');
-  assert.ok(h.node('ins-window').textContent.includes('2026-03-01'));
-  assert.ok(h.node('ins-chat').textContent.includes('ONLY-C-MESSAGE'));
-  assert.equal(h.requests.length,0,'Stale B detail must not fetch B messages');
-  assert.equal(h.node('ins-analyze').disabled,false);
-}
-async function messageReordering() {
-  const h=setup(); await h.boot();
-  const b=h.change('B'); h.reply('/api/chat/conversations/B',{conversation:h.people.B}); await tick();
-  const c=h.change('C'); h.reply('/api/chat/conversations/C',{conversation:h.people.C}); await tick();
-  h.reply('/api/chat/conversations/C/messages?limit=100',{messages:[{role:'assistant',content:'ONLY-C-MESSAGE'}]}); await c; await tick();
-  h.reply('/api/chat/conversations/B/messages?limit=100',{messages:[{role:'assistant',content:'FORBIDDEN-B-MESSAGE'}]}); await b; await tick();
-  assert.equal(h.storage.get('hermes.insight.conversation'),'C');
-  assert.ok(h.node('ins-chat').textContent.includes('ONLY-C-MESSAGE'));
-  assert.ok(!h.node('ins-chat').textContent.includes('FORBIDDEN-B-MESSAGE'));
-  assert.equal(h.node('ins-analyze').disabled,false);
-}
-async function currentAnalysisRenders() {
-  const h=setup(); await h.boot(); const analysis=h.analyze();
-  const readiness=h.requests.find(r=>r.url.startsWith('/api/insights/readiness?'));
-  h.reply(readiness.url,{result:{meta:{range:h.people.A.context.range},features:[]}});
-  h.jobs[0].d.resolve(h.result('A')); await analysis; await tick();
-  assert.ok(h.node('finding-groups').textContent.includes('ONLY-A'));
-  assert.equal(h.node('ins-scope-status').textContent,'Analysis ready.');
-}
-(async()=>{for (const test of [analysisSwitch,detailReordering,messageReordering,currentAnalysisRenders]) { await test(); console.log(`PASS ${test.name}`); }})().catch(e=>{console.error(e);process.exitCode=1;});
+    subprocess.run(
+        [node, "tests/fixtures/insights_browser.js", "context"],
+        cwd=Path(__file__).parents[1], check=True, capture_output=True,
+        text=True, timeout=20,
+    )
 
-"""
-    subprocess.run([node, "-e", script], cwd=Path(__file__).parents[1],
-                   check=True, capture_output=True, text=True, timeout=20)
+
+@pytest.mark.parametrize("scenario", [
+    "readiness_details", "finding_summary", "shared_metadata",
+    "selection", "promotion", "context_clears_evidence", "unknown_readiness_states",
+    "late_send_success", "late_send_error", "current_send",
+    "insufficient_groups", "all_insufficient", "reason_labels", "warnings_without_findings",
+])
+def test_browser_evidence_disclosures(scenario):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for the browser evidence regression")
+    subprocess.run(
+        [node, "tests/fixtures/insights_browser.js", scenario],
+        cwd=Path(__file__).parents[1], check=True, capture_output=True,
+        text=True, timeout=20,
+    )
