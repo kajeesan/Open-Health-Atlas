@@ -334,8 +334,10 @@ canonical identifiers, errors and transition result types. `_ledger_validation.p
 owns analytical result validation, including sample counts, orientation,
 statistical methods, stability, rates and coverage. `_ledger_transitions.py`
 owns ordered hypothesis decisions and lineage/window comparisons over loaded
-records. `ledger.py` remains the public facade and owns verified seals, clocks
-and persistence. It re-exports the existing public contract objects and the
+records. `_ledger_store.py` owns authenticated analysis reads and batch/run
+persistence on injected connections. `ledger.py` remains the public facade and
+owns verified seals, call-time clocks and hypothesis/annotation coordination.
+It re-exports the existing public contract objects and the
 fingerprint helper consumed by synthesis. Validation and transition owners
 neither create seals nor own transactions.
 
