@@ -565,6 +565,25 @@
       && JSON.stringify(current.context.range) === JSON.stringify(range);
   }
 
+  function insufficientGroup(findings, meta, sharedProvenance) {
+    const group = el("div", "insufficient-results");
+    const reasons = new Map();
+    findings.forEach((finding) => {
+      const codes = new Set((finding.evidence_against || []).map((item) => item.code || raw(item)));
+      if (!codes.size) codes.add("No reason returned");
+      codes.forEach((code) => reasons.set(code, (reasons.get(code) || 0) + 1));
+    });
+    group.appendChild(el("p", "muted note-txt", "Engine reasons: "
+      + [...reasons].map(([code, count]) => `${human(code)} (${count})`).join("; ")));
+    const details = evidenceDetails(`Insufficient evidence · ${findings.length} finding${findings.length === 1 ? "" : "s"}`);
+    details.dataset.insufficientGroup = "true";
+    findings.forEach((finding) => details.appendChild(findingCard(finding, meta, {
+      promote: true, sharedProvenance,
+    })));
+    group.appendChild(details);
+    return group;
+  }
+
   async function loadOutcomes(token, conversationId, range, signal, resumeOnly) {
     const query = "?outcome=subjective.day_rating&mode=all&" + rangeQuery(range);
     const job = await window.HermesAnalysisJobs.wait({
@@ -595,7 +614,13 @@
     const groups = $("finding-groups");
     groups.replaceChildren();
     const findings = result.findings || [];
+    const insufficientCount = findings.filter((finding) => (finding.quality || {}).tier === "insufficient").length;
     $("findings-meta").textContent = `${findings.length} engine finding${findings.length === 1 ? "" : "s"}`;
+    $("findings-show-all").hidden = insufficientCount === 0;
+    $("findings-status").hidden = insufficientCount === 0;
+    $("findings-status").textContent = insufficientCount === findings.length && findings.length
+      ? "All findings in this window have insufficient evidence. Open a group to inspect the reasons and records."
+      : `${insufficientCount} finding${insufficientCount === 1 ? " has" : "s have"} insufficient evidence. Open a group or show all findings to inspect them.`;
     MODES.forEach((mode) => {
       const group = el("section", "finding-group");
       group.appendChild(el("h3", "finding-group-title", human(mode)));
@@ -603,12 +628,14 @@
       if (!matching.length) {
         group.appendChild(el("p", "muted note-txt m0", "No eligible finding in this group."));
       } else {
-        matching.forEach((finding) => group.appendChild(
+        matching.filter((finding) => (finding.quality || {}).tier !== "insufficient").forEach((finding) => group.appendChild(
           findingCard(finding, meta, {
             promote: true,
             sharedProvenance,
           })
         ));
+        const insufficient = matching.filter((finding) => (finding.quality || {}).tier === "insufficient");
+        if (insufficient.length) group.appendChild(insufficientGroup(insufficient, meta, sharedProvenance));
       }
       groups.appendChild(group);
     });
@@ -682,6 +709,9 @@
     $("analysis-window").textContent = "—";
     $("baseline-window").textContent = "—";
     $("finding-groups").replaceChildren();
+    $("findings-show-all").hidden = true;
+    $("findings-status").hidden = true;
+    $("findings-status").textContent = "";
     $("analysis-evidence").hidden = true;
     $("analysis-evidence").replaceChildren();
     $("analysis-warnings").hidden = true;
@@ -744,6 +774,9 @@
     const token = ++refreshToken;
     $("findings-meta").textContent = "Loading…";
     $("finding-groups").replaceChildren();
+    $("findings-show-all").hidden = true;
+    $("findings-status").hidden = true;
+    $("findings-status").textContent = "";
     $("analysis-evidence").hidden = true;
     $("analysis-evidence").replaceChildren();
     $("analysis-warnings").hidden = true;
@@ -1071,6 +1104,9 @@
     setCanonicalWindow($("ins-granularity").value, 0, false);
   });
   $("ins-analyze").addEventListener("click", () => loadScopedAnalysis());
+  $("findings-show-all").addEventListener("click", () => {
+    document.querySelectorAll("[data-insufficient-group]").forEach((group) => { group.open = true; });
+  });
   $("load-hypotheses").addEventListener("click", loadHypotheses);
   $("load-syntheses").addEventListener("click", loadSyntheses);
   $("load-run-audit").addEventListener("click", loadRunAudit);

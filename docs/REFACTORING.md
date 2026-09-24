@@ -1,5 +1,27 @@
 # Refactoring checkpoint
 
+## Result grouping and Nutrition setup help, 24 September 2026
+
+The Explorer now groups insufficient findings within each outcome mode, with
+counts, engine reasons and a Show all findings action. Every finding remains
+inspectable in its received order within the group. An all-insufficient window
+is labelled explicitly; other findings and their conflicting evidence remain
+visible.
+
+Nutrition uses one shared setup explanation with the exact engine reason.
+Profile, weight and configuration are separate prerequisites. Help requires an
+explicit workspace database and timezone for CLI setup and distinguishes an
+authorized local operator from the read-only MCP connection. Logged totals,
+available water targets, meal/batch controls and persistent validation feedback
+remain in place. No profile writer, backend, broker or schema change is included.
+
+The focused Insights, Phase 7, Nutrition API, shell and nutrition workflow
+boundary suites passed 205 tests in 6.94 seconds, without skips. New browser
+harness cases cover grouping/order, conflicting evidence, expansion/selection,
+target refusal reasons, request failures, populated targets and batch errors.
+Live browser review and combined full-suite/package verification remain pending
+at this checkpoint.
+
 ## Insight evidence readability, 24 September 2026
 
 This UI batch starts from merged `main` at

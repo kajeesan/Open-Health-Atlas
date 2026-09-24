@@ -1392,7 +1392,11 @@ table.ltab tr:last-child td { border-bottom: 0; }
 .evidence-details { margin-top: 12px; min-width: 0; overflow-wrap: anywhere; }
 .evidence-details > summary { padding: 6px 0; cursor: pointer; font: 600 12px var(--ui); }
 .evidence-details > .finding-detail { margin-top: 8px; }
-#insight-root summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.insufficient-results { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--hair); overflow-wrap: anywhere; }
+.insufficient-results > .evidence-details > .finding-card { margin-top: 10px; }
+#insight-root summary:focus-visible, .nutrition-target-help summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.nutrition-target-help, .nutrition-target-help li { min-width: 0; overflow-wrap: anywhere; }
+.nutrition-target-help p, .nutrition-target-help ul, .nutrition-target-help ol { max-width: 75ch; }
 #insight-root .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .finding-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .finding-group { min-width: 0; }

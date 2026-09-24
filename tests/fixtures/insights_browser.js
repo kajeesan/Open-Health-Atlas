@@ -32,7 +32,7 @@ function setup() {
   node('ins-granularity').value='month';
   const people=Object.fromEntries(['A','B','C'].map((id,i)=>[id,{id,title:`Conversation ${id}`,lens:'general',archived:false,context:{version:1,range:{kind:'bounded',from:`2026-0${i+1}-01`,to:`2026-0${i+1}-28`},selected_region_ids:[]}}]));
   function fetch(url,opts={}) { const d=deferred(); requests.push({url,opts,d}); return d.promise; }
-  const context={document:{getElementById:node,querySelector:()=>({content:'csrf'}),querySelectorAll:selector=>[...nodes.values()].flatMap(descendants).filter(item=>selector==='[data-evidence-finding]' && item.dataset.evidenceFinding),createElement:tag=>new Element('',tag)},Node:Element,fetch,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{assign(){}},window:{HermesAnalysisJobs:{remembered:()=>null,wait:options=>{const d=deferred();jobs.push({options,d});return d.promise;}}},AbortController,DOMException,URLSearchParams,crypto:require('node:crypto').webcrypto,console};
+  const context={document:{getElementById:node,querySelector:()=>({content:'csrf'}),querySelectorAll:selector=>[...nodes.values()].flatMap(descendants).filter(item=>(selector==='[data-evidence-finding]' && item.dataset.evidenceFinding) || (selector==='[data-insufficient-group]' && item.dataset.insufficientGroup)),createElement:tag=>new Element('',tag)},Node:Element,fetch,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{assign(){}},window:{HermesAnalysisJobs:{remembered:()=>null,wait:options=>{const d=deferred();jobs.push({options,d});return d.promise;}}},AbortController,DOMException,URLSearchParams,crypto:require('node:crypto').webcrypto,console};
   vm.runInNewContext(script,context,{filename:source});
   function reply(url,body) { const index=requests.findIndex(x=>x.url===url); assert.notEqual(index,-1,`Expected request ${url}; have ${requests.map(x=>x.url)}`); const [r]=requests.splice(index,1); r.d.resolve({status:200,ok:true,json:async()=>({ok:true,...body})}); return r; }
   async function boot() { reply('/api/chat/conversations?archived=0&limit=100',{conversations:Object.values(people)}); await tick(); reply('/api/chat/conversations/A',{conversation:people.A}); await tick(); reply('/api/chat/conversations/A/messages?limit=100',{messages:[]}); await tick(); }
@@ -179,7 +179,7 @@ async function findingSummary() {
   assert.ok(expanded.includes('fictional-sleep-finding'));
   assert.ok(!visibleText(card).includes('fictional-testing-seed'));
   assert.ok(visibleText(cards[1]).includes('Not available'));
-  assert.equal(cards.length,2,'UI 1 keeps insufficient findings in their original mode');
+  assert.equal(cards.length,2,'Every returned finding remains inspectable');
 }
 
 async function sharedMetadata() {
@@ -320,6 +320,55 @@ async function currentSendReloadsConversation() {
   assert.equal(h.node('ins-input').focused,true);
 }
 
+async function groupedInsufficientFindings() {
+  const h=setup(); await h.boot();
+  const result=evidenceResult(h);
+  const finding=result.findings[0];
+  result.findings=[
+    {...finding,finding_id:'sparse-first',exposure:{components:[{display:'Sparse first'}]},quality:{tier:'insufficient'},evidence_against:[{code:'aligned_n'}]},
+    {...finding,finding_id:'conflicting',exposure:{components:[{display:'Conflicting evidence'}]},effect:{estimate:-0.2,ci95:[-0.3,-0.1]},evidence_against:[{code:'opposite_direction'}]},
+    {...finding,finding_id:'sparse-second',exposure:{components:[{display:'Sparse second'}]},quality:{tier:'insufficient'},evidence_against:[{code:'outcome_variation'}]},
+    {...finding,finding_id:'sparse-green',outcome:{key:'subjective.day_rating',mode:'green-vs-non-green'},exposure:{components:[{display:'Sparse Green'}]},quality:{tier:'insufficient'},evidence_against:[{code:'aligned_n'}]},
+  ];
+
+  await render(h,result);
+  const groups=descendants(h.node('finding-groups')).filter(item=>item.dataset.insufficientGroup);
+  const collapsedText=visibleText(h.node('finding-groups'));
+  h.node('findings-show-all').listeners.click();
+  const expandedText=visibleText(h.node('finding-groups'));
+  const asks=descendants(groups[0]).filter(item=>item.dataset.evidenceFinding);
+  asks[1].listeners.click();
+  groups[0].open=false;
+
+  assert.ok(collapsedText.includes('Conflicting evidence'));
+  assert.ok(collapsedText.includes('opposite_direction'));
+  assert.ok(collapsedText.includes('aligned n (1)'));
+  assert.ok(collapsedText.includes('outcome variation (1)'));
+  assert.ok(!collapsedText.includes('Sparse first'));
+  assert.ok(groups[0].children[0].textContent.includes('2 findings'));
+  assert.deepEqual(asks.map(item=>item.dataset.evidenceFinding),['sparse-first','sparse-second']);
+  assert.ok(expandedText.includes('Sparse first'));
+  assert.ok(expandedText.includes('Sparse second'));
+  assert.ok(expandedText.includes('Sparse Green'));
+  assert.equal(asks[1]['aria-pressed'],'true');
+  assert.ok(!visibleText(h.node('finding-groups')).includes('Sparse first'));
+  assert.ok(visibleText(h.node('finding-groups')).includes('Conflicting evidence'));
+}
+
+async function allInsufficientPeriod() {
+  const h=setup(); await h.boot();
+  const result=evidenceResult(h);
+  result.findings[0].quality={tier:'insufficient',eligible_for_hypothesis:false};
+  result.findings[0].evidence_against=[];
+
+  await render(h,result);
+
+  assert.equal(h.node('findings-status').hidden,false);
+  assert.ok(h.node('findings-status').textContent.includes('All findings in this window have insufficient evidence'));
+  assert.ok(visibleText(h.node('finding-groups')).includes('No reason returned'));
+  assert.equal(h.node('findings-show-all').hidden,false);
+}
+
 const scenarios={
   context:async()=>{for(const test of [analysisSwitch,detailReordering,messageReordering,currentAnalysisRenders]) await test();},
   readiness_details:readinessDetails,
@@ -332,6 +381,8 @@ const scenarios={
   late_send_success:()=>lateSendResponse({reply:'A-only reply'}),
   late_send_error:()=>lateSendResponse({ok:false,error:'A-only error'}),
   current_send:currentSendReloadsConversation,
+  insufficient_groups:groupedInsufficientFindings,
+  all_insufficient:allInsufficientPeriod,
 };
 const scenario=process.argv[2];
 Promise.resolve().then(()=>scenarios[scenario]()).then(()=>console.log(`PASS ${scenario}`)).catch(error=>{console.error(error);process.exitCode=1;});
