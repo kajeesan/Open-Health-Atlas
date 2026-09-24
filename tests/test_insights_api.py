@@ -1010,7 +1010,7 @@ def test_browser_analysis_stays_with_its_conversation():
     "readiness_details", "finding_summary", "shared_metadata",
     "selection", "promotion", "context_clears_evidence", "unknown_readiness_states",
     "late_send_success", "late_send_error", "current_send",
-    "insufficient_groups", "all_insufficient",
+    "insufficient_groups", "all_insufficient", "reason_labels", "warnings_without_findings",
 ])
 def test_browser_evidence_disclosures(scenario):
     node = shutil.which("node")

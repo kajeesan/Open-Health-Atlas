@@ -155,6 +155,8 @@ async function readinessDetails() {
 async function findingSummary() {
   const h=setup(); await h.boot();
   const result=evidenceResult(h);
+  result.warnings.push('association_not_causation');
+  result.findings[0].warnings.push('future_warning_code');
   result.findings.push({...result.findings[0],finding_id:'fictional-insufficient-finding',quality:{tier:'insufficient'},effect:{estimate:null,ci95:null}});
 
   await render(h,result);
@@ -169,7 +171,12 @@ async function findingSummary() {
   assert.ok(before.includes('Sleep <script>unsafe()</script>'));
   assert.ok(before.includes('50, 40, 10'));
   assert.ok(before.includes('-0.2, 0.4'));
-  assert.ok(before.includes('association_not_causation'));
+  assert.ok(before.includes('An association does not show that one thing caused the other.'));
+  assert.ok(!before.includes('association_not_causation'));
+  assert.ok(before.includes('future_warning_code'));
+  assert.ok(expanded.includes('association_not_causation'));
+  assert.ok(visibleText(h.node('analysis-warnings')).includes('An association does not show that one thing caused the other.'));
+  assert.ok(h.node('analysis-evidence').textContent.includes('association_not_causation'));
   assert.ok(before.includes('interval_includes_zero'));
   assert.ok(before.includes('training day'));
   assert.ok(before.includes('illness'));
@@ -342,8 +349,8 @@ async function groupedInsufficientFindings() {
 
   assert.ok(collapsedText.includes('Conflicting evidence'));
   assert.ok(collapsedText.includes('opposite_direction'));
-  assert.ok(collapsedText.includes('aligned n (1)'));
-  assert.ok(collapsedText.includes('outcome variation (1)'));
+  assert.ok(collapsedText.includes('Not enough comparable observations (1 finding)'));
+  assert.ok(collapsedText.includes('Too little variation in the outcome (1 finding)'));
   assert.ok(!collapsedText.includes('Sparse first'));
   assert.ok(groups[0].children[0].textContent.includes('2 findings'));
   assert.deepEqual(asks.map(item=>item.dataset.evidenceFinding),['sparse-first','sparse-second']);
@@ -369,6 +376,44 @@ async function allInsufficientPeriod() {
   assert.equal(h.node('findings-show-all').hidden,false);
 }
 
+async function reasonLabelsPreserveUnknownCodes() {
+  const h=setup(); await h.boot();
+  const result=evidenceResult(h);
+  const finding={...result.findings[0],quality:{tier:'insufficient'}};
+  result.findings=[
+    {...finding,finding_id:'first-sparse',evidence_against:[{code:'aligned_n',value:8,threshold:null}]},
+    {...finding,finding_id:'second-sparse',evidence_against:[{code:'aligned_n',value:12,threshold:null}]},
+    {...finding,finding_id:'future-sparse',evidence_against:[{code:'__proto__'},{code:'future_reason_<script>fictional()</script>'}]},
+  ];
+
+  await render(h,result);
+  const collapsed=visibleText(h.node('finding-groups'));
+  h.node('findings-show-all').listeners.click();
+  const expanded=visibleText(h.node('finding-groups'));
+
+  assert.ok(collapsed.includes('Not enough comparable observations (2 findings)'));
+  assert.ok(collapsed.includes('__proto__ (1 finding)'));
+  assert.ok(collapsed.includes('future_reason_<script>fictional()</script> (1 finding)'));
+  assert.ok(expanded.includes('code: aligned_n'));
+  assert.ok(expanded.includes('value: 8'));
+  assert.ok(expanded.includes('value: 12'));
+  assert.ok(expanded.includes('threshold: Not available'));
+}
+
+async function warningsWithoutFindings() {
+  const h=setup(); await h.boot();
+  const result=evidenceResult(h);
+  result.findings=[];
+  result.warnings=['association_not_causation','future_warning_code'];
+
+  await render(h,result);
+
+  assert.ok(h.node('findings-empty').textContent.includes('An association does not show that one thing caused the other.'));
+  assert.ok(h.node('findings-empty').textContent.includes('future_warning_code'));
+  assert.ok(!h.node('findings-empty').textContent.includes('association_not_causation'));
+  assert.ok(h.node('analysis-evidence').textContent.includes('association_not_causation'));
+}
+
 const scenarios={
   context:async()=>{for(const test of [analysisSwitch,detailReordering,messageReordering,currentAnalysisRenders]) await test();},
   readiness_details:readinessDetails,
@@ -383,6 +428,8 @@ const scenarios={
   current_send:currentSendReloadsConversation,
   insufficient_groups:groupedInsufficientFindings,
   all_insufficient:allInsufficientPeriod,
+  reason_labels:reasonLabelsPreserveUnknownCodes,
+  warnings_without_findings:warningsWithoutFindings,
 };
 const scenario=process.argv[2];
 Promise.resolve().then(()=>scenarios[scenario]()).then(()=>console.log(`PASS ${scenario}`)).catch(error=>{console.error(error);process.exitCode=1;});

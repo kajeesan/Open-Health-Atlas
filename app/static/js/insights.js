@@ -16,6 +16,19 @@
     too_sparse_for_analysis: ["Too little aligned data", "Check the missing observations and analysis gates below."],
     sufficient: ["Ready for this query", "Meets this query’s data requirements; this does not establish clinical reliability."],
   };
+  const INSUFFICIENT_REASONS = new Map([
+    ["aligned_n", "Not enough comparable observations"],
+    ["high_missingness", "Too many missing observations"],
+    ["outcome_class_gate", "Too few observations in an outcome group"],
+    ["outcome_variation", "Too little variation in the outcome"],
+    ["exposure_prevalence", "Too few observations with or without the exposure"],
+    ["unknown_absence", "Missing confirmation that the exposure was absent"],
+    ["exposure_variation", "Too little variation in the exposure"],
+    ["undefined_statistic", "The statistic could not be calculated"],
+  ]);
+  const WARNING_LABELS = new Map([
+    ["association_not_causation", "An association does not show that one thing caused the other."],
+  ]);
   let conversations = [];
   let current = null;
   let canonicalControl = null;
@@ -118,6 +131,10 @@
     return list;
   }
 
+  function readableWarnings(items) {
+    return arrayLines((items || []).map((item) => WARNING_LABELS.get(item) || item));
+  }
+
   function evidenceDetails(title) {
     const details = el("details", "evidence-details");
     details.appendChild(el("summary", "", title));
@@ -156,12 +173,13 @@
       section("Analysis metadata", evidenceFields(result.meta)),
       section("Coverage and source manifests", evidenceFields(result.coverage)),
       section("Suppression counts", evidenceFields(result.suppression_counts)),
+      section("Engine warnings", arrayLines(result.warnings)),
       detailRow("Contract", result.contract_version)
     );
     const warnings = $("analysis-warnings");
     warnings.replaceChildren();
     warnings.hidden = !(result.warnings || []).length;
-    if (!warnings.hidden) warnings.appendChild(section("Analysis warnings", arrayLines(result.warnings)));
+    if (!warnings.hidden) warnings.appendChild(section("Analysis warnings", readableWarnings(result.warnings)));
   }
 
   function exposureName(finding) {
@@ -285,7 +303,7 @@
     );
     card.appendChild(summary);
     card.append(
-      section("Warnings and limits", arrayLines(finding.warnings)),
+      section("Warnings and limits", readableWarnings(finding.warnings)),
       section("Evidence against", arrayLines(finding.evidence_against))
     );
     const confounders = finding.confounders || {};
@@ -314,6 +332,7 @@
       section("Stability", evidenceFields(finding.stability)),
       section("Quality", evidenceFields(finding.quality)),
       section("Confounders", evidenceFields(finding.confounders)),
+      section("Engine warnings", arrayLines(finding.warnings)),
       section("Evidence for", arrayLines(finding.evidence_for))
     );
     const sharedProvenance = (options && options.sharedProvenance) || {};
@@ -574,7 +593,7 @@
       codes.forEach((code) => reasons.set(code, (reasons.get(code) || 0) + 1));
     });
     group.appendChild(el("p", "muted note-txt", "Engine reasons: "
-      + [...reasons].map(([code, count]) => `${human(code)} (${count})`).join("; ")));
+      + [...reasons].map(([code, count]) => `${INSUFFICIENT_REASONS.get(code) || raw(code)} (${count} finding${count === 1 ? "" : "s"})`).join("; ")));
     const details = evidenceDetails(`Insufficient evidence · ${findings.length} finding${findings.length === 1 ? "" : "s"}`);
     details.dataset.insufficientGroup = "true";
     findings.forEach((finding) => details.appendChild(findingCard(finding, meta, {
@@ -643,7 +662,7 @@
     if (!findings.length) {
       const warnings = result.warnings || [];
       $("findings-empty").textContent = warnings.length
-        ? raw(warnings)
+        ? raw(warnings.map((warning) => WARNING_LABELS.get(warning) || warning))
         : "No eligible association is available for this window. Sparse evidence stays quiet.";
     }
     return true;
