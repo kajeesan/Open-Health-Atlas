@@ -85,6 +85,13 @@ REVIEWED_GITHUB_COMMIT_EMAILS = frozenset((
     "@".join(("249340830+kajeesan", "users.noreply.github.com")),
     "@".join(("noreply", "github.com")),
 ))
+_REVIEWED_DEPENDABOT_AUTHOR = (
+    "dependabot[bot]",
+    "@".join(("49699333+dependabot[bot]", "users.noreply.github.com")),
+)
+_REVIEWED_DEPENDABOT_SIGNOFF = (
+    "Signed-off-by: dependabot[bot] <" + "@".join(("support", "github.com")) + ">"
+)
 # Visually reviewed public documentation and theme artwork. Replacement bytes or
 # another path require a fresh review; this is not a general binary allowance.
 REVIEWED_BINARY_ASSETS: dict[str, str] = {
@@ -341,13 +348,21 @@ def _tree_scan(root: Path) -> tuple[list[Finding], int, int]:
 
 
 def _commit_metadata_findings(record: str) -> list[Finding]:
-    """Scope reviewed no-reply identities to the two Git email fields only."""
+    """Confine public automation exceptions to their reviewed metadata positions."""
     relative = "history/<commit-metadata>"
     # Git log inserts a newline after each record separator. The first five
     # fields are single-line Git metadata; everything remaining is the message.
     fields = record.lstrip("\n").split("\n", 5)
     if len(fields) != 6:
         return _text_findings(record, relative)
+    # Dependabot's public sign-off is not a private contact. Exclude only its
+    # exact terminal trailer for the canonical author; scan the full prefix.
+    if tuple(fields[1:3]) == _REVIEWED_DEPENDABOT_AUTHOR:
+        for ending in ("", "\n"):
+            suffix = _REVIEWED_DEPENDABOT_SIGNOFF + ending
+            if fields[5].endswith("\n\n" + suffix):
+                fields[5] = fields[5][:-len(suffix)]
+                break
     findings = []
     for index, field in enumerate(fields):
         allowed = (REVIEWED_GITHUB_COMMIT_EMAILS

@@ -1,5 +1,20 @@
 # Refactoring checkpoint
 
+## Dependabot commit metadata, 25 September 2026
+
+The pull-request privacy check encountered Dependabot's public support-address
+sign-off in newly fetched dependency-update branches. The scanner now recognizes
+only the exact terminal trailer after a blank line, with the canonical
+Dependabot author name and account email. All preceding message content and
+other metadata fields still pass through the existing privacy checks.
+
+Five new regression cases failed unchanged code. The complete scanner suite
+then passed 34 tests on both Python 3.12.13 and 3.11.15, with no failures or
+skips. Tests cover lookalikes, misplaced or duplicate trailers, private content
+and actual Git history. The source/history scan passes with all public branches
+and the pull-request merge reference included. Application code and its
+previously verified behavior are unchanged.
+
 ## Synthesis material resolution, 24 September 2026
 
 This bounded batch starts from runtime commit `8f8a497` after the accepted M4
