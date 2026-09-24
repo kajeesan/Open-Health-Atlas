@@ -329,6 +329,13 @@ and finalizes separately. Finalization rechecks any trigger lease before writing
 Synthesis recording commits SQLite before its idempotent Markdown append. If the
 file append fails, an exact retry can complete it from the durable record.
 
+Within `synthesis.py`, material resolution checks the terminal batch, runs,
+finding membership and hypothesis evidence in order. Separate validators cover
+linked findings, dormant evidence and hypothesis origins. Existing ancestor
+loaders remain pinned to the referenced evaluation. Recording and history reads
+retain fingerprint verification before cadence/cutoff validation. These readers
+validate stored versions rather than requiring a current-engine seal.
+
 The ledger's private `_ledger_contracts.py` owns shared value validation,
 canonical identifiers, errors and transition result types. `_ledger_validation.py`
 owns analytical result validation, including sample counts, orientation,

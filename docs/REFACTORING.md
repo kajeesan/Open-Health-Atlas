@@ -1,5 +1,32 @@
 # Refactoring checkpoint
 
+## Synthesis material resolution, 24 September 2026
+
+This bounded batch starts from runtime commit `8f8a497` after the accepted M4
+integration checkpoint. `_resolve_material` is now a coordinator for batch,
+run, finding and hypothesis resolution within `synthesis.py`. Separate helpers
+validate linked evaluations, dormant evidence and hypothesis origins. The
+existing ancestor loaders, fingerprint/cutoff ordering, recorder, renderer and
+SQLite-before-file publication behavior remain unchanged.
+
+Three paired-fault precedence cases passed unchanged production code before
+extraction. The focused synthesis, ledger, Phase 5/6 CLI and orchestration
+suites passed 256 tests in 145.67 seconds on Python 3.12.13, with no failures,
+errors or skips. The candidate total includes those three cases.
+
+Eight positive cases and three paired faults retain exact material,
+fingerprints, rendered bytes, SQL read sequences, database dumps and errors.
+Comparisons use one verified fictional database snapshot without timestamp
+normalization. Resolution preserves database and transaction state. Inlining
+the seven new private helpers reconstructs the entire original module syntax
+tree, including SQL string bytes and all other function bodies.
+
+Public exports/signatures and narrow numerical provenance remain unchanged.
+Only `synthesis.py` changes in the broad runtime source inventory. Three fresh
+isolated desktop source-copy imports reproduce the same material, SQL and
+fingerprint. These focused checks do not replace the final combined full-suite
+and native package qualification. No integration-only UI trace pins changed.
+
 ## Ledger hypothesis coordination owner, 24 September 2026
 
 Following independent acceptance of the storage commit `0dd2125`,
