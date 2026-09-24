@@ -1376,13 +1376,24 @@ table.ltab tr:last-child td { border-bottom: 0; }
 .window-pair strong { font-size: 12px; overflow-wrap: anywhere; }
 .readiness-grid {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  align-items: start;
 }
 .readiness-state {
-  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  min-width: 0;
   padding: 9px; border: 1px solid var(--card-border); border-radius: 9px;
   background: var(--chip);
 }
-.readiness-state strong { font: 600 10.5px var(--ui); overflow-wrap: anywhere; }
+.readiness-state > summary { cursor: pointer; font-size: 12px; overflow-wrap: anywhere; }
+.readiness-state > summary strong { font: 600 12px var(--ui); }
+.readiness-state > summary span { display: block; margin-top: 4px; }
+.readiness-state[open] { grid-column: 1 / -1; }
+.readiness-state > .finding-detail { margin-top: 10px; }
+.readiness-feature { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hair); }
+.evidence-details { margin-top: 12px; min-width: 0; overflow-wrap: anywhere; }
+.evidence-details > summary { padding: 6px 0; cursor: pointer; font: 600 12px var(--ui); }
+.evidence-details > .finding-detail { margin-top: 8px; }
+#insight-root summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#insight-root .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .finding-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .finding-group { min-width: 0; }
 .finding-group-title {

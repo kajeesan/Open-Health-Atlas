@@ -1,5 +1,22 @@
 # Refactoring checkpoint
 
+## Insight evidence readability, 24 September 2026
+
+This UI batch starts from merged `main` at
+`84e931000af3a13a631d3a860437ccd271baf9a2`. The Explorer labels all six
+readiness states and reveals the engine's feature prerequisites, gate failures
+and dates. Finding summaries retain sample counts, effects, intervals and
+limitations. Reversible evidence details keep full statistics and identifiers;
+shared analysis metadata appears once, with differing finding provenance retained.
+
+Changes are confined to the Explorer script/template, scoped panel styles and
+its existing Node-backed browser tests. The focused Insights API and Phase 7
+conversation suites passed 123 tests in 2.53 seconds, without skips. These checks
+include safe text rendering, evidence identity, selection, promotion and stale
+conversation responses. Browser review and the integration suite remain pending
+at this checkpoint. Insufficient-result grouping and Nutrition setup help are
+the next UI batch; a panel profile writer remains outside scope.
+
 ## Quality audit, 24 September 2026
 
 This local batch starts from public `main` at

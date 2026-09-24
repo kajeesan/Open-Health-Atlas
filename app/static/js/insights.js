@@ -8,14 +8,14 @@
   const $ = (id) => document.getElementById(id);
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const MODES = ["ordinal", "green-vs-non-green", "red-vs-non-red"];
-  const READINESS_STATES = [
-    "logic_not_implemented",
-    "present_not_connected",
-    "implemented_never_logged",
-    "stale",
-    "too_sparse_for_analysis",
-    "sufficient",
-  ];
+  const READINESS_STATES = {
+    logic_not_implemented: ["Not implemented", "Requires implementation work before records can support this feature."],
+    present_not_connected: ["Data present, integration missing", "Requires integration work to connect existing records."],
+    implemented_never_logged: ["No records yet", "Check the recording or configuration prerequisites below."],
+    stale: ["Out of date", "Check which measurements or source updates the engine needs."],
+    too_sparse_for_analysis: ["Too little aligned data", "Check the missing observations and analysis gates below."],
+    sufficient: ["Ready for this query", "Meets this query’s data requirements; this does not establish clinical reliability."],
+  };
   let conversations = [];
   let current = null;
   let canonicalControl = null;
@@ -116,6 +116,49 @@
     (items || []).forEach((item) => list.appendChild(el("li", "", raw(item))));
     if (!list.childNodes.length) list.appendChild(el("li", "muted", "None recorded"));
     return list;
+  }
+
+  function evidenceDetails(title) {
+    const details = el("details", "evidence-details");
+    details.appendChild(el("summary", "", title));
+    return details;
+  }
+
+  function evidenceFields(value) {
+    const fields = el("div", "finding-details mt-2");
+    Object.entries(value || {}).forEach(([key, item]) => {
+      fields.appendChild(detailRow(human(key), item));
+    });
+    return fields;
+  }
+
+  function sharedEvidenceLink() {
+    const link = el("a", "note-txt", "Shared analysis evidence");
+    link.href = "#analysis-evidence";
+    link.addEventListener("click", () => {
+      $("analysis-evidence").open = true;
+      $("analysis-evidence-summary").focus();
+    });
+    return link;
+  }
+
+  function renderAnalysisEvidence(result) {
+    const details = $("analysis-evidence");
+    const summary = el("summary", "", "Shared analysis evidence");
+    summary.id = "analysis-evidence-summary";
+    details.replaceChildren(summary);
+    details.open = false;
+    details.hidden = false;
+    details.append(
+      section("Analysis metadata", evidenceFields(result.meta)),
+      section("Coverage and source manifests", evidenceFields(result.coverage)),
+      section("Suppression counts", evidenceFields(result.suppression_counts)),
+      detailRow("Contract", result.contract_version)
+    );
+    const warnings = $("analysis-warnings");
+    warnings.replaceChildren();
+    warnings.hidden = !(result.warnings || []).length;
+    if (!warnings.hidden) warnings.appendChild(section("Analysis warnings", arrayLines(result.warnings)));
   }
 
   function exposureName(finding) {
@@ -219,51 +262,65 @@
     card.appendChild(head);
 
     const components = (((finding || {}).exposure || {}).components || []);
-    const componentList = el("div", "finding-details mt-2");
+    const summary = el("div", "finding-details mt-2");
     components.forEach((component) => {
-      componentList.append(
-        detailRow("Direction", component.direction),
-        detailRow("Lag", component.lag_days == null ? null : `${component.lag_days} day(s)`),
-        detailRow("Window", component.window_days == null ? null : `${component.window_days} day(s)`),
-        detailRow("Source semantics", {
-          feature_key: component.exposure_key,
-          merge_rule: component.merge_rule,
-          zero_semantics: component.zero_semantics,
-          temporal_type: component.temporal_type,
-        })
-      );
+      const timing = el("div", "finding-component mt-2");
+      if (components.length > 1) timing.appendChild(el("strong", "note-txt", component.display || component.exposure_key));
+      timing.appendChild(evidenceFields({
+        direction: component.direction,
+        lag: component.lag_days == null ? null : `${component.lag_days} day(s)`,
+        window: component.window_days == null ? null : `${component.window_days} day(s)`,
+      }));
+      card.appendChild(timing);
     });
     const sample = finding.sample || {};
-    componentList.append(
-      detailRow("Eligible / complete / missing", [
-        sample.eligible_n, sample.complete_n, sample.missing_n,
-      ]),
-      detailRow("Effect", (finding.effect || {}).estimate),
-      detailRow("95% interval", (finding.effect || {}).ci95),
-      detailRow("q", (finding.testing || {}).q),
-      detailRow("Stability", finding.stability),
-      detailRow("Quality", finding.quality),
-      detailRow("Analysis provenance", finding.provenance || {
-        analysis_version: meta.analysis_version,
-        engine_sha256: meta.engine_sha256,
-        registry_sha256: meta.registry_sha256,
-        input_fingerprint: meta.input_fingerprint,
-      }),
-      detailRow("Analysis source manifest", (options && options.sourceManifests) || [])
+    const effect = finding.effect || {};
+    summary.append(
+      detailRow("Eligible / complete / missing", [sample.eligible_n, sample.complete_n, sample.missing_n]),
+      detailRow(effect.method ? `Effect (${human(effect.method)})` : "Effect", effect.estimate),
+      detailRow("95% interval", effect.ci95)
     );
-    card.appendChild(componentList);
+    card.appendChild(summary);
     card.append(
-      section("Confounders", finding.confounders),
       section("Warnings and limits", arrayLines(finding.warnings)),
-      section("Evidence for", arrayLines(finding.evidence_for)),
       section("Evidence against", arrayLines(finding.evidence_against))
     );
+    const confounders = finding.confounders || {};
+    if ((confounders.sensitive_to || []).length) {
+      card.appendChild(section("Sensitive to confounders", arrayLines(confounders.sensitive_to)));
+    }
+    if ((confounders.unchecked || []).length) {
+      card.appendChild(section("Unchecked confounders", confounders.unchecked.map((item) => item.key || raw(item))));
+    }
     if (finding.alternatives !== undefined) {
       card.appendChild(section("Alternatives", finding.alternatives));
     }
     if (finding.next_measurement !== undefined) {
       card.appendChild(section("Next measurement", finding.next_measurement));
     }
+    const details = evidenceDetails("Evidence details");
+    details.append(
+      detailRow("Finding ID", finding.finding_id),
+      detailRow("Candidate key", finding.candidate_key),
+      section("Outcome", evidenceFields(finding.outcome)),
+      section("Exposure and source semantics", arrayLines(components)),
+      section("Sample", evidenceFields(sample)),
+      section("Effect", evidenceFields(effect)),
+      section("Rates", finding.rates),
+      section("Testing", evidenceFields(finding.testing)),
+      section("Stability", evidenceFields(finding.stability)),
+      section("Quality", evidenceFields(finding.quality)),
+      section("Confounders", evidenceFields(finding.confounders)),
+      section("Evidence for", arrayLines(finding.evidence_for))
+    );
+    const sharedProvenance = (options && options.sharedProvenance) || {};
+    const ownProvenance = Object.fromEntries(Object.entries(finding.provenance || {})
+      .filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(sharedProvenance[key])));
+    if (Object.keys(ownProvenance).length) {
+      details.appendChild(section("Finding provenance", evidenceFields(ownProvenance)));
+    }
+    details.appendChild(sharedEvidenceLink());
+    card.appendChild(details);
     if (options && options.promote && (finding.quality || {}).eligible_for_hypothesis) {
       const button = el("button", "btn quiet mt-2", "Track as a hypothesis");
       button.type = "button";
@@ -517,7 +574,11 @@
     if (!job) return false;
     const result = job.result;
     const meta = result.meta || {};
-    const sourceManifests = ((result.coverage || {}).source_manifests || []);
+    const sharedProvenance = Object.assign({}, meta);
+    if ((result.coverage || {}).dependencies !== undefined) {
+      sharedProvenance.dependencies = result.coverage.dependencies;
+    }
+    renderAnalysisEvidence(result);
     $("analysis-window").textContent = formatWindow(meta.analysis_range);
     $("baseline-window").textContent = formatWindow(meta.baseline_range);
     const groups = $("finding-groups");
@@ -534,7 +595,7 @@
         matching.forEach((finding) => group.appendChild(
           findingCard(finding, meta, {
             promote: true,
-            sourceManifests,
+            sharedProvenance,
           })
         ));
       }
@@ -559,15 +620,43 @@
     if (!analysisMatches(token, conversationId, range)) return;
     const meta = result.meta || {};
     $("readiness-window").textContent = formatWindow(meta.range);
-    const stateCounts = meta.state_counts || {};
+    const stateCounts = meta.state_counts;
+    const features = result.features || result.items || [];
+    const states = new Set([
+      ...Object.keys(READINESS_STATES), ...Object.keys(stateCounts || {}),
+      ...features.map((feature) => feature.state),
+    ]);
     const grid = $("readiness-states");
     grid.replaceChildren();
-    READINESS_STATES.forEach((state) => {
-      const card = el("div", "readiness-state");
-      card.append(el("strong", "", state), el("span", "muted micro", raw(stateCounts[state])));
+    states.forEach((state) => {
+      const [label, help] = READINESS_STATES[state] || [human(state), "An additional engine state; inspect its returned details below."];
+      const count = stateCounts ? (stateCounts[state] ?? 0) : null;
+      const card = el("details", "readiness-state");
+      const summary = el("summary");
+      summary.append(el("strong", "", label), el("span", "muted micro", `Count: ${raw(count)}`));
+      card.append(summary, detailRow("Engine state", state), el("p", "note-txt", help));
+      features.filter((feature) => feature.state === state).forEach((feature) => {
+        const item = el("div", "readiness-feature");
+        item.append(
+          el("h4", "finding-title", feature.feature_key || feature.key || "Unnamed feature"),
+          section("What is needed", feature.needed),
+          section("Prerequisites", arrayLines(feature.prerequisites)),
+          section("Gate failures", arrayLines((feature.factors || {}).gate_failures)),
+          evidenceFields({
+            observations: feature.observations,
+            aligned_n: feature.aligned_n,
+            latest_at: feature.latest_at,
+            stale_after_days: feature.stale_after_days,
+            staleness_anchor: (feature.factors || {}).staleness_anchor,
+          })
+        );
+        const allFields = evidenceDetails("All readiness fields");
+        allFields.appendChild(evidenceFields(feature));
+        item.appendChild(allFields);
+        card.appendChild(item);
+      });
       grid.appendChild(card);
     });
-    const features = result.features || result.items || [];
     $("readiness-empty").hidden = features.length !== 0;
     if (!features.length) {
       $("readiness-empty").textContent = "No readiness details were returned for this window.";
@@ -579,6 +668,10 @@
     $("analysis-window").textContent = "—";
     $("baseline-window").textContent = "—";
     $("finding-groups").replaceChildren();
+    $("analysis-evidence").hidden = true;
+    $("analysis-evidence").replaceChildren();
+    $("analysis-warnings").hidden = true;
+    $("analysis-warnings").replaceChildren();
     $("finding-groups").setAttribute("aria-busy", "false");
     $("findings-empty").hidden = false;
     $("findings-empty").textContent = message;
@@ -637,6 +730,10 @@
     const token = ++refreshToken;
     $("findings-meta").textContent = "Loading…";
     $("finding-groups").replaceChildren();
+    $("analysis-evidence").hidden = true;
+    $("analysis-evidence").replaceChildren();
+    $("analysis-warnings").hidden = true;
+    $("analysis-warnings").replaceChildren();
     $("finding-groups").setAttribute("aria-busy", "true");
     $("findings-empty").hidden = true;
     $("readiness-states").replaceChildren();
