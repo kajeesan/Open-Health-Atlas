@@ -29,7 +29,7 @@ the supported desktop connection.
 
 The manual route keeps the existing workspace, command, arguments and restart
 instructions. Copying never advances the guide. The app itself does not edit
-another client's settings, create a tunnel or read health records. The 0.2.8
+another client's settings, create a tunnel or read health records. The 0.2.9
 preview's exact artifact details live in its release notes and receipts. Other local AI
 clients can still use the secondary **Other AI apps / setup agent** instructions.
 

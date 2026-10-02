@@ -41,9 +41,9 @@ def test_dashboard_has_strength_balance_figure_cards(authed):
         assert marker in html, marker
     # no lens selector on the dashboard cards — the lens is fixed
     assert 'data-group="mflens"' not in html
-    # the cards sit between the radar row and the Day-ratings row
-    assert html.index('id="dash-radar-muscle"') < html.index('id="dash-mf-front"') \
-        < html.index('id="ch-heat"')
+    assert (html.index('id="ch-heat"') < html.index('id="habit-list"')
+            < html.index('id="dash-radar-muscle"') < html.index('id="dash-mf-front"')
+            < html.index('id="dash-sleep"') < html.index('id="hero-meta"'))
 
 
 def test_stub_pages_render(authed):

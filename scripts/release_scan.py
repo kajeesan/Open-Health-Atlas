@@ -110,6 +110,8 @@ REVIEWED_BINARY_ASSETS: dict[str, str] = {
 
     "docs/assets/fictional-dashboard.png":
         "3f396a93f70120e599004c981a73aa52f35a3bd11c4a29a272990aa4638b7d0f",
+    "docs/assets/fictional-dashboard-priorities.png":
+        "4e2788586f1a6764ebf77a0407f5bde8bec8923a4f5f33a06a9afb753be9809d",
     "docs/assets/fictional-demo-overview-sleep.png":
         "8fc1cabaea87aa1a8f7eaeb6eeaa3426321a44629dfe4474e8d4ad4e27a10667",
     "docs/assets/fictional-demo-overview-v2.png":
