@@ -111,8 +111,7 @@
      lens selector), compact legend, whole card → Body. Regions are painted
      from health.py `muscle-map --lens strength-balance` verbatim.
      Task A (2026-07-20): grid-3 (not grid-2) so front aligns under Muscle
-     Balance (col 1) and back under Athletic Profile (col 2) — the col-3 slot
-     under Mood & focus stays empty. `mf-glance` shrinks the shared figure to
+     Balance (col 1) and back under Athletic Profile (col 2) with sleep duration under Mood & focus. `mf-glance` shrinks the shared figure to
      a dashboard-only glance size (scoped in panel.css, never the /training
      full-size figure). #}
   <div class="grid-3">
@@ -126,6 +125,15 @@
       <div id="dash-mf-back" class="mf-mount mf-glance mt-2"><p class="muted note-txt m0">Loading…</p></div>
       <div class="muted micro center mt-1">cited tested ratios · grey = untested · full lens picker on the Body page</div>
     </a>
+    <div class="card dash-sleep-card" data-sleep-through="{{ today }}">
+      <div class="row between wrap"><h3 class="card-title">Sleep duration · 14 days</h3><a class="chip klink" href="{{ url_for('core.recovery') }}">→ Recovery</a></div>
+      <div class="mt-2" aria-live="polite">
+        <div class="disp dash-sleep-average" id="dash-sleep-average">Loading…</div>
+        <div class="muted micro" id="dash-sleep-coverage">Average across recorded nights</div>
+      </div>
+      <div id="dash-sleep" class="h230" role="img" aria-label="Loading sleep duration chart"></div>
+      <div class="muted micro center">Hours per night · gaps mean no record</div>
+    </div>
   </div>
 
   <!-- HEATMAP + HABITS -->
@@ -170,4 +178,5 @@
 <script src="{{ url_for('static', filename='js/muscle-figure.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/analysis_jobs.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/dashboard-sleep.js') }}" defer></script>
 {% endblock %}
