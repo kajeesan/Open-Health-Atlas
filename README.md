@@ -18,14 +18,14 @@ the calculations; the external model provides the interpretation.
 [Connect an MCP client](docs/LOCAL_MCP.md) ·
 [Develop the project](docs/DEVELOPMENT.md)**
 
-**macOS desktop preview:** Open Health Atlas 0.2.7 is a signed-notarized Apple
-silicon preview. See the [0.2.7 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
+**macOS desktop preview:** Open Health Atlas 0.2.8 is a signed-notarized Apple
+silicon preview. See the [0.2.8 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8)
 and its attached receipts for exact artifact verification. The
 [installation and build guide](docs/DESKTOP.md) and
 [tested/blocked acceptance matrix](docs/DESKTOP_ACCEPTANCE.md) record the
 remaining platform limits.
 
-![Fictional Open Health Atlas dashboard with Muscle Balance and Athletic Profile radar charts, front and back strength-balance body diagrams, and the navigation sidebar.](docs/assets/fictional-demo-overview-v2.png)
+![Fictional Open Health Atlas dashboard with muscle-balance and athletic-profile charts, front and back strength maps, and a 14-day sleep-duration card.](docs/assets/fictional-demo-overview-sleep.png)
 
 *Fictional UI demo snapshot. [Explore the demo](https://kajeesan.com/openhealthatlas-demo/)
 · [Image details](docs/SCREENSHOTS.md).*
@@ -40,7 +40,7 @@ Google Health, Hevy, Cronometer and a Hostinger VPS have their own sections on t
 | I want to… | Start here |
 | --- | --- |
 | See the interface without installing anything | [Open the browser demo](https://kajeesan.com/openhealthatlas-demo/) — a clickable, read-only fictional snapshot, with no backend or AI connected. |
-| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) (Apple silicon, signed and notarized 0.2.7 preview). |
+| Check the macOS desktop preview | [Installation and release status](docs/DESKTOP.md) (Apple silicon, signed and notarized 0.2.8 preview). |
 | Run the real panel and try fictional data locally | [Try the local demo](docs/TRY_DEMO.md#run-the-local-panel) — includes the local API and write broker. |
 | Use my preferred AI client with local data | [Connect an MCP client](docs/LOCAL_MCP.md) — copyable setup and a fictional query → analysis → evidence example. |
 | Change code or contribute | [Develop the project](docs/DEVELOPMENT.md) — environment, relevant tests and contribution guidance. |
@@ -89,7 +89,7 @@ entry point uses stdio. Clients requiring remote MCP need a separate transport
 setup.
 
 A macOS desktop packaging preview includes the existing dashboard, guided
-local workspaces and a bundled optional MCP executable. The [0.2.7 preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.7)
+local workspaces and a bundled optional MCP executable. The [0.2.8 preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8)
 has exact artifact and receipt details in its release notes. Clean-Mac
 installation and the minimum supported macOS remain unverified; this is not
 a stable-release qualification claim.
