@@ -11,7 +11,7 @@ connecting your preferred AI and copy-paste instructions for a setup agent.
 
 ## Download and install
 
-The [0.2.8 Mac preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8)
+The [0.2.9 Mac preview](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.9)
 is the current signed-notarized preview. Check its release notes and attached
 receipts for the exact artifact and verification results. Choose the **signed-notarized macOS Apple
 silicon DMG**, not a source archive or an older `local-unsigned` build.
@@ -20,7 +20,7 @@ for this download. Clean-Mac installation and the minimum supported macOS remain
 Keep normal Gatekeeper protection enabled.
 Intel Macs and Windows/Linux desktop installers are not supported in this release.
 
-The [release notes and attached receipts](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8)
+The [release notes and attached receipts](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.9)
 identify the exact downloadable artifact. The [acceptance record](DESKTOP_ACCEPTANCE.md)
 retains earlier candidate evidence and the separate stable-release gates.
 

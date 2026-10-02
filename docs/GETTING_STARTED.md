@@ -2,7 +2,7 @@
 
 Install Open Health Atlas, connect your preferred AI, and try a question with fictional records. You can do this without Telegram, Hermes, Google Health, Hevy or a rented server.
 
-This guide covers the **0.2.8 Mac preview**. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
+This guide covers the **0.2.9 Mac preview**. It is for **Apple silicon Macs**: open Apple menu → About This Mac and look for an Apple M-series chip. Other computers can use the [source setup](LOCAL_MCP.md), which needs an agent or technical help. There is no Windows or Linux desktop installer in this release.
 
 **Your route:** Install → Try fictional data → Connect your AI → Ask your first question.
 
@@ -24,8 +24,8 @@ You still handle account sign-in, purchases, private credential entry and decisi
 
 ## 1. Install Open Health Atlas
 
-1. Open the [0.2.8 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8).
-2. Under **Assets**, download `openhealthatlas-0.2.8-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
+1. Open the [0.2.9 release page](https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.9).
+2. Under **Assets**, download `openhealthatlas-0.2.9-macos-arm64-signed-notarized.dmg`. Do not choose a source-code archive or an older `local-unsigned` file.
 3. Open the downloaded file. Drag the **Open Health Atlas** icon onto **Applications**. If replacing an older version, first [back up your workspaces](DESKTOP.md#update-back-up-or-remove-the-app), quit the app and disconnect its AI clients.
 4. Eject the installer, then open **Open Health Atlas** from Applications.
 5. Select **Try fictional data**, check the timezone, and choose **Continue**. Wait for the dashboard to open.
@@ -38,7 +38,7 @@ You do not need to install Python, use Terminal or buy a model subscription for 
 
 ```text
 Help me install Open Health Atlas's Mac preview and open fictional data.
-Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.8 and
+Use https://github.com/kajeesan/Open-Health-Atlas/releases/tag/v0.2.9 and
 its matching documentation. Check my OS and Apple silicon compatibility.
 For this release, use the signed-notarized macos-arm64 DMG, verify it
 against the published checksum, and preserve normal Gatekeeper checks.
