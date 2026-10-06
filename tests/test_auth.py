@@ -68,12 +68,6 @@ def test_register_options_requires_valid_token(app, client):
     assert opts["rp"]["id"] == "localhost"
     assert opts["challenge"]
 
-    # single use: consuming it kills it
-    with app.app_context():
-        auth_mod.consume_enroll_token(good)
-    r = client.post("/api/auth/register/options", json={"token": good})
-    assert r.status_code == 403
-
 
 @pytest.mark.parametrize("stored,new,ok", [
     (0, 0, True),    # Apple passkeys: no counter in use

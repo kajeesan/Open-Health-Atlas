@@ -388,9 +388,10 @@ restock state, v6 makes synthesis provider-neutral, and v7 preserves historical 
 labels alongside the current label. Initialization inserts no user or health observations; it seeds
 only the bundled cited exercise-to-subregion configuration.
 
-`panel.db` is an application-state database with seven tables and five indexes.
-It is not a second health-data authority. A clean initialization contains no
-credentials, sessions, chat conversations, or messages.
+`panel.db` owns authentication challenges, credentials, sessions, settings,
+audit events and conversations. It is not a second health-data authority.
+A clean initialization contains no credentials, sessions, chat conversations,
+or messages.
 
 Importers preserve source identity and ingestion metadata. Deterministic
 features carry source, timing, completeness, transformation, and provenance
@@ -436,6 +437,10 @@ or proven causation.
 
 - Every non-public route requires a server-side session.
 - WebAuthn registration/login challenges and credentials live in `panel.db`.
+  Challenges expire after five minutes and are consumed atomically before
+  verification. Signed browser cookies carry only opaque ceremony handles.
+  Registration binds each challenge to its enrollment token; consuming that
+  token and storing the credential share one transaction.
 - State-changing browser requests require CSRF protection.
 - Cookies are HTTP-only, `SameSite=Strict`, and secure by default.
 - CSP restricts scripts, styles, images, and connections to the application.

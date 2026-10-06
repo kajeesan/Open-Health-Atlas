@@ -1,5 +1,61 @@
 # Refactoring checkpoint
 
+## Public audit repairs, 7 October 2026
+
+This branch starts from public `main` at
+`aff70dfeb8c16a81f5294ffa2e69ae67ff897181`. Implementation agents handled
+the confirmed defects; independent readers reviewed authentication, model
+switching, HRV, fitness qualification and the integration/range interfaces.
+
+Authentication now consumes expiring server-side ceremonies once and commits
+enrollment-token consumption with credential insertion. Model switching
+serializes changes and verifies recovery before claiming rollback. HRV
+summaries use one known source/method, integration status describes recorded
+sources, and stale range responses cannot replace the latest selection.
+See [Architecture](ARCHITECTURE.md#web-security-boundary),
+[Deployment](DEPLOYMENT.md#panel-agent-paths) and
+[System design](SYSTEM_DESIGN.md#outcomes-and-comparisons) for their contracts.
+
+Fitness records with missing or mixed setup descriptions remain inspectable
+but cannot qualify pooled analytical comparisons. Independent review also
+caught a freshness defect: an excluded recent record could refresh old
+qualified evidence. The correction uses eligible evidence for freshness.
+The same rule now consistently excludes already-ineligible incomplete
+nutrition totals, while retaining descriptive record counts.
+
+All baseline traces reproduced their committed digests. Candidate traces
+were compared both under their actual engine identity and under the baseline
+identity. The controlled comparison preserved analytical finding values and
+scenario statuses. Reviewed differences were qualification metadata, eligible
+freshness, stale-to-sparse nutrition readiness, and their derived identities.
+The actual new engine identity also changes resampling seeds, some bootstrap
+interval endpoints and hash-sorted row order. Only explained engine/trace pins
+were updated; scenario inputs, narratives and expected statuses are unchanged.
+
+Fictional browser checks covered Integrations, Recovery, the HRV drill-down
+and Data Explorer, including narrow layouts and range changes. No browser
+console errors or horizontal overflow were observed. The preview used an
+isolated test sign-in and no live broker or provider. These checks do not
+qualify an installed desktop artifact or a live deployment.
+
+Verification accounts for 2,265 distinct passing test identities: 2,245
+application/toolkit cases, 15 fictional journeys and five actual MCP protocol
+cases. This is coverage across recorded runs, not one uninterrupted invocation.
+The Python reference application run completed 2,016 cases before interruption.
+A journey exposed a missing dependency in the reused temporary environment.
+The remaining 229 application cases, that journey and a fresh 202-case
+boundary selection passed in a dedicated environment built from the pinned
+requirements, using the verified optional exact native accelerator.
+Overlapping focused checks and interrupted duplicate runs are not added to
+the distinct total; no collected cases remain skipped or unverified.
+
+Isolated execution exposed an existing allowlist test's implicit dependency on
+the broker import path. That test now supplies the standalone script path
+explicitly; its policy assertions are unchanged. It and the related broker
+validation tests passed. Independent review found no remaining blocker in
+the repaired scopes. Runtime and test-source checks used Python 3.14.6;
+packaging and live-provider qualification remain separate.
+
 ## Dependabot commit metadata, 25 September 2026
 
 The pull-request privacy check encountered Dependabot's public support-address

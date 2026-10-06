@@ -1,10 +1,10 @@
 """WebAuthn login + enrollment endpoints.
 
-Ceremony state (the challenge) lives in the signed Flask session cookie —
-integrity is what matters for a challenge, not secrecy. The *auth* session
-that results from a successful ceremony is server-side (app/auth.py).
+Ceremonies expire and are consumed server-side. The signed Flask cookie holds
+only opaque handles so restoring an old cookie cannot replay a ceremony.
 """
 import json
+import time
 
 from flask import (Blueprint, current_app, jsonify, redirect, render_template,
                    request, session, url_for)
@@ -83,7 +83,10 @@ def login_options():
         ],
         user_verification=UserVerificationRequirement.REQUIRED,
     )
-    session["auth_challenge"] = auth.b64u(options.challenge)
+    session["login_ceremony"] = auth.new_challenge(
+        options.challenge, "login", now=int(time.time()),
+        previous_handle=session.get("login_ceremony"),
+    )
     return current_app.response_class(options_to_json(options),
                                       mimetype="application/json")
 
@@ -91,8 +94,10 @@ def login_options():
 @bp.post("/api/auth/login/verify")
 @limiter.limit("10/minute")
 def login_verify():
-    challenge_b64 = session.pop("auth_challenge", None)
-    if not challenge_b64:
+    challenge = auth.consume_challenge(
+        session.pop("login_ceremony", None), "login", clock=time.time,
+    )
+    if challenge is None:
         return jsonify(error="no pending login challenge"), 400
     body = request.get_json(force=True, silent=True) or {}
     cred_json = body.get("credential")
@@ -111,7 +116,7 @@ def login_verify():
     try:
         verification = verify_authentication_response(
             credential=cred_json,
-            expected_challenge=auth.from_b64u(challenge_b64),
+            expected_challenge=challenge,
             expected_rp_id=_rp_id(),
             expected_origin=_origin(),
             credential_public_key=stored["public_key"],
@@ -152,7 +157,10 @@ def register_options():
             for c in auth.all_credentials()
         ],
     )
-    session["reg_challenge"] = auth.b64u(options.challenge)
+    session["register_ceremony"] = auth.new_challenge(
+        options.challenge, "register", now=int(time.time()), enrollment_token=token,
+        previous_handle=session.get("register_ceremony"),
+    )
     return current_app.response_class(options_to_json(options),
                                       mimetype="application/json")
 
@@ -164,8 +172,11 @@ def register_verify():
     token = body.get("token", "")
     if not auth.enroll_token_valid(token):
         return jsonify(error="invalid or expired enrollment token"), 403
-    challenge_b64 = session.pop("reg_challenge", None)
-    if not challenge_b64:
+    challenge = auth.consume_challenge(
+        session.pop("register_ceremony", None), "register", clock=time.time,
+        enrollment_token=token,
+    )
+    if challenge is None:
         return jsonify(error="no pending registration challenge"), 400
     cred_json = body.get("credential")
     if not cred_json:
@@ -174,7 +185,7 @@ def register_verify():
     try:
         verification = verify_registration_response(
             credential=cred_json,
-            expected_challenge=auth.from_b64u(challenge_b64),
+            expected_challenge=challenge,
             expected_rp_id=_rp_id(),
             expected_origin=_origin(),
             require_user_verification=True,
@@ -186,14 +197,17 @@ def register_verify():
     label = (body.get("label") or "").strip()[:60] or "passkey"
     transports = ",".join(json.loads(cred_json).get("response", {})
                           .get("transports", []) or [])
-    auth.store_credential(
+    enrolled = auth.enroll_credential(
+        token=token,
         credential_id=verification.credential_id,
         public_key=verification.credential_public_key,
         sign_count=verification.sign_count,
         transports=transports,
         label=label,
+        clock=time.time,
     )
-    auth.consume_enroll_token(token)
+    if not enrolled:
+        return jsonify(error="invalid or expired enrollment token"), 403
     auth.audit("auth.enroll", label)
     # The device just proved presence + verification — log it straight in.
     session_token = auth.create_session()

@@ -81,6 +81,24 @@ older installation. Move any old source-embedded timezone, medication grouping
 and display values into private environment configuration before switching to
 the generic source defaults. Keep those values out of the release archive.
 
+Panel initialization adds the authentication-challenge table to existing
+`panel.db` files without changing credentials or active sessions. Login or
+enrollment ceremonies started before this upgrade must be restarted. Existing
+backups remain recovery points; see the [web security boundary](ARCHITECTURE.md#web-security-boundary)
+for the ceremony and enrollment contracts.
+
+Model switches hold an owner-only operation lock beside the trusted Hermes
+configuration. Another switch is rejected while that lock is held. A failed
+configuration change, restart or health check attempts to restore the prior
+model. `rolled_back: true` requires verified configuration and a healthy
+restarted gateway; `config_restored` distinguishes partial recovery. Failed
+recovery requires operator attention and does not report success.
+
+The model-switch broker budget is 300 seconds and the panel waits 310 seconds,
+below the example worker's 600-second timeout. Bounded forward and recovery
+steps total at most 230 seconds, leaving overhead before the broker terminates
+the operation. Preserve this ordering when adapting service timeouts.
+
 ## Background analysis and exact result reuse
 
 The Dashboard and Insight Explorer submit a bounded analysis job and receive

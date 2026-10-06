@@ -1,44 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Integrations &amp; privacy{% endblock %}
 {% block content %}
-{# Integrations & privacy settings page (design image 31, task-36). Real
-   status from /api/integrations/sources (db_read + the existing
-   hermes-status/fitbit-status bridge reads — no new bridge subcommands, no
-   duplicated controls: the Fitbit re-auth flow stays on Models & spend).
-   Every chip is a DETERMINISTIC derivation (see integrations.js + that
-   route's docstring) — stale or missing data says so, never a hardcoded
-   "Connected". The privacy card states only what's true of THIS system,
-   in-repo-verifiable (CLAUDE.md determinism law). #}
 <div class="vstack">
   <div class="row-top between wrap">
     <div class="crumb">
       <a class="back" href="{{ url_for('core.dashboard') }}">◱ Hub</a>
       <h1 class="page-title">Integrations &amp; privacy</h1>
-      <span class="muted micro">connected data sources</span>
+      <span class="muted micro">data sources and sharing</span>
     </div>
   </div>
 
   <div class="card">
-    <h3 class="card-title mb-2">Connected sources</h3>
+    <h3 class="card-title mb-2">Source status</h3>
     <div id="src-list"></div>
     <p class="muted micro mt-2">
-      Connected = data seen within 14 days (Hevy) / 3 days (Wearable). Telegram bot reflects
-      the coach gateway's live health check, not a data date. Bloodwork lab is manual-upload
-      by design — its date is informational, not a freshness judgment.
+      Recent data = an observation within 14 days for Hevy or 3 days for each wearable
+      source. Dates describe recorded observations, not the last successful sync.
+      Hermes shows whether its gateway service is running; it does not verify a Telegram
+      connection or an AI client. Bloodwork dates have no freshness threshold.
     </p>
   </div>
 
   <div class="card">
     <h3 class="card-title mb-2">Privacy</h3>
     <p class="muted note-txt m0">
-      This is a single-user app — sign-in is passkey (WebAuthn) only, no shared accounts.
-      The health vault is mounted read-only to this panel, which holds no ability to write it
-      directly. Every change (logging, notes, program edits) goes through a validated
-      health.py command over a local broker socket — the same path the Telegram coach uses,
-      never raw SQL. The vault itself is never sent off-device. Two services do handle slices
-      of this data: agent chat goes through the configured model provider (currently
-      OpenRouter), and the coach loop's messages travel through Telegram's bot API. The
-      connected sources above read in; nothing else goes out.
+      {% if desktop_mode %}
+      The desktop app opens a local session when you launch it. It does not require a passkey.
+      {% else %}
+      Web deployments use passkey (WebAuthn) sign-in and are intended for one user or a
+      tightly controlled private service.
+      {% endif %}
+      The panel reads health records through a read-only database connection. Changes to
+      health records go through a local broker and validated toolkit commands. An operating-system
+      read-only mount is an additional deployment protection; it is not guaranteed here.
+    </p>
+    <p class="muted note-txt mt-2">
+      If you connect external Hermes or an MCP-compatible AI client, tool results can be
+      included in conversations sent to your chosen model provider. If you use Telegram,
+      messages also pass through its bot API. Data shared and retained depends on the
+      tools, client, provider, and integrations you configure. The source status above is
+      not a complete inventory of outbound data. Review those settings before sharing
+      health information.
     </p>
   </div>
 </div>

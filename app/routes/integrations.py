@@ -1,34 +1,13 @@
-"""Integrations & privacy settings page (task-36): a thin, read-only status
-board over the sources the vault already integrates with. No new bridge
-subcommands — this composes db_read SELECTs with the existing hermes-status
-and fitbit-status bridge reads (both already ALLOWED and panel-reachable via
-/api/models/*; see app/bridge.py).
-
-Every chip below is a DETERMINISTIC derivation, documented here, never a
-hardcoded "Connected" — stale or missing data says so (owner ground rule).
-"""
+"""Read-only source freshness and optional external gateway status."""
 from flask import Blueprint, jsonify
 
 from app import bridge, canon, db_read
 
 bp = Blueprint("integrations", __name__, url_prefix="/api/integrations")
 
-# "Connected" freshness windows, in days. The only two rows here with a data
-# DATE to compare against "now" (Telegram is a live gateway health check, not
-# a date; Bloodwork is manual-upload by design, so its date is informational
-# only — see below). Hevy: 2-3 sessions/week is normal, so a run without a
-# hard rest week still reads Connected at 14 days. Wearable: Fitbit syncs
-# roughly daily, so 3 days catches a real sync outage without flagging a
-# single day the phone wasn't opened.
+# Training can be weekly; wearable observations are usually daily.
 HEVY_FRESH_DAYS = 14
 WEARABLE_FRESH_DAYS = 3
-
-# Product decision: the Apple wearable pipeline is retired (device
-# replaced; last apple daily_metrics row 2026-05-31). Apple's MAX(date) is
-# frozen going forward, so it must never drag or prop up the live wearable
-# status — occasional manual archive imports may still land (roughly
-# monthly/quarterly), so apple_latest keeps reading the real DB date.
-RETIRED_SOURCES = {"apple": "2026-05-31"}
 
 
 def _guard():
@@ -50,7 +29,7 @@ def _status_for(latest_date, fresh_days):
     return "connected" if latest_date >= canon.days_ago_iso(fresh_days) else "stale"
 
 
-def _telegram_status(agent):
+def _gateway_status(agent):
     if "error" in agent:
         return "unknown"
     if agent.get("gateway_active") is True:
@@ -62,13 +41,7 @@ def _telegram_status(agent):
 
 @bp.get("/sources")
 def sources():
-    """Composes the Connected-sources card (design image 31): Telegram bot /
-    Hermes agent (live gateway check via hermes-status), Hevy training sync
-    (last hevy_sets date), Wearable (Fitbit daily_metrics date + auth state —
-    Apple is retired per RETIRED_SOURCES and reported separately so it can
-    never drag or prop up the live status), Bloodwork lab (latest labs date —
-    manual-upload by design, so it gets no freshness judgment, only the real
-    date if any)."""
+    """Report observed source freshness and the optional Hermes gateway state."""
     if (resp := _guard()) is not None:
         return resp
 
@@ -86,13 +59,11 @@ def sources():
     apple_latest = _max_date("SELECT MAX(date) AS m FROM daily_metrics WHERE source = 'apple'")
     fitbit_latest = _max_date("SELECT MAX(date) AS m FROM daily_metrics WHERE source = 'fitbit'")
     labs_latest = _max_date("SELECT MAX(date) AS m FROM labs")
-    # Apple is retired (see RETIRED_SOURCES) — the combined wearable status
-    # comes from fitbit alone now, even when apple rows exist and are newer.
-    wearable_latest = fitbit_latest
+    wearable_latest = max((date for date in (apple_latest, fitbit_latest) if date), default=None)
 
     return jsonify(
         telegram={
-            "status": _telegram_status(agent),
+            "status": _gateway_status(agent),
             "model": agent.get("model"),
             "provider": agent.get("provider"),
             "error": agent.get("error"),
@@ -108,11 +79,13 @@ def sources():
             "fitbit_latest": fitbit_latest,
             "fitbit_auth_status": fitbit.get("auth_status"),
             "apple": {
-                "status": "retired",
+                "status": _status_for(apple_latest, WEARABLE_FRESH_DAYS),
                 "latest_date": apple_latest,
-                "since": RETIRED_SOURCES["apple"],
-                "note": f"retired {RETIRED_SOURCES['apple']} — wearable replaced; "
-                        "archive imports may still land occasionally",
+            },
+            "fitbit": {
+                "status": _status_for(fitbit_latest, WEARABLE_FRESH_DAYS),
+                "latest_date": fitbit_latest,
+                "auth_status": fitbit.get("auth_status"),
             },
         },
         labs={

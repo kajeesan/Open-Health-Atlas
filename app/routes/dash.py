@@ -245,9 +245,9 @@ def _signed(delta, dp):
 def _metric_rows(field):
     """All non-null (date, source, value) rows for one daily_metrics column,
     date-ordered. Apple and Fitbit rows for the same day are BOTH returned —
-    callers keep the two sources as separate chart lines (provenance) and only
-    apple-prefer for scalar stats; the two are never averaged into a phantom
-    value. `field` is a fixed RECOVERY_METRICS entry — except hrv, resolved by
+    callers keep the two sources as separate chart lines (provenance). HRV
+    scalar stats use one source; other metrics apple-prefer per date. The
+    two sources are never averaged into a phantom value. `field` is a fixed RECOVERY_METRICS entry — except hrv, resolved by
     _hrv_column_expr() to a guard-derived constant — never user input."""
     return db_read.query(
         f"SELECT date, source, {field} AS v FROM daily_metrics"
@@ -273,7 +273,7 @@ def _window(rows, rng):
 
 
 def _baseline(rows):
-    """Personal baseline = median of the trailing-60-day apple-preferred values.
+    """Median of the supplied trailing-60-day, per-date preferred values.
     Returns (median|None, sample_size). Withheld (None) below BASELINE_MIN_N —
     honest: we don't quote a baseline off two data points."""
     cut = canon.days_ago_iso(BASELINE_DAYS)
@@ -296,6 +296,31 @@ def _chip(latest, baseline, good_high):
     return {"text": "off", "cls": "out"}
 
 
+def _hrv_comparison(rows):
+    if not rows:
+        return [], None
+    # Latest source wins; retain the panel's Apple preference only for date ties.
+    latest_date = max(r["date"] for r in rows)
+    source = min((r["source"] for r in rows if r["date"] == latest_date),
+                 key=lambda source: (source != "apple", source != "fitbit", source))
+    method = {"apple": "SDNN", "fitbit": "RMSSD"}.get(source)
+    selected = [r for r in rows if r["source"] == source]
+    _median, n_base = _baseline(selected)
+    label = f"{source.title()} {method}" if method else f"{source} (method unknown)"
+    status = ("unknown_method" if method is None else
+              "insufficient_data" if n_base < BASELINE_MIN_N else "available")
+    note = (f"HRV summaries use {label}, the latest source "
+            "(Apple wins same-day ties). Sources are not combined.")
+    if status == "unknown_method":
+        note += " Baseline and comparison are withheld because the method is unknown."
+    elif status == "insufficient_data":
+        note += f" Baseline withheld: {n_base} of {BASELINE_MIN_N} required days in the last 60 days."
+    else:
+        note += f" Baseline uses {n_base} days in the last 60 days."
+    return selected, {"source": source, "method": method, "label": label,
+                      "baseline_days": n_base, "status": status, "note": note}
+
+
 def _metric_core(key):
     """Shared per-metric read + baseline used by both the metric drill and the
     readiness component rows."""
@@ -304,12 +329,16 @@ def _metric_core(key):
     # rather than read off the (static) cfg dict — see _hrv_column_expr.
     field = _hrv_column_expr() if key == "hrv" else cfg["field"]
     rows = _metric_rows(field)
-    pref = _apple_preferred(rows)
-    baseline, n_base = _baseline(rows)
+    selected, comparison = _hrv_comparison(rows) if key == "hrv" else (rows, None)
+    pref = _apple_preferred(selected)
+    baseline, n_base = _baseline(selected)
+    if comparison and comparison["status"] == "unknown_method":
+        baseline = None
     latest = pref[-1][1] if pref else None
     latest_date = pref[-1][0] if pref else None
     chip = _chip(latest, baseline, cfg["good_high"]) if key in CHIP_METRICS else None
-    return {"cfg": cfg, "rows": rows, "baseline": baseline, "n_base": n_base,
+    return {"cfg": cfg, "rows": rows, "selected": selected, "comparison": comparison,
+            "baseline": baseline, "n_base": n_base,
             "latest": latest, "latest_date": latest_date, "chip": chip}
 
 
@@ -318,7 +347,7 @@ def _metric_facts(key, core, win):
     is the range-windowed rows (for the range-scoped sleep line)."""
     cfg = core["cfg"]; dp = cfg["dp"]; unit = cfg["unit"]
     latest = core["latest"]; baseline = core["baseline"]
-    facts = []
+    facts = [core["comparison"]["note"]] if core["comparison"] else []
     if latest is None:
         return facts
     if baseline is not None:
@@ -331,7 +360,7 @@ def _metric_facts(key, core, win):
             facts.append(
                 f"{cfg['label']} latest is in line with your 60-day median "
                 f"({_fmt(latest, dp)} {unit}).")
-        last7 = _apple_preferred([r for r in core["rows"]
+        last7 = _apple_preferred([r for r in core["selected"]
                                   if r["date"] >= canon.days_ago_iso(7)])
         if last7:
             worse_n = sum(1 for _d, v in last7
@@ -357,15 +386,17 @@ def _metric_detail(key, rng):
     win = _window(core["rows"], rng)
     # provenance: each source is its own chart line, never merged
     series = {}
-    for src in ("apple", "fitbit"):
+    for src in sorted({r["source"] for r in win}):
         pts = [[r["date"], r["v"]] for r in win if r["source"] == src]
         if pts:
             series[src] = pts
-    wvals = [v for _d, v in _apple_preferred(win)]
+    wvals = [v for _d, v in _apple_preferred(_window(core["selected"], rng))]
+    comparison = core["comparison"]
+    scope = comparison["label"] if comparison else "apple-preferred"
     baseline = core["baseline"]; latest = core["latest"]; chip = core["chip"]
     breakdown = []
     if latest is not None:
-        breakdown.append({"name": "Latest", "sub": core["latest_date"] or "",
+        breakdown.append({"name": "Latest", "sub": (core["latest_date"] or "") + (f" · {scope}" if comparison else ""),
                           "value": f"{_fmt(latest, dp)} {unit}", "chip": chip})
     if baseline is not None:
         val = f"{_fmt(baseline, dp)} {unit}"
@@ -373,16 +404,17 @@ def _metric_detail(key, rng):
             s = _signed(latest - baseline, dp)
             val += f"  ({s})" if s else "  (in line)"
         breakdown.append({"name": "vs your 60-day median",
-                          "sub": f"{core['n_base']}-day sample", "value": val, "chip": None})
+                          "sub": f"{core['n_base']}-day sample" + (f" · {scope}" if comparison else ""), "value": val, "chip": None})
     elif latest is not None:
         breakdown.append({"name": "vs your 60-day median",
-                          "sub": f"only {core['n_base']} of 60 days logged",
-                          "value": "not enough data yet", "chip": None})
+                          "sub": comparison["note"] if comparison else f"only {core['n_base']} of 60 days logged",
+                          "value": "method unknown" if comparison and comparison["method"] is None else "not enough data yet", "chip": None})
     if wvals:
         best, worst = (max(wvals), min(wvals)) if cfg["good_high"] else (min(wvals), max(wvals))
-        breakdown.append({"name": "Range average", "sub": f"{len(wvals)} days",
+        breakdown.append({"name": "Range average", "sub": f"{len(wvals)} days" + (f" · {scope}" if comparison else ""),
                           "value": f"{_fmt(sum(wvals) / len(wvals), dp)} {unit}", "chip": None})
-        breakdown.append({"name": "Best / worst in range", "sub": "apple-preferred",
+        extrema_label = "Range maximum / minimum" if comparison and comparison["method"] is None else "Best / worst in range"
+        breakdown.append({"name": extrema_label, "sub": scope,
                           "value": f"{_fmt(best, dp)} / {_fmt(worst, dp)} {unit}", "chip": None})
         if len(wvals) > 1:
             breakdown.append({"name": "Variability", "sub": "std dev in range",
@@ -399,7 +431,8 @@ def _metric_detail(key, rng):
     return {"metric": key, "label": cfg["label"], "unit": unit,
             "empty": latest is None,
             "baseline": (_fmt(baseline, dp) if baseline is not None else None),
-            "baseline_label": "60-day median", "series": series,
+            "baseline_label": f"{scope} 60-day median" if comparison else "60-day median",
+            "comparison": comparison, "series": series,
             "header_chip": header, "breakdown": breakdown, "advice": advice}
 
 
@@ -421,6 +454,8 @@ def _readiness_detail():
             continue
         sub = (f"vs 60-day median {_fmt(core['baseline'], dp)} {unit}"
                if core["baseline"] is not None else "no baseline yet")
+        if core["comparison"]:
+            sub += f" · {core['comparison']['label']} · {core['n_base']} days in baseline window"
         breakdown.append({"name": names[key], "sub": sub,
                           "value": f"{_fmt(core['latest'], dp)} {unit}", "chip": core["chip"]})
         advice.extend(_metric_facts(key, core, _window(core["rows"], "30")))

@@ -1,5 +1,6 @@
 /* Recovery pillar (design v-recovery). KPI cards + sleep/HRV/RHR trends —
-   real, from daily_metrics via /api/dash/metrics, apple-preferred per date
+   real, from daily_metrics via /api/dash/metrics; HRV stays source-specific,
+   other metrics are apple-preferred per date
    (perDateEntries copied from dashboard.js, same as mind.js's CV-safety
    strip). HR/RHR live HERE by product contract (dropped from Body). task-48:
    the Readiness KPI is now real too — /api/recovery/readiness (the T48
@@ -92,9 +93,27 @@
     }
   }
 
+  function hrvSourceLabel(source) {
+    return source === "apple" ? "Apple SDNN" : source === "fitbit" ? "Fitbit RMSSD" : `${source} (method unknown)`;
+  }
+
+  function hrvKpi(rows) {
+    const available = state.metrics.filter((r) => r.hrv_ms != null);
+    const newest = available.map((r) => r.date).sort().pop();
+    const priority = (source) => source === "apple" ? 0 : source === "fitbit" ? 1 : 2;
+    const source = available.filter((r) => r.date === newest).map((r) => r.source)
+      .sort((a, b) => priority(a) - priority(b) || (a < b ? -1 : a > b ? 1 : 0))[0];
+    const entries = perDateEntries(rows.filter((r) => r.source === source), "hrv_ms");
+    kpiCell("rkHrv", "rkHrvFlag", entries, (v) => String(Math.round(v)), false);
+    const knownMethod = source === "apple" || source === "fitbit";
+    if (!knownMethod) document.getElementById("rkHrvFlag").hidden = true;
+    document.getElementById("rkHrvScope").textContent = source == null ? "No HRV readings" :
+      `${hrvSourceLabel(source)} · ${entries.length} days in range · latest source only`;
+  }
+
   function kpis(rows) {
     kpiCell("rkSleep", "rkSleepFlag", perDateEntries(rows, "sleep_hours"), (v) => v.toFixed(1), false);
-    kpiCell("rkHrv", "rkHrvFlag", perDateEntries(rows, "hrv_ms"), (v) => String(Math.round(v)), false);
+    hrvKpi(rows);
     kpiCell("rkRhr", "rkRhrFlag", perDateEntries(rows, "resting_hr"), (v) => String(Math.round(v)), true);
   }
 
@@ -255,20 +274,22 @@
 
   /* ------- HRV & resting HR ------- */
   function hrvChart(rows) {
-    const hrv = perDateEntries(rows, "hrv_ms");
+    const hrv = rows.filter((r) => r.hrv_ms != null);
     const rhr = perDateEntries(rows, "resting_hr");
     if (!hrv.length && !rhr.length) {
       return empty("rHrv", "HRV / resting HR appear once daily_metrics has readings");
     }
-    const dates = [...new Set([...hrv.map((e) => e[0]), ...rhr.map((e) => e[0])])].sort();
-    const hrvByDate = new Map(hrv);
+    const dates = [...new Set([...hrv.map((r) => r.date), ...rhr.map((e) => e[0])])].sort();
     const rhrByDate = new Map(rhr);
     const P = pal();
+    const lines = [...new Set(hrv.map((r) => r.source))].sort().map((source, i) => {
+      const values = new Map(hrv.filter((r) => r.source === source).map((r) => [r.date, r.hrv_ms]));
+      return { n: hrvSourceLabel(source), d: dates.map((d) => values.get(d) ?? null),
+        c: i === 0 ? P.accent : P.good, dash: source !== "apple" };
+    });
+    lines.push({ n: "RHR", d: dates.map((d) => rhrByDate.get(d) ?? null), c: P.bad, dash: true });
     chart("rHrv").setOption(lineOpt(
-      dates.map((d) => d.slice(5)),
-      [{ n: "HRV", d: dates.map((d) => (hrvByDate.has(d) ? hrvByDate.get(d) : null)), c: P.accent, area: true },
-       { n: "RHR", d: dates.map((d) => (rhrByDate.has(d) ? rhrByDate.get(d) : null)), c: P.bad, dash: true }],
-      null, null,
+      dates.map((d) => d.slice(5)), lines, null, null,
       { legend: { show: true, top: 0, textStyle: { color: P.muted, fontSize: 10 } } }));
   }
 

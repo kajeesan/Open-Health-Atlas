@@ -67,12 +67,13 @@ elif BRIDGE_PROFILE != "standard":
 HERMESCTL_CMDS = {"hermes-status": "status", "hermes-spend": "spend",
                   "hermes-model-set": "model-set", "fitbit-status": "fitbit-status",
                   "hermes-chat": "chat"}
-# model-set restarts the gateway + health-checks + may roll back: needs longer.
+# Model switching allows 120s for the change and 110s for recovery, plus
+# process overhead. The broker must not kill compensation halfway through.
 # Phase 4 performs fixed 2,000-iteration resampling in the standard library;
 # the measured broad read has its own budget below the web-worker ceiling, allowing
 # materially more time than the legacy 60s bridge default.
 TIMEOUTS = {
-    "hermes-model-set": 150,
+    "hermes-model-set": 300,
     "hermes-chat": 120,
     "outcome-associations": OUTCOME_ANALYSIS_TIMEOUT,
     # Evidence replays all modes and pairs before selecting one exact finding.

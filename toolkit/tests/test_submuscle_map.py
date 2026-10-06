@@ -361,10 +361,12 @@ def test_public_map_seeds_fresh_database_without_logged_exercises(tmp_path):
     }
 
 
-def test_import_is_not_bridge_allowlisted():
+def test_import_is_not_bridge_allowlisted(monkeypatch):
     """Seeding stays collector-only: neither the broker nor the panel client
     may ever run it."""
     import types
+    # Direct broker execution makes its adjacent command module importable.
+    monkeypatch.syspath_prepend(str(ROOT.parent / "deploy"))
     broker = types.ModuleType("broker")
     src = (ROOT.parent / "deploy" / "hermes-bridge").read_text()
     exec(compile(src, "hermes-bridge", "exec"), broker.__dict__)

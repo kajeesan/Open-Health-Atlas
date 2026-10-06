@@ -14,6 +14,8 @@ Production shape being pinned down:
 import json
 import os
 import struct
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 
 import pytest
@@ -24,6 +26,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 import cbor2
 from app import auth as auth_mod
 from app import create_app
+from app.panel_db import get_db
+from app.panel_db import init_db
+from app.routes import auth as auth_routes
 
 ORIGIN = "https://localhost"
 
@@ -224,3 +229,339 @@ def test_forwarded_proto_activates_https_csrf_layer(tmp_path):
                     headers={**fwd, "X-CSRFToken": csrf,
                              "Referer": "https://localhost/enroll"})
     assert r.status_code == 403
+
+
+def test_zero_counter_login_cannot_replay_captured_cookie_after_logout(https_app):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    pending_cookie = client.get_cookie("session").value
+    device.sign_count = -1
+    assertion = device.authenticate(options.get_data(as_text=True))
+    first = client.post("/api/auth/login/verify", json={"credential": assertion},
+                        base_url=ORIGIN, headers=headers)
+    assert first.status_code == 200
+    assert client.post("/logout", base_url=ORIGIN, headers=headers).status_code == 302
+
+    client.set_cookie("session", pending_cookie)
+    replay = client.post("/api/auth/login/verify", json={"credential": assertion},
+                         base_url=ORIGIN, headers=headers)
+
+    assert replay.status_code == 400
+    assert _session_cookie(replay) is None
+    with https_app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM sessions WHERE revoked=0").fetchone()[0] == 0
+
+
+def test_concurrent_enrollment_consumes_one_token_once(https_app, monkeypatch):
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+    prepared = []
+    for _ in range(2):
+        client, device = https_app.test_client(), SoftPasskey()
+        page = client.get("/enroll?token=" + token, base_url=ORIGIN).get_data(as_text=True)
+        headers = {"X-CSRFToken": csrf_from(page), "Referer": ORIGIN + "/enroll"}
+        options = client.post("/api/auth/register/options", json={"token": token},
+                              base_url=ORIGIN, headers=headers)
+        prepared.append((client, headers, device.register(options.get_data(as_text=True))))
+    real_verify = auth_routes.verify_registration_response
+    barrier = threading.Barrier(2)
+
+    def synchronized_verify(**kwargs):
+        verified = real_verify(**kwargs)
+        barrier.wait(timeout=5)
+        return verified
+
+    def finish(item):
+        client, headers, credential = item
+        return client.post("/api/auth/register/verify",
+                           json={"token": token, "credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    monkeypatch.setattr(auth_routes, "verify_registration_response", synchronized_verify)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(finish, prepared))
+
+    assert sorted(response.status_code for response in responses) == [200, 403]
+    assert sum(_session_cookie(response) is not None for response in responses) == 1
+    with https_app.app_context():
+        assert len(auth_mod.all_credentials()) == 1
+        assert not auth_mod.enroll_token_valid(token)
+
+
+@pytest.mark.parametrize("elapsed,status,has_session", [(299, 200, True), (300, 400, False)])
+def test_login_challenge_five_minute_boundary(https_app, monkeypatch, elapsed, status, has_session):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    now = int(auth_mod.time.time())
+    monkeypatch.setattr(auth_mod.time, "time", lambda: now)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    assertion = device.authenticate(options.get_data(as_text=True))
+
+    monkeypatch.setattr(auth_mod.time, "time", lambda: now + elapsed)
+    response = client.post("/api/auth/login/verify", json={"credential": assertion},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == status
+    assert (_session_cookie(response) is not None) == has_session
+
+
+def test_concurrent_login_uses_pending_cookie_once(https_app, monkeypatch):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    duplicate = https_app.test_client()
+    duplicate.set_cookie("session", client.get_cookie("session").value)
+    device.sign_count = -1
+    assertion = device.authenticate(options.get_data(as_text=True))
+    real_consume = auth_mod.consume_challenge
+    barrier = threading.Barrier(2)
+
+    def synchronized_consume(*args, **kwargs):
+        barrier.wait(timeout=5)
+        return real_consume(*args, **kwargs)
+
+    def finish(browser):
+        return browser.post("/api/auth/login/verify", json={"credential": assertion},
+                            base_url=ORIGIN, headers=headers)
+
+    monkeypatch.setattr(auth_mod, "consume_challenge", synchronized_consume)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(finish, [client, duplicate]))
+
+    assert sorted(response.status_code for response in responses) == [200, 400]
+    assert sum(_session_cookie(response) is not None for response in responses) == 1
+    with https_app.app_context():
+        assert get_db().execute("SELECT COUNT(*) FROM sessions WHERE revoked=0").fetchone()[0] == 1
+
+
+def test_failed_signature_consumes_login_even_with_cookie_restored(https_app):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    pending_cookie = client.get_cookie("session").value
+    assertion = device.authenticate(options.get_data(as_text=True))
+    invalid = json.loads(assertion)
+    invalid["response"]["signature"] = auth_mod.b64u(b"invalid signature")
+    rejected = client.post("/api/auth/login/verify", json={"credential": json.dumps(invalid)},
+                           base_url=ORIGIN, headers=headers)
+    assert rejected.status_code == 403
+
+    client.set_cookie("session", pending_cookie)
+    retried = client.post("/api/auth/login/verify", json={"credential": assertion},
+                          base_url=ORIGIN, headers=headers)
+
+    assert retried.status_code == 400
+    assert _session_cookie(retried) is None
+
+
+def test_login_assertion_requires_originating_browser_cookie(https_app):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    assertion = device.authenticate(options.get_data(as_text=True))
+    stranger = https_app.test_client()
+    page = stranger.get("/login", base_url=ORIGIN).get_data(as_text=True)
+    stranger_headers = {"X-CSRFToken": csrf_from(page), "Referer": ORIGIN + "/login"}
+
+    rejected = stranger.post("/api/auth/login/verify", json={"credential": assertion},
+                             base_url=ORIGIN, headers=stranger_headers)
+    accepted = client.post("/api/auth/login/verify", json={"credential": assertion},
+                           base_url=ORIGIN, headers=headers)
+
+    assert rejected.status_code == 400
+    assert _session_cookie(rejected) is None
+    assert accepted.status_code == 200
+
+
+def test_new_login_options_invalidate_superseded_cookie(https_app):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    client.post("/logout", base_url=ORIGIN, headers=headers)
+    old_options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    old_cookie = client.get_cookie("session").value
+    assertion = device.authenticate(old_options.get_data(as_text=True))
+    client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+
+    client.set_cookie("session", old_cookie)
+    response = client.post("/api/auth/login/verify", json={"credential": assertion},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 400
+    assert _session_cookie(response) is None
+
+
+def _pending_registration(app, token, device):
+    client = app.test_client()
+    page = client.get("/enroll?token=" + token, base_url=ORIGIN).get_data(as_text=True)
+    headers = {"X-CSRFToken": csrf_from(page), "Referer": ORIGIN + "/enroll"}
+    options = client.post("/api/auth/register/options", json={"token": token},
+                          base_url=ORIGIN, headers=headers)
+    assert options.status_code == 200
+    return client, headers, device.register(options.get_data(as_text=True))
+
+
+def test_registration_cannot_substitute_another_enrollment_token(https_app):
+    with https_app.app_context():
+        original = auth_mod.new_enroll_token()
+        substitute = auth_mod.new_enroll_token()
+    client, headers, credential = _pending_registration(https_app, original, SoftPasskey())
+
+    response = client.post("/api/auth/register/verify",
+                           json={"token": substitute, "credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 400
+    assert _session_cookie(response) is None
+    with https_app.app_context():
+        assert auth_mod.all_credentials() == []
+        assert auth_mod.enroll_token_valid(original)
+        assert auth_mod.enroll_token_valid(substitute)
+
+
+def test_registration_handle_cannot_authorize_login_ceremony(https_app):
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+    client, headers, credential = _pending_registration(https_app, token, SoftPasskey())
+    with client.session_transaction() as cookie:
+        cookie["login_ceremony"] = cookie["register_ceremony"]
+
+    response = client.post("/api/auth/login/verify", json={"credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 400
+    assert "no pending login" in response.get_json()["error"]
+    assert _session_cookie(response) is None
+
+
+def test_registration_challenge_expires_before_enrollment_token(https_app, monkeypatch):
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+    now = int(auth_mod.time.time())
+    monkeypatch.setattr(auth_mod.time, "time", lambda: now)
+    client, headers, credential = _pending_registration(https_app, token, SoftPasskey())
+
+    monkeypatch.setattr(auth_mod.time, "time", lambda: now + 300)
+    response = client.post("/api/auth/register/verify",
+                           json={"token": token, "credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 400
+    with https_app.app_context():
+        assert auth_mod.all_credentials() == []
+        assert auth_mod.enroll_token_valid(token)
+
+
+def test_enrollment_expiry_is_rechecked_after_cryptographic_verification(https_app, monkeypatch):
+    now = int(auth_mod.time.time())
+    monkeypatch.setattr(auth_mod.time, "time", lambda: now)
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+    client, headers, credential = _pending_registration(https_app, token, SoftPasskey())
+    real_verify = auth_routes.verify_registration_response
+
+    def delayed_verification(**kwargs):
+        result = real_verify(**kwargs)
+        monkeypatch.setattr(auth_mod.time, "time", lambda: now + 900)
+        return result
+
+    monkeypatch.setattr(auth_routes, "verify_registration_response", delayed_verification)
+    response = client.post("/api/auth/register/verify",
+                           json={"token": token, "credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 403
+    assert _session_cookie(response) is None
+    with https_app.app_context():
+        assert auth_mod.all_credentials() == []
+
+
+def test_failed_credential_insert_rolls_back_token_consumption(https_app):
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+        db = get_db()
+        db.execute("CREATE TRIGGER reject_credential BEFORE INSERT ON credentials "
+                   "BEGIN SELECT RAISE(ABORT, 'fictional insertion failure'); END")
+        db.commit()
+    client, headers, credential = _pending_registration(https_app, token, SoftPasskey())
+    pending_cookie = client.get_cookie("session").value
+
+    response = client.post("/api/auth/register/verify",
+                           json={"token": token, "credential": credential},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 503
+    assert _session_cookie(response) is None
+    with https_app.app_context():
+        db = get_db()
+        assert auth_mod.enroll_token_valid(token)
+        assert auth_mod.all_credentials() == []
+        assert db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
+        db.execute("DROP TRIGGER reject_credential")
+        db.commit()
+    client.set_cookie("session", pending_cookie)
+    retry = client.post("/api/auth/register/verify",
+                        json={"token": token, "credential": credential},
+                        base_url=ORIGIN, headers=headers)
+    assert retry.status_code == 400
+    fresh, fresh_headers, fresh_credential = _pending_registration(https_app, token, SoftPasskey())
+    recovered = fresh.post("/api/auth/register/verify",
+                           json={"token": token, "credential": fresh_credential},
+                           base_url=ORIGIN, headers=fresh_headers)
+    assert recovered.status_code == 200
+
+
+@pytest.mark.parametrize("ceremony,legacy_key", [
+    ("login", "auth_challenge"), ("register", "reg_challenge"),
+])
+def test_legacy_cookie_challenge_fails_closed(https_app, ceremony, legacy_key):
+    client = https_app.test_client()
+    page = client.get("/login", base_url=ORIGIN).get_data(as_text=True)
+    headers = {"X-CSRFToken": csrf_from(page), "Referer": ORIGIN + "/login"}
+    with https_app.app_context():
+        token = auth_mod.new_enroll_token()
+    with client.session_transaction() as cookie:
+        cookie[legacy_key] = auth_mod.b64u(b"legacy challenge")
+
+    response = client.post(f"/api/auth/{ceremony}/verify",
+                           json={"token": token, "credential": "{}"},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 400
+    assert "no pending" in response.get_json()["error"]
+    assert _session_cookie(response) is None
+
+
+def test_additive_panel_upgrade_preserves_enrolled_passkey(https_app):
+    client = https_app.test_client()
+    device = SoftPasskey()
+    _, headers, _ = _enroll(https_app, client, device)
+    with https_app.app_context():
+        db = get_db()
+        db.execute("DROP TABLE auth_challenges")
+        db.commit()
+
+    init_db(https_app)
+    init_db(https_app)
+    options = client.post("/api/auth/login/options", base_url=ORIGIN, headers=headers)
+    response = client.post("/api/auth/login/verify",
+                           json={"credential": device.authenticate(options.get_data(as_text=True))},
+                           base_url=ORIGIN, headers=headers)
+
+    assert response.status_code == 200
+    with https_app.app_context():
+        db = get_db()
+        assert len(auth_mod.all_credentials()) == 1
+        assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []

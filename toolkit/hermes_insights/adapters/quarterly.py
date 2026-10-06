@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from datetime import date, timedelta
 import statistics
 from typing import Any, Mapping
@@ -52,6 +53,14 @@ def _rows(conn, sql, params=()):
     return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
 
+def _protocol_identity(provenance):
+    for key in ("protocol", "component_protocol", "component_protocols"):
+        if key in provenance:
+            value = provenance[key]
+            return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+    return None
+
+
 def _emit(
     out, definitions, key, day, value, *, unit=None, source=None,
     provenance=None, include_provenance=False,
@@ -60,6 +69,17 @@ def _emit(
         return
     if isinstance(value, (int, float)) and finite(value) is None:
         return
+    protocol = _protocol_identity(provenance or {})
+    if protocol is not None and not all(protocol):
+        # Arithmetic remains descriptive; absent setup cannot establish a
+        # reference-band judgment, target score, or longitudinal change.
+        if key.endswith(".distance_to_band") or (provenance or {}).get("formula") == "axis_score":
+            return
+        provenance = {
+            **provenance, "candidate_eligible": False,
+            "candidate_ineligible_reason": "missing_protocol",
+            **episode_comparison({"value": value}, None),
+        }
     out.append(make_observation(
         definitions, key, day, value, unit=unit, source=source,
         provenance=provenance, include_provenance=include_provenance,
@@ -576,7 +596,22 @@ def load(conn, definitions, date_range, context, include_provenance=False):
     definitions = DefinitionIndex(definitions)
     out: list[Any] = []
     _load_body(conn, definitions, date_range, context, include_provenance, out)
-    _load_fitness(conn, definitions, date_range, context, include_provenance, out)
+    fitness = []
+    _load_fitness(conn, definitions, date_range, context, True, fitness)
+    protocols = defaultdict(set)
+    for item in fitness:
+        identity = _protocol_identity(item.provenance or {})
+        if identity is not None and all(identity):
+            protocols[item.feature_key].add(identity)
+    for item in fitness:
+        provenance = item.provenance or {}
+        if (len(protocols[item.feature_key]) > 1
+                and provenance.get("candidate_eligible", True)):
+            provenance = {
+                **provenance, "candidate_eligible": False,
+                "candidate_ineligible_reason": "mixed_protocols",
+            }
+        out.append(replace(item, provenance=provenance if include_provenance else None))
     return sorted(out, key=lambda item: (item.observed_at, item.feature_key,
                                          item.source or ""))
 

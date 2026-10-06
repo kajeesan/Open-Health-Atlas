@@ -11,6 +11,7 @@ Subcommands (all emit one JSON object on stdout):
   model-set   — set model, restart gateway, health-check, AUTO-ROLLBACK on failure
   fitbit-status — ghealth auth state + re-auth instructions
 """
+import fcntl
 import json
 import hashlib
 import os
@@ -162,21 +163,25 @@ def _sysctl_user(*args, timeout=20):
         capture_output=True, text=True, timeout=timeout)
 
 
-def _gateway_active():
-    return _sysctl_user("is-active", "hermes-gateway").stdout.strip() == "active"
+def _gateway_active(timeout=20):
+    return _sysctl_user("is-active", "hermes-gateway", timeout=timeout).stdout.strip() == "active"
 
 
 def _gateway_healthy(wait_s=30):
-    """active unit + /health responding, polled up to wait_s."""
-    deadline = time.time() + wait_s
-    while time.time() < deadline:
-        if _gateway_active():
+    deadline = time.monotonic() + wait_s
+    while (remaining := deadline - time.monotonic()) > 0:
+        if _gateway_active(timeout=min(20, remaining)):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
             try:
-                urllib.request.urlopen(GATEWAY_HEALTH, timeout=3)
-                return True
+                with urllib.request.urlopen(GATEWAY_HEALTH, timeout=min(3, remaining)):
+                    return True
             except OSError:
                 pass
-        time.sleep(2)
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(2, remaining))
     return False
 
 
@@ -217,12 +222,53 @@ def _config_set_model(model_id):
     return False
 
 
+def _restore_model(prior):
+    try:
+        _config_set_model(prior)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        # A timed-out config command may already have written the prior model.
+        # Recovery depends on the actual file, not the command's exit status.
+        pass
+    try:
+        config_restored = _read_model()[0] == prior
+    except (OSError, UnicodeError):
+        return False, False
+    if not config_restored:
+        return False, False
+    try:
+        restarted = _sysctl_user("restart", "hermes-gateway", timeout=30)
+        healthy = restarted.returncode == 0 and _gateway_healthy(20)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        return True, False
+    return True, healthy
+
+
 def model_set(args):
     if not args:
         die("model id required")
     new = args[0]
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9/_.:\-]{0,79}", new):
         die("model id has an unexpected shape")
+    lock_path = os.path.join(os.path.dirname(CONFIG), ".model-switch.lock")
+    try:
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError:
+        die("model switch lock is unavailable")
+    with os.fdopen(descriptor, "r+") as lock:
+        details = os.fstat(lock.fileno())
+        if (not stat.S_ISREG(details.st_mode) or details.st_uid != os.getuid()
+                or stat.S_IMODE(details.st_mode) & 0o077):
+            die("model switch lock has unsafe permissions")
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            die("a model switch is already in progress")
+        except OSError:
+            die("model switch lock is unavailable")
+        _model_set_locked(new)
+
+
+def _model_set_locked(new):
     prior, _ = _read_model()
     if not prior:
         die("could not read current model from config.yaml")
@@ -230,16 +276,26 @@ def model_set(args):
         out({"ok": True, "model": prior, "changed": False,
              "note": "already the active model"})
         return
-    if not _config_set_model(new):
-        die("hermes config set did not take effect", prior=prior)
-    r = _sysctl_user("restart", "hermes-gateway", timeout=30)
-    if r.returncode != 0 or not _gateway_healthy(30):
-        # AUTO-ROLLBACK: a bad switch must never leave Telegram coaching dead.
-        _config_set_model(prior)
-        _sysctl_user("restart", "hermes-gateway", timeout=30)
-        healthy = _gateway_healthy(20)
-        die(f"gateway unhealthy on '{new}' — rolled back to '{prior}'",
-            rolled_back=True, gateway_recovered=healthy)
+    failure = None
+    try:
+        if not _config_set_model(new):
+            failure = "hermes config set did not take effect"
+        else:
+            restarted = _sysctl_user("restart", "hermes-gateway", timeout=30)
+            if restarted.returncode != 0 or not _gateway_healthy(30):
+                failure = f"gateway unhealthy on '{new}'"
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        failure = "model switch could not be completed"
+    if failure is not None:
+        config_restored, healthy = _restore_model(prior)
+        rolled_back = config_restored and healthy
+        recovery = (
+            f"rolled back to '{prior}'" if rolled_back
+            else f"recovery to '{prior}' could not be verified; manual recovery required"
+        )
+        die(f"{failure} — {recovery}", prior=prior,
+            rolled_back=rolled_back, config_restored=config_restored,
+            gateway_recovered=healthy)
     out({"ok": True, "model": new, "prior": prior, "changed": True,
          "gateway_active": True})
 

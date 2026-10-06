@@ -937,3 +937,129 @@ def test_recovery_detail_hrv_works_on_legacy_and_new_schema(tmp_path):
     assert d2["empty"] is False
     names2 = [r["name"] for r in d2["breakdown"]]
     assert "Latest" in names2
+
+
+@pytest.fixture()
+def fixed_recovery_clock(monkeypatch):
+    from datetime import date, timedelta
+    from app import canon
+
+    monkeypatch.setattr(canon, "days_ago_iso", lambda days: (date(2026, 8, 28) - timedelta(days=days)).isoformat())
+
+
+def test_hrv_device_transition_does_not_create_physiological_change(tmp_path, fixed_recovery_clock):
+    def seed(con):
+        con.executemany(
+            "INSERT INTO daily_metrics(date, source, hrv_ms) VALUES(?, ?, ?)",
+            [(f"2026-08-{day:02}", "fitbit", 30) for day in range(1, 15)]
+            + [(f"2026-08-{day:02}", "apple", 60) for day in range(15, 29)],
+        )
+
+    result = _recovery_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=hrv&days=all").get_json()
+
+    assert result["baseline"] == 60
+    assert result["header_chip"]["text"] == "60 ms · ok"
+    rows = {row["name"]: row for row in result["breakdown"]}
+    assert rows["Range average"]["value"] == "60 ms"
+    assert rows["Variability"]["value"] == "±0 ms"
+    assert result["comparison"]["source"] == "apple"
+    assert result["comparison"]["method"] == "SDNN"
+    assert result["comparison"]["baseline_days"] == 14
+    assert len(result["series"]["fitbit"]) == 14
+    assert len(result["series"]["apple"]) == 14
+
+
+def test_hrv_latest_source_controls_readiness_facts(tmp_path, fixed_recovery_clock):
+    def seed(con):
+        con.executemany(
+            "INSERT INTO daily_metrics(date, source, hrv_ms) VALUES(?, ?, ?)",
+            [(f"2026-08-{day:02}", "fitbit", 30) for day in range(1, 29)]
+            + [(f"2026-08-{day:02}", "apple", 60) for day in range(1, 28)],
+        )
+
+    result = _recovery_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=readiness").get_json()
+
+    hrv = next(row for row in result["breakdown"] if row["name"] == "HRV")
+    assert hrv["value"] == "30 ms"
+    assert hrv["chip"] == {"text": "ok", "cls": "in"}
+    assert "Fitbit RMSSD" in hrv["sub"]
+    assert any("0 of the last 8 days" in fact for fact in result["advice"])
+    assert not any("−30" in fact for fact in result["advice"])
+
+
+def test_hrv_new_source_cannot_borrow_old_source_coverage(tmp_path, fixed_recovery_clock):
+    def seed(con):
+        con.executemany(
+            "INSERT INTO daily_metrics(date, source, hrv_ms) VALUES(?, ?, ?)",
+            [(f"2026-08-{day:02}", "apple", 60) for day in range(1, 28)]
+            + [("2026-08-28", "fitbit", 30)],
+        )
+
+    result = _recovery_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=hrv&days=all").get_json()
+
+    assert result["baseline"] is None
+    assert result["header_chip"]["text"] == "30 ms"
+    assert result["comparison"]["baseline_days"] == 1
+    assert result["comparison"]["status"] == "insufficient_data"
+    assert any("1 of 7 required days" in fact for fact in result["advice"])
+
+
+def test_hrv_same_day_tie_preserves_apple_preference(tmp_path, fixed_recovery_clock):
+    def seed(con):
+        con.executemany(
+            "INSERT INTO daily_metrics(date, source, hrv_ms) VALUES(?, ?, ?)",
+            [(f"2026-08-{day:02}", source, value)
+             for day in range(22, 29) for source, value in (("fitbit", 30), ("apple", 60))],
+        )
+
+    result = _recovery_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=hrv&days=all").get_json()
+
+    assert result["baseline"] == 60
+    assert result["comparison"]["source"] == "apple"
+    assert result["comparison"]["baseline_days"] == 7
+
+
+def test_unknown_hrv_method_preserves_readings_without_baseline(tmp_path, fixed_recovery_clock):
+    def seed(con):
+        con.executemany(
+            "INSERT INTO daily_metrics(date, source, hrv_ms) VALUES(?, 'unclassified-wearable', 42)",
+            [(f"2026-08-{day:02}",) for day in range(1, 29)],
+        )
+
+    result = _recovery_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=hrv&days=all").get_json()
+
+    assert result["empty"] is False
+    assert result["baseline"] is None
+    assert result["comparison"]["method"] is None
+    assert result["comparison"]["status"] == "unknown_method"
+    assert len(result["series"]["unclassified-wearable"]) == 28
+    assert result["header_chip"] == {"text": "42 ms", "cls": ""}
+    assert any("method is unknown" in fact for fact in result["advice"])
+
+
+@pytest.mark.parametrize("layout", ["legacy", "current", "both_columns"])
+def test_single_source_hrv_keeps_baseline_across_schema_layouts(tmp_path, fixed_recovery_clock, layout):
+    def seed(con):
+        if layout == "both_columns":
+            con.execute("ALTER TABLE daily_metrics ADD COLUMN hrv_sdnn REAL")
+        column = "hrv_sdnn" if layout == "legacy" else "hrv_ms"
+        con.executemany(
+            f"INSERT INTO daily_metrics(date, source, {column}) VALUES(?, 'apple', 50)",
+            [(f"2026-08-{day:02}",) for day in range(22, 29)],
+        )
+        if layout == "both_columns":
+            con.execute("UPDATE daily_metrics SET hrv_sdnn=99")
+
+    make_client = _legacy_hrv_client if layout == "legacy" else _recovery_client
+    result = make_client(tmp_path, seed).get(
+        "/api/dash/recovery-detail?metric=hrv&days=all").get_json()
+
+    assert result["baseline"] == 50
+    assert result["header_chip"]["text"] == "50 ms · ok"
+    assert result["comparison"]["method"] == "SDNN"
+    assert result["comparison"]["baseline_days"] == 7

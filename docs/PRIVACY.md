@@ -47,11 +47,14 @@ Unix-socket broker and validated toolkit commands. External collectors connect
 only when a user configures and runs them. No telemetry, analytics beacon, or
 default remote model call is built into the retained product.
 
-The obsolete local synthetic interpretation runtime has been removed.
-OpenHealthAtlas performs no model reasoning; genuine external Hermes is the
-sole reasoning layer. Removing the reference code changes no existing external
-data-sharing or validated-write boundary. Any
-future expansion of the governed evidence sent to that external service
+OpenHealthAtlas performs no model reasoning. External Hermes or a compatible
+MCP AI client supplies the model and may send returned tool results to its
+configured provider. Local storage and a local MCP connection do not guarantee
+local model processing. Telegram handles messages only when that integration
+is configured. Review the selected client's sharing and retention settings
+before connecting personal records.
+
+Any future expansion of the governed evidence sent to an external service
 requires evidence minimization, user consent, provider-retention, geographic
 transfer, prompt-logging, deletion, and breach-handling review before real
 records are processed.

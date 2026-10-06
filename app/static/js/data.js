@@ -14,6 +14,8 @@
   const state = { days: 90, source: "all", metrics: [], body: [], subjective: [], safety: null, env: null,
     sleepLog: [], workouts: [], hevyVolume: [], water: [] };
   const charts = {};
+  let rangeGeneration = 0;
+  let rangeError = null;
 
   function chart(id) {
     const el = document.getElementById(id);
@@ -560,20 +562,31 @@
     dayRatingChart();
     waterChart();
     envCard();
+    if (rangeError) RANGE_CHARTS.forEach(id => empty(id, rangeError));
   }
   function renderAll() { renderRange(); loadFeed(); }
 
   async function loadRange() {
-    const [m, b, s, wo, hv, ev] = await Promise.all([
-      fetchJSON(`/api/dash/metrics?days=${state.days}`),
-      fetchJSON(`/api/dash/body?days=${state.days}`),
-      fetchJSON(`/api/dash/sleep?days=${state.days}`),
-      fetchJSON(`/api/dash/workouts?days=${state.days}`),
-      fetchJSON(`/api/dash/hevy-volume?days=${state.days}`),
-      fetchJSON(`/api/dash/env?days=${state.days}`),
-    ]);
-    state.metrics = m.rows; state.body = b.rows; state.sleepLog = s.rows;
-    state.workouts = wo.rows; state.hevyVolume = hv.rows; state.env = ev;
+    const generation = ++rangeGeneration;
+    const days = state.days;
+    try {
+      const [m, b, s, wo, hv, ev] = await Promise.all([
+        fetchJSON(`/api/dash/metrics?days=${days}`),
+        fetchJSON(`/api/dash/body?days=${days}`),
+        fetchJSON(`/api/dash/sleep?days=${days}`),
+        fetchJSON(`/api/dash/workouts?days=${days}`),
+        fetchJSON(`/api/dash/hevy-volume?days=${days}`),
+        fetchJSON(`/api/dash/env?days=${days}`),
+      ]);
+      if (generation !== rangeGeneration) return;
+      state.metrics = m.rows; state.body = b.rows; state.sleepLog = s.rows;
+      state.workouts = wo.rows; state.hevyVolume = hv.rows; state.env = ev;
+      rangeError = null;
+    } catch (e) {
+      if (generation !== rangeGeneration) return;
+      rangeError = e.message;
+    }
+    renderRange();
   }
 
   const RANGE_CHARTS = ["ch-rhr", "ch-hrv", "ch-sleep", "ch-steps", "ch-body",
@@ -584,7 +597,7 @@
     "ch-weather", "ch-air"];
 
   async function boot() {
-    const [subj, safety, water, range] = await Promise.allSettled([
+    const [subj, safety, water] = await Promise.allSettled([
       // These datasets are filtered locally, including when All is selected.
       fetchJSON("/api/dash/subjective?days=all"),
       fetchJSON("/api/dash/safety?days=all"),
@@ -595,7 +608,6 @@
     if (safety.status === "fulfilled") state.safety = safety.value;
     if (water.status === "fulfilled") state.water = water.value.rows;
     renderAll();
-    if (range.status === "rejected") RANGE_CHARTS.forEach(id => empty(id, range.reason.message));
     if (subj.status === "rejected") { empty("ch-mood", subj.reason.message); empty("ch-dayrating", subj.reason.message); }
     if (safety.status === "rejected") empty("ch-safety", safety.reason.message);
     if (water.status === "rejected") empty("ch-water", water.reason.message);
@@ -608,12 +620,7 @@
   const RANGE_DAYS = { Week: 7, Month: 30, Quarter: 90, Year: 365, All: "all" };
   window.HermesUI.onRange("range", async (val) => {
     state.days = RANGE_DAYS[val];
-    try {
-      await loadRange();
-      renderRange();
-    } catch (e) {
-      RANGE_CHARTS.forEach(id => empty(id, e.message));
-    }
+    await loadRange();
   });
 
   document.getElementById("source-filter").addEventListener("change", (ev) => {

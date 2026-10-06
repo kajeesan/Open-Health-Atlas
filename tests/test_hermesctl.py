@@ -1,4 +1,5 @@
 """hermesctl chat session isolation and controlled timeout behavior."""
+import fcntl
 import io
 import hashlib
 import json
@@ -656,3 +657,169 @@ def test_chat_escapes_literal_delimiter_in_owner_message(monkeypatch, capsys, tm
     prompt = seen["argv"][2]
     assert prompt.count("</HERMES_UNTRUSTED_OWNER_MESSAGE>") == 1
     assert "\\u003c/HERMES_UNTRUSTED_OWNER_MESSAGE\\u003e" in prompt
+
+
+def _model_switch_runtime(monkeypatch, tmp_path, failures=None, *, probe_seconds=0):
+    h = _load()
+    config = tmp_path / "config.yaml"
+    config.write_text("model:\n  default: fictional/prior\n  provider: fictional\n")
+    monkeypatch.setattr(h, "CONFIG", str(config))
+    failures = failures or {}
+    state = {"running_model": "fictional/prior", "clock": 0}
+
+    def fail(phase, argv):
+        failure = failures.get(phase)
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(argv, 30)
+        if failure == "missing":
+            raise FileNotFoundError("fictional executable")
+        return failure
+
+    def run(argv, **kwargs):
+        if argv[1:3] == ["config", "set"]:
+            target = argv[-1]
+            phase = "restore-config" if target == "fictional/prior" else "new-config"
+            if failures.get(phase) != "reject":
+                config.write_text(f"model:\n  default: {target}\n  provider: fictional\n")
+            failure = fail(phase, argv)
+            return subprocess.CompletedProcess(argv, int(failure == "reject"), "", "")
+        assert argv[:2] == ["systemctl", "--user"]
+        phase = "restore" if "fictional/prior" in config.read_text() else "new"
+        if argv[2] == "restart":
+            failure = fail(phase + "-restart", argv)
+            if failure != "reject":
+                state["running_model"] = h._read_model()[0]
+            return subprocess.CompletedProcess(argv, int(failure == "reject"), "", "")
+        assert argv[2] == "is-active"
+        fail(phase + "-health", argv)
+        if phase == "new":
+            state["clock"] += min(probe_seconds, kwargs["timeout"])
+        return subprocess.CompletedProcess(argv, 0, "active\n", "")
+
+    def health(*args, **kwargs):
+        phase = "restore" if "fictional/prior" in config.read_text() else "new"
+        if failures.get(phase + "-health") == "unhealthy":
+            raise OSError("fictional health endpoint unavailable")
+        return io.BytesIO(b"ok")
+
+    monkeypatch.setattr(h.subprocess, "run", run)
+    monkeypatch.setattr(h.urllib.request, "urlopen", health)
+    monkeypatch.setattr(h.time, "monotonic", lambda: state["clock"])
+    monkeypatch.setattr(h.time, "sleep", lambda seconds: state.update(clock=state["clock"] + seconds))
+    return h, config, state
+
+
+def test_model_switch_reports_healthy_new_model(monkeypatch, tmp_path, capsys):
+    h, config, state = _model_switch_runtime(monkeypatch, tmp_path)
+
+    h.model_set(["fictional/new"])
+
+    assert "default: fictional/new\n" in config.read_text()
+    assert state["running_model"] == "fictional/new"
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": True, "model": "fictional/new", "prior": "fictional/prior",
+        "changed": True, "gateway_active": True,
+    }
+    with (tmp_path / ".model-switch.lock").open("r+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize("failures", [
+    pytest.param({"new-config": "timeout"}, id="config-write-before-timeout"),
+    pytest.param({"new-config": "reject"}, id="config-rejected"),
+    pytest.param({"new-restart": "timeout"}, id="restart-timeout"),
+    pytest.param({"new-restart": "missing"}, id="restart-executable-unavailable"),
+    pytest.param({"new-restart": "reject"}, id="restart-rejected"),
+    pytest.param({"new-health": "timeout"}, id="health-process-timeout"),
+    pytest.param({"new-health": "unhealthy"}, id="health-endpoint-unavailable"),
+    pytest.param({"new-restart": "reject", "restore-config": "timeout"},
+                 id="restore-write-before-timeout"),
+])
+def test_failed_model_switch_restores_working_prior_model(
+    monkeypatch, tmp_path, capsys, failures,
+):
+    h, config, state = _model_switch_runtime(monkeypatch, tmp_path, failures)
+
+    with pytest.raises(SystemExit) as exc:
+        h.model_set(["fictional/new"])
+
+    assert exc.value.code == 1
+    assert "default: fictional/prior\n" in config.read_text()
+    assert state["running_model"] == "fictional/prior"
+    result = json.loads(capsys.readouterr().out)
+    assert result["ok"] is False
+    assert result["rolled_back"] is True
+    assert result["gateway_recovered"] is True
+    with (tmp_path / ".model-switch.lock").open("r+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize("recovery_failure,config_restored", [
+    pytest.param({"restore-config": "reject"}, False, id="config-not-restored"),
+    pytest.param({"restore-restart": "timeout"}, True, id="recovery-restart-timeout"),
+    pytest.param({"restore-restart": "reject"}, True, id="recovery-restart-rejected"),
+    pytest.param({"restore-health": "timeout"}, True, id="recovery-health-process-timeout"),
+    pytest.param({"restore-health": "unhealthy"}, True, id="recovery-health-unavailable"),
+])
+def test_failed_recovery_never_claims_successful_rollback(
+    monkeypatch, tmp_path, capsys, recovery_failure, config_restored,
+):
+    h, _, _ = _model_switch_runtime(
+        monkeypatch, tmp_path, {"new-health": "unhealthy", **recovery_failure},
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        h.model_set(["fictional/new"])
+
+    assert exc.value.code == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["ok"] is False
+    assert result["rolled_back"] is False
+    assert result["config_restored"] is config_restored
+    assert result["gateway_recovered"] is False
+    assert "rolled back to" not in result["error"]
+
+
+def test_model_switch_bounds_nested_health_checks(monkeypatch, tmp_path, capsys):
+    h, config, state = _model_switch_runtime(
+        monkeypatch, tmp_path, {"new-health": "unhealthy"}, probe_seconds=19,
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        h.model_set(["fictional/new"])
+
+    assert exc.value.code == 1
+    assert state["clock"] <= 30
+    assert "default: fictional/prior\n" in config.read_text()
+    assert json.loads(capsys.readouterr().out)["rolled_back"] is True
+
+
+def test_concurrent_model_switch_is_rejected_before_writing(monkeypatch, tmp_path, capsys):
+    h, config, state = _model_switch_runtime(monkeypatch, tmp_path)
+    lock_path = tmp_path / ".model-switch.lock"
+    lock_path.touch(mode=0o600)
+
+    with lock_path.open("r+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(SystemExit) as exc:
+            h.model_set(["fictional/new"])
+
+    assert exc.value.code == 1
+    assert "default: fictional/prior\n" in config.read_text()
+    assert state["running_model"] == "fictional/prior"
+    result = json.loads(capsys.readouterr().out)
+    assert result == {"ok": False, "error": "a model switch is already in progress"}
+
+
+def test_model_switch_rejects_symlink_lock(monkeypatch, tmp_path, capsys):
+    h, config, _ = _model_switch_runtime(monkeypatch, tmp_path)
+    (tmp_path / ".model-switch.lock").symlink_to(config)
+
+    with pytest.raises(SystemExit) as exc:
+        h.model_set(["fictional/new"])
+
+    assert exc.value.code == 1
+    assert "default: fictional/prior\n" in config.read_text()
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": False, "error": "model switch lock is unavailable",
+    }

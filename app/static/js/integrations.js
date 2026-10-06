@@ -6,7 +6,7 @@
   if (!window.HermesCharts) return;
   const { fetchJSON } = window.HermesCharts;
 
-  const FLAG_CLASS = { connected: "in", stale: "bd", none: "bd", retired: "bd", not_running: "out", unknown: "bd" };
+  const FLAG_CLASS = { connected: "in", stale: "bd", none: "bd", not_running: "out", unknown: "bd" };
 
   function row(name, chipText, flagClass, sub) {
     const el = document.createElement("div");
@@ -29,21 +29,19 @@
     return el;
   }
 
-  // "Connected · last sync <date>" / "Stale · last sync <date>" / "No data
-  // yet" — the shared chip-text shape for the two date-backed sources.
   function syncChip(status, date) {
-    if (status === "connected") return `Connected · last sync ${date}`;
-    if (status === "stale") return `Stale · last sync ${date}`;
+    if (status === "connected") return `Recent data · latest record ${date}`;
+    if (status === "stale") return `Stale data · latest record ${date}`;
     return "No data yet";
   }
 
   function telegramRow(t) {
     t = t || {};
-    const chipText = { connected: "Connected", not_running: "Not running" }[t.status] || "Status unknown";
+    const chipText = { connected: "Running", not_running: "Not running" }[t.status] || "Status unknown";
     let sub;
     if (t.status === "connected") sub = [t.model, t.provider].filter(Boolean).join(" · ") || null;
     else sub = t.error || null;
-    return row("Telegram bot", chipText, FLAG_CLASS[t.status] || "bd", sub);
+    return row("Hermes gateway", chipText, FLAG_CLASS[t.status] || "bd", sub);
   }
 
   function hevyRow(h) {
@@ -51,17 +49,15 @@
     return row("Hevy (training)", syncChip(h.status, h.latest_date), FLAG_CLASS[h.status] || "bd");
   }
 
-  function wearableRow(w) {
+  function wearableRows(w) {
     w = w || {};
     const apple = w.apple || {};
-    // Apple is retired by product contract and no longer feeds
-    // w.status/latest_date — it's shown as its own honest, non-error state.
-    const appleBit = apple.since
-      ? `Apple: retired ${apple.since} · archive imports occasionally`
-      : "Apple: retired";
-    const sub = `${appleBit} · Fitbit: ${w.fitbit_latest || "no data"}` +
-      ` (token: ${w.fitbit_auth_status || "unknown"})`;
-    return row("Wearable", syncChip(w.status, w.latest_date), FLAG_CLASS[w.status] || "bd", sub);
+    const fitbit = w.fitbit || {};
+    return [
+      row("Apple Health", syncChip(apple.status, apple.latest_date), FLAG_CLASS[apple.status] || "bd"),
+      row("Fitbit / Google Health", syncChip(fitbit.status, fitbit.latest_date),
+        FLAG_CLASS[fitbit.status] || "bd", `Token status: ${fitbit.auth_status || "unknown"}`),
+    ];
   }
 
   function labsRow(l) {
@@ -85,7 +81,7 @@
     list.append(
       telegramRow(data.telegram),
       hevyRow(data.hevy),
-      wearableRow(data.wearable),
+      ...wearableRows(data.wearable),
       labsRow(data.labs),
     );
   }

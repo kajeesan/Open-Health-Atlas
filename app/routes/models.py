@@ -50,7 +50,7 @@ def set_model():
     if not MODEL_RE.fullmatch(model):
         return jsonify(ok=False, error="model id has an unexpected shape"), 400
     # hermesctl restarts the gateway, health-checks and auto-rolls-back; give it time.
-    return _run("hermes-model-set", model, timeout=160.0)
+    return _run("hermes-model-set", model, timeout=310.0)
 
 
 @bp.post("/budget")

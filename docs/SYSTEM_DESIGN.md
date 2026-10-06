@@ -59,6 +59,21 @@ point/mean/sum/count/delta/frequency/days-since transforms, and no-interaction
 or pairwise-interaction modes. Yellow observations remain Yellow; binary views
 group them without relabelling them.
 
+HRV dashboard comparisons use the latest observed source and its measurement
+method. Apple SDNN and Fitbit RMSSD retain separate series; Apple wins a
+same-date source tie. Baselines require seven observations from that source
+within the trailing 60 days. Unknown methods remain visible as observations
+without a baseline or directional status.
+
+Fitness observations with missing setup descriptions remain available for
+inspection but cannot qualify as analytical evidence. Explicit bodyweight or
+no-equipment descriptions are valid protocols. Multiple recorded protocols
+within a feature's requested range also prevent pooled comparison. Readiness
+counts and `latest_at` use eligible observations; descriptive record counts
+remain available with exclusion reasons. Existing eligibility rules also
+exclude incomplete nutrition totals from analytical freshness. Qualification checks recorded setup
+consistency, not whether a free-text description is accurate.
+
 ## External interpretation boundary
 
 Genuine external Hermes owns conversation and model reasoning. OpenHealthAtlas

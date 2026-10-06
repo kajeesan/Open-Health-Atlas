@@ -30,33 +30,30 @@
   function renderChart() {
     const P = pal();
     const series = state.series || {};
-    const apple = series.apple || [];
-    const fitbit = series.fitbit || [];
-    if (!apple.length && !fitbit.length) {
+    const sources = Object.keys(series).filter((source) => series[source].length).sort();
+    if (!sources.length) {
       chart("rd-chart").setOption({ graphic: { type: "text", left: "center", top: "middle",
         style: { text: "No readings in this range", fill: P.muted, fontSize: 13 } } });
       return;
     }
-    const dates = [...new Set([...apple, ...fitbit].map((p) => p[0]))].sort();
-    const aMap = new Map(apple);
-    const fMap = new Map(fitbit);
-    const lines = [];
-    if (apple.length) {
-      lines.push({ n: "Apple", c: P.accent, area: fitbit.length === 0,
-        d: dates.map((d) => (aMap.has(d) ? aMap.get(d) : null)) });
-    }
-    if (fitbit.length) {
-      lines.push({ n: "Fitbit", c: P.good, dash: true,
-        d: dates.map((d) => (fMap.has(d) ? fMap.get(d) : null)) });
-    }
+    const dates = [...new Set(sources.flatMap((source) => series[source].map((p) => p[0])))].sort();
+    const lines = sources.map((source, i) => {
+      const values = new Map(series[source]);
+      const name = source === "apple" ? "Apple" : source === "fitbit" ? "Fitbit" : source;
+      const method = source === "apple" ? "SDNN" : source === "fitbit" ? "RMSSD" : "(method unknown)";
+      return { n: metric === "hrv" ? `${name} ${method}` : name,
+        c: i === 0 ? P.accent : P.good, area: sources.length === 1, dash: source !== "apple",
+        d: dates.map((d) => values.get(d) ?? null) };
+    });
     const extra = lines.length > 1
       ? { legend: { show: true, top: 0, textStyle: { color: P.muted, fontSize: 10 } },
           grid: { left: 10, right: 16, top: 26, bottom: 22, containLabel: true } }
       : {};
     const opt = lineOpt(dates.map((d) => d.slice(5)), lines, null, null, extra);
-    // baseline reference line (personal 60-day median) where one exists
-    if (state.baseline != null && opt.series && opt.series[0]) {
-      opt.series[0].markLine = {
+    // A source-specific HRV baseline must never be attached to another method's line.
+    const baselineIndex = state.comparison ? sources.indexOf(state.comparison.source) : 0;
+    if (state.baseline != null && opt.series && opt.series[baselineIndex]) {
+      opt.series[baselineIndex].markLine = {
         silent: true, symbol: "none",
         lineStyle: { type: "dashed", color: P.muted, width: 1.2 },
         label: { show: true, position: "insideEndTop", formatter: state.baseline_label,
@@ -71,7 +68,8 @@
     // midpoint — resize() recomputes against the true width once it has.
     c.resize();
     document.getElementById("rd-trend-note").textContent =
-      fitbit.length ? "apple solid · fitbit dashed" : "";
+      metric === "hrv" ? "Separate methods · compare within each source" :
+        (sources.includes("fitbit") ? "apple solid · fitbit dashed" : "");
   }
 
   /* ---------- component breakdown rows ---------- */

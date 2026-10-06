@@ -13,6 +13,7 @@ import base64
 import hashlib
 import secrets
 import time
+from collections.abc import Callable
 
 from flask import current_app, g, request
 
@@ -21,6 +22,7 @@ from app.panel_db import get_db
 SESSION_COOKIE = "panel_session"
 SESSION_TTL_SECONDS = 12 * 3600
 ENROLL_TTL_SECONDS = 15 * 60
+CHALLENGE_TTL_SECONDS = 5 * 60
 
 
 class SignCountRegression(Exception):
@@ -124,22 +126,74 @@ def enroll_token_valid(token: str) -> bool:
     return row is not None
 
 
-def consume_enroll_token(token: str) -> None:
+def new_challenge(challenge: bytes, ceremony: str, *, now: int,
+                  enrollment_token: str = "", previous_handle: str | None = None) -> str:
+    """Persist a short-lived ceremony and return its opaque browser handle.
+
+    Replacing a pending ceremony invalidates its previous handle server-side.
+    """
+    handle = secrets.token_urlsafe(32)
     db = get_db()
-    db.execute("UPDATE enroll_tokens SET used=1 WHERE token_hash=?", (_hash(token),))
-    db.commit()
+    with db:
+        db.execute("DELETE FROM auth_challenges WHERE expires_at<=?", (now,))
+        if previous_handle:
+            db.execute("DELETE FROM auth_challenges WHERE token_hash=?",
+                       (_hash(previous_handle),))
+        db.execute(
+            "INSERT INTO auth_challenges(token_hash,ceremony,challenge,"
+            "enrollment_token_hash,expires_at) VALUES(?,?,?,?,?)",
+            (_hash(handle), ceremony, challenge, _hash(enrollment_token),
+             now + CHALLENGE_TTL_SECONDS),
+        )
+    return handle
+
+
+def consume_challenge(handle: str | None, ceremony: str, *, clock: Callable[[], float],
+                      enrollment_token: str = "") -> bytes | None:
+    """Return a matching unexpired challenge once, including across workers.
+
+    An attempted ceremony consumes the handle even when verification later fails.
+    """
+    if not handle:
+        return None
+    db = get_db()
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        now = int(clock())
+        row = db.execute(
+            "SELECT challenge FROM auth_challenges WHERE token_hash=? "
+            "AND ceremony=? AND enrollment_token_hash=? AND expires_at>?",
+            (_hash(handle), ceremony, _hash(enrollment_token), now),
+        ).fetchone()
+        db.execute("DELETE FROM auth_challenges WHERE token_hash=?", (_hash(handle),))
+    return row["challenge"] if row is not None else None
 
 
 # ------------------------------------------------------------- credentials
-def store_credential(credential_id: bytes, public_key: bytes, sign_count: int,
-                     transports: str, label: str) -> None:
+def enroll_credential(token: str, credential_id: bytes, public_key: bytes,
+                      sign_count: int, transports: str, label: str, *,
+                      clock: Callable[[], float]) -> bool:
+    """Store a credential only if its enrollment token can be consumed atomically.
+
+    Return False for a used or expired token. An insertion failure rolls back
+    token consumption and propagates the database error.
+    """
     db = get_db()
-    db.execute(
-        "INSERT INTO credentials(credential_id, public_key, sign_count, transports, label, created_at)"
-        " VALUES(?,?,?,?,?,?)",
-        (credential_id, public_key, sign_count, transports, label, int(time.time())),
-    )
-    db.commit()
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        now = int(clock())
+        consumed = db.execute(
+            "UPDATE enroll_tokens SET used=1 WHERE token_hash=? AND used=0 AND expires_at>?",
+            (_hash(token), now),
+        )
+        if consumed.rowcount != 1:
+            return False
+        db.execute(
+            "INSERT INTO credentials(credential_id, public_key, sign_count, transports, label, created_at)"
+            " VALUES(?,?,?,?,?,?)",
+            (credential_id, public_key, sign_count, transports, label, now),
+        )
+    return True
 
 
 def all_credentials():

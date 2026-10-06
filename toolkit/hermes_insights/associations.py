@@ -1887,6 +1887,17 @@ def analyze_outcome(
         enriched_observations = _enrich_observations(
             frame["observations"], by_key
         )
+    if (outcome.adapter == "quarterly" and outcome.key.startswith("fitness.")
+            and analysis_range.kind == "bounded"
+            and baseline_start is not None and baseline_start < analysis_range.start):
+        # Exposure lookback must not make an otherwise consistent outcome
+        # interval inherit a protocol conflict from before that interval.
+        outcome_frame = build_feature_frame(
+            conn, [outcome], analysis_range, context, include_provenance=True,
+        )
+        enriched_observations = [
+            row for row in enriched_observations if row["feature_key"] != outcome.key
+        ] + _enrich_observations(outcome_frame["observations"], by_key)
     observation_index = _by_feature(enriched_observations)
     outcome_rows = _outcome_rows(
         observation_index, outcome.key, analysis_range, outcome

@@ -811,9 +811,13 @@ def build_readiness(
     statuses = adapter_status(all_values, modules)
     # Frames remain built from the complete registry so a selected outcome is
     # available even when --goal filters the returned readiness rows.
-    current = build_feature_frame(conn, all_values, date_range, context, modules=modules)
+    current = build_feature_frame(
+        conn, all_values, date_range, context, modules=modules, include_provenance=True,
+    )
     all_range = DateRange(start=None, end=None, kind="all")
-    historical = build_feature_frame(conn, all_values, all_range, context, modules=modules)
+    historical = build_feature_frame(
+        conn, all_values, all_range, context, modules=modules, include_provenance=True,
+    )
     current_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     all_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in current["observations"]:
@@ -844,7 +848,10 @@ def build_readiness(
                 if row.get("state") in _OBSERVED_STATES:
                     evidence_by_key[row["feature_key"]].append(row)
 
-    outcome_rows = _observed(current_by_key[outcome]) if outcome is not None else []
+    outcome_rows = [
+        row for row in _observed(current_by_key[outcome])
+        if (row.get("provenance") or {}).get("candidate_eligible", True) is not False
+    ] if outcome is not None else []
     outcome_dates = {_date_of(row.get("observed_at")) for row in outcome_rows}
     outcome_dates.discard(None)
 
@@ -878,8 +885,32 @@ def build_readiness(
             or _direct_source_evidence(conn, definition)
         )
 
+        ineligible = [
+            row for row in current_obs
+            if (row.get("provenance") or {}).get("candidate_eligible", True) is False
+        ]
+        qualification_reasons = sorted({
+            (row.get("provenance") or {}).get("candidate_ineligible_reason", "candidate_ineligible")
+            for row in ineligible
+        })
+        current_valid = [
+            row for row in current_obs
+            if (row.get("provenance") or {}).get("candidate_eligible", True) is not False
+        ]
+        if key.startswith("nutrition.logged."):
+            dates = {_date_of(row.get("observed_at")) for row in current_obs}
+            dates.discard(None)
+            complete_dates = _nutrition_complete_dates(conn, dates)
+            current_valid = [row for row in current_valid
+                             if _date_of(row.get("observed_at")) in complete_dates]
+
+        qualified_history = [
+            row for row in all_obs
+            if (row.get("provenance") or {}).get("candidate_eligible", True) is not False
+        ]
+        freshness_rows = current_valid or qualified_history
         as_of_dates = [parsed for parsed in
-                       (_date_of(row.get("observed_at")) for row in all_obs)
+                       (_date_of(row.get("observed_at")) for row in freshness_rows)
                        if parsed is not None and parsed <= anchor.isoformat()]
         latest_at = config_latest if static else max(as_of_dates, default=None)
         stale_after = _value(definition, "stale_after_days")
@@ -887,7 +918,7 @@ def build_readiness(
             latest_at and stale_after is not None
             and (anchor - date.fromisoformat(latest_at)).days > stale_after
         )
-        collector_source = _collector_dependency(definition, all_obs)
+        collector_source = _collector_dependency(definition, freshness_rows)
         freshness = collector_freshness(conn, collector_source, now=now) if collector_source else None
         # Collector freshness is operational/current state.  It must never
         # relabel a valid historical observation as stale at its recorded date.
@@ -895,14 +926,6 @@ def build_readiness(
             not historical_query and freshness and freshness["status"] == "stale"
         )
         stale = measurement_stale or collector_stale
-
-        current_valid = current_obs
-        if key.startswith("nutrition.logged."):
-            dates = {_date_of(row.get("observed_at")) for row in current_obs}
-            dates.discard(None)
-            complete_dates = _nutrition_complete_dates(conn, dates)
-            current_valid = [row for row in current_obs
-                             if _date_of(row.get("observed_at")) in complete_dates]
 
         current_dates = {_date_of(row.get("observed_at")) for row in current_valid}
         current_dates.discard(None)
@@ -991,6 +1014,10 @@ def build_readiness(
         }
         rows.append({
             "feature_key": key,
+            **({"candidate_qualification": {
+                "excluded_observations": len(ineligible),
+                "reasons": qualification_reasons,
+            }} if ineligible else {}),
             "state": state,
             "logic_implemented": implemented,
             "storage_present": storage_present,

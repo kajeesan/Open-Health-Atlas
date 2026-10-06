@@ -39,6 +39,13 @@ SCHEMA_STATEMENTS = (
   expires_at INTEGER NOT NULL,
   used       INTEGER NOT NULL DEFAULT 0
 )""",
+    """CREATE TABLE IF NOT EXISTS auth_challenges (
+  token_hash TEXT PRIMARY KEY,
+  ceremony TEXT NOT NULL CHECK(ceremony IN ('login','register')),
+  challenge BLOB NOT NULL,
+  enrollment_token_hash TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+)""",
     """CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
