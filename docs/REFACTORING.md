@@ -1,5 +1,30 @@
 # Refactoring checkpoint
 
+## Public repairs and local evidence integration, 12 October 2026
+
+Branch `codex/integrate-public-fixes-local-evidence` starts from public `main`
+at `aff70df`, fast-forwards the public audit repairs (`c392d97`) and merges
+the local evidence workflows, committed as `3080d08`. Textual conflicts were
+limited to two documents, the release inventory and trace pins; both
+documents keep each side's sections.
+
+Two contracts interacted. The repairs mark fitness records with missing or
+mixed setup as analytically ineligible; descriptive reads read units through
+the association loader, which drops ineligible rows, so they stopped reporting
+`protocol_unavailable` and `protocol_incompatible`. Descriptive reads now keep
+records excluded only for those two reasons and apply their own check;
+canonical observations and identities are unchanged. The local work had
+already removed unsupported ratio target bands, so the repairs' band-specific
+qualification cases now use the ratio side gap, which exercises the same
+component-protocol identity.
+
+Traces for all ten scenarios were rebuilt at the base, both branches and the
+merge. Each source tree reproduced its committed digests. Every merged
+difference matched one branch's reviewed change, except engine-identity text,
+identity-derived hashes, hash-sorted order and engine-seeded bootstrap interval
+endpoints. Only the engine and trace pins were regenerated. Verification is
+recorded in [Verification](../VERIFICATION.md).
+
 ## Public audit repairs, 7 October 2026
 
 This branch starts from public `main` at
@@ -55,6 +80,26 @@ explicitly; its policy assertions are unchanged. It and the related broker
 validation tests passed. Independent review found no remaining blocker in
 the repaired scopes. Runtime and test-source checks used Python 3.14.6;
 packaging and live-provider qualification remain separate.
+
+## Local evidence workflows, 2 October 2026
+
+The uncommitted local candidate on public baseline `aff70df` adds modular
+training evidence and dated context with migration v8, bounded descriptive
+reads and local MCP tools, Recovery context forms, a nutrition profile editor,
+and the twelve lateral-knee features. Tested ratio displays now retain
+measurements and explicit laterality without unsupported target bands.
+
+The port preserves the public v6/v7 migration history and refuses the conflicting
+experimental training-v6 history. Descriptive reads retain partial records and
+separate compatible source groups; they do not change statistical thresholds or
+become ledger-eligible hypotheses. The opt-in evaluation harness records method
+behavior without claiming a new calibrated inference method.
+
+The three disjoint partitions passed 2,482 tests. Independent runtime, write and
+interface reviews accepted the corrected candidate. See
+[Verification](../VERIFICATION.md#local-evidence-workflow-candidate-2-october-2026)
+for scope and [System design](SYSTEM_DESIGN.md#descriptive-observations) for the
+contracts. No commit, push, service activation or installer publication occurred.
 
 ## Dependabot commit metadata, 25 September 2026
 

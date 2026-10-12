@@ -20,6 +20,7 @@ and vault bind mounts and holds no sudo grants, so it cannot write them. The bro
 sandbox. See docs/ARCHITECTURE.md.
 """
 import json
+import hashlib
 import socket
 import time
 
@@ -132,6 +133,10 @@ def run(
 
 
 def _audit(subcmd, args, outcome) -> None:
+    if subcmd in {"training-context-log", "nutrition-profile-set"}:
+        # Rejected requests may contain flag-like values, so do not parse argv.
+        raw = json.dumps(args, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        args = [f"sha256:{hashlib.sha256(raw).hexdigest()} ({len(raw)}B)"]
     db = get_db()
     db.execute(
         "INSERT INTO audit_log(ts, event, detail) VALUES(?,?,?)",

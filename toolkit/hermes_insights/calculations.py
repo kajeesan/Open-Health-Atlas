@@ -177,52 +177,6 @@ def _ratio_flag(ratio, band):
     return "in_range"
 
 
-def _tested_ratios(c, *, latest_tests, stale_days=catalogs.ATHLETIC_STALE_DAYS,
-                   ratio_seed=None, ratio_flag=_ratio_flag):
-    """Tested view: valid agonist:antagonist ratios from isolation tests. Per-side
-    pairs also carry a >15% between-limb gap flag (Grygorowicz threshold)."""
-    if ratio_seed is None:
-        ratio_seed = catalogs.RATIO_SEED
-    latest = latest_tests(c, stale_days)
-    rows = []
-    for seed in ratio_seed:
-        sides = (("left",), ("right",)) if seed["per_side"] else (("bilateral",),)
-        per = []
-        for (side,) in sides:
-            n = latest.get((seed["num"], side)); d = latest.get((seed["den"], side))
-            if not n or not d or not d["value"]:
-                per.append({"side": side, "status": "insufficient_data"})
-                continue
-            ratio = round(n["value"] / d["value"], 2)
-            protocol_valid = not (
-                seed["kind"] == "strength"
-                and (n["outside_protocol_range"] or d["outside_protocol_range"]))
-            per.append({"side": side, "ratio": ratio, "num_value": n["value"],
-                        "den_value": d["value"], "num_reps": n["reps"],
-                        "den_reps": d["reps"],
-                        "flag": (ratio_flag(ratio, seed["band"]) if protocol_valid
-                                 else "outside_protocol_range"),
-                        "protocol_valid": protocol_valid})
-        row = {"key": seed["key"], "num_label": seed["num_label"],
-               "den_label": seed["den_label"], "ideal": seed["ideal"],
-               "band": seed["band"], "evidence": seed["evidence"],
-               "method": seed["method"], "cite": seed["cite"], "per_side": seed["per_side"],
-               "sides": per}
-        # between-limb gap (only when both sides measured). Check BOTH muscles —
-        # an asymmetric quad with symmetric hamstrings is still a red flag the
-        # numerator alone would miss. Report the larger gap.
-        both = [p for p in per if p.get("num_value") is not None]
-        if len(both) == 2:
-            def _gap(key):
-                vs = [b[key] for b in both]
-                return (max(vs) - min(vs)) / max(vs) if max(vs) else 0
-            gap = round(max(_gap("num_value"), _gap("den_value")), 3)
-            row["side_gap"] = gap
-            row["side_gap_flag"] = "asymmetry" if gap > 0.15 else "ok"
-        rows.append(row)
-    return rows
-
-
 def _norm_lab_unit(u, *, superscripts=None):
     if superscripts is None:
         superscripts = catalogs._SUP

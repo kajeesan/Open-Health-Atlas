@@ -10,8 +10,7 @@
    trends, the drill pages are their own template + JS. Sleep quality/stages
    come from sleep_log (/api/dash/sleep) — zero rows on the demo DB (Fitbit
    sleep-stage sync awaits); honest-empty, and lights up on its own once
-   real rows land. Cross-links card is an honest placeholder — no
-   cross-pillar engine yet. Owner-review r2: the dashboard's Sleep score
+   real rows land. Training context has its own script. Owner-review r2: the dashboard's Sleep score
    ring moved here — a "score N" chip on the Sleep KPI card, from the same
    /api/dash/scores.sleep the dashboard used, honest-hidden when
    insufficient_data. */

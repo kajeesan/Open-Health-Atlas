@@ -333,7 +333,7 @@ def test_complete_fictional_demo_flow(tmp_path):
     assert report["external_services_used"] is False
     assert report["initialization"] == {
         "empty_before_import": True,
-        "schema_version": 7,
+        "schema_version": 8,
     }
     assert report["synthetic_import"]["days"] == 45
     assert report["synthetic_import"]["validated_day_ratings"] == 45

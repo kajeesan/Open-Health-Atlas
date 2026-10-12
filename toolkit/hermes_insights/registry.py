@@ -1226,24 +1226,22 @@ def _add_quarterly_and_pain(
             readiness=VE_WELLBEING, source_parameters={"provider": provider},
         )
 
-    pain_regions = sorted(pain_map)
-    for region in pain_regions + ["lateral-knee"]:
-        implemented = region != "lateral-knee"
+    for region in sorted(pain_map):
         for side in PAIN_SIDES:
             base = f"pain.nrs.{region}.{side}"
             builder.add(
                 base, f"{region} {side} pain NRS", "pain", table="pain_log",
                 columns=("id", "date", "region", "side", "intensity", "source", "voided"),
                 merge="latest_id_per_date_region_side_nonvoid", unit="nrs_0_10",
-                direction="lower_better", temporal_type="outcome" if implemented else "unavailable",
+                direction="lower_better", temporal_type="outcome",
                 cadence="episodic", target_pct=None, actionability="outcome",
                 aggregation_id="LP_NONE", confounder_role="outcome", value_kind="ordinal",
                 zero_semantics="valid", stale_after_days=120, adapter="pain",
                 source_semantics="manual_daily", roles=("outcome", "readiness"),
                 formula_id="pain_daily_latest_v1", completeness_profile="MANUAL_VALUE",
-                candidate_enabled=implemented, lineage_roots=(f"pain.{region}.{side}",),
+                candidate_enabled=True, lineage_roots=(f"pain.{region}.{side}",),
                 goal_families=GOALS_PAIN_TIMELINE, readiness=VE_SAFETY_QUICK,
-                implemented=implemented, source_parameters={"region": region, "side": side},
+                source_parameters={"region": region, "side": side},
             )
             for suffix, formula in (
                 ("reported_onset", "reported_onset_marker_v1"),
@@ -1255,7 +1253,7 @@ def _add_quarterly_and_pain(
                     table="pain_log",
                     columns=("id", "date", "region", "side", "intensity", "reported_onset_date", "onset_precision", "voided"),
                     merge="ordered_explicit_pain_timeline", unit="binary",
-                    direction="neutral", temporal_type="event_occurrence" if implemented else "unavailable",
+                    direction="neutral", temporal_type="event_occurrence",
                     cadence="episodic", target_pct=None, actionability="non_actionable",
                     aggregation_id="LP_NONE", confounder_role="context", value_kind="binary",
                     zero_semantics="explicit_binary", stale_after_days=120, adapter="pain",
@@ -1263,7 +1261,7 @@ def _add_quarterly_and_pain(
                     formula_id=formula, completeness_profile="EXPLICIT_BINARY:pain",
                     candidate_enabled=False, lineage_roots=(f"pain.{region}.{side}",),
                     goal_families=GOALS_PAIN_TIMELINE, readiness=VE_SAFETY_QUICK,
-                    implemented=implemented, source_parameters={"region": region, "side": side},
+                    source_parameters={"region": region, "side": side},
                 )
 
     for test in sorted(self_tests):

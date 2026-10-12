@@ -24,6 +24,7 @@ from hermes_insights.readiness_ancestry import (  # noqa: E402
     ACCEPTED_V5_LANE,
     DEVELOPMENT_V6_LANE,
     DEVELOPMENT_V7_LANE,
+    DEVELOPMENT_V8_LANE,
     LANE_ENV,
     ReadinessAncestryError,
     SIDECAR_ENV,
@@ -260,7 +261,7 @@ def test_schema_v5_requires_explicit_lane_and_matching_private_sidecar(
             pass
 
 
-@pytest.mark.parametrize("schema_version, lane", [(6, DEVELOPMENT_V6_LANE), (7, DEVELOPMENT_V7_LANE)])
+@pytest.mark.parametrize("schema_version, lane", [(6, DEVELOPMENT_V6_LANE), (7, DEVELOPMENT_V7_LANE), (8, DEVELOPMENT_V8_LANE)])
 def test_development_lanes_are_distinct_and_reject_v5_sidecars(
     tmp_path, schema_version, lane,
 ):
@@ -268,13 +269,13 @@ def test_development_lanes_are_distinct_and_reject_v5_sidecars(
     sidecar = tmp_path / "sidecar.json"
     _write_sidecar(database, sidecar)
     _mark_schema_v6(database)
-    if schema_version == 7:
-        with sqlite3.connect(database) as connection:
-            connection.execute(
-                "INSERT INTO schema_migrations VALUES(?,?,?,?,?)",
-                (7, "migration-7", "sha256:" + "7" * 64,
-                 "2026-06-30T00:00:00+00:00", "fixture"),
-            )
+    with sqlite3.connect(database) as connection:
+        connection.executemany(
+            "INSERT INTO schema_migrations VALUES(?,?,?,?,?)",
+            [(version, f"migration-{version}", "sha256:" + str(version) * 64,
+              "2026-06-30T00:00:00+00:00", "fixture")
+             for version in range(7, schema_version + 1)],
+        )
 
     with verified_readiness_snapshot(
         database,

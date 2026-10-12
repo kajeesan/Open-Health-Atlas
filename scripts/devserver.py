@@ -49,9 +49,11 @@ schema_check = subprocess.run([
 ], env={**os.environ, "HEALTH_DB": str(DEMO_DB)},
    check=True, capture_output=True, text=True)
 demo_schema_version = json.loads(schema_check.stdout)["current_version"]
-if demo_schema_version not in {6, 7}:
-    raise RuntimeError("development panel requires an initialized schema-v6 or schema-v7 fixture")
-DEMO_READINESS_LANE = {6: "development-v6", 7: "development-v7"}[demo_schema_version]
+if demo_schema_version not in {6, 7, 8}:
+    raise RuntimeError("development panel requires an initialized schema-v6, schema-v7 or schema-v8 fixture")
+DEMO_READINESS_LANE = {
+    6: "development-v6", 7: "development-v7", 8: "development-v8",
+}[demo_schema_version]
 
 # Seed once, then verify the manifest and database digest on every startup.
 # An incomplete or changed fixture fails closed instead of being relabeled.

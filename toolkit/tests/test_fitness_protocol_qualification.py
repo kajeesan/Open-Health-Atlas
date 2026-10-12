@@ -104,7 +104,6 @@ def test_unknown_setup_preserves_descriptive_ratios_without_band_or_change(fitne
 @pytest.mark.parametrize("outcome", [
     "fitness.test.leg-extension.left.value",
     "fitness.test.leg-extension.side_gap",
-    "fitness.ratio.hq.left.distance_to_band",
     "fitness.ratio.hq.side_gap",
 ])
 def test_distinct_known_setups_are_not_pooled(fitness_db, context, outcome):
@@ -159,7 +158,9 @@ def test_normalized_setup_labels_are_comparable(fitness_db, context):
     seed_protocols(fitness_db, ["Fixture  Machine"] * 20 + [" fixture machine "] * 20)
     definitions = registry.build_registry(fitness_db, context, family="fitness")
     window = DateRange(date(2026, 6, 1), date(2026, 7, 10))
-    outcome = "fitness.ratio.hq.left.distance_to_band"
+    # Tested ratios carry no target band; the ratio side gap is the
+    # directional ratio outcome that exercises component-protocol identity.
+    outcome = "fitness.ratio.hq.side_gap"
 
     result = associations.analyze_outcome(
         fitness_db, definitions, window, context, outcome_key=outcome, attach_intervals=False,

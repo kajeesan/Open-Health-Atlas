@@ -113,46 +113,37 @@ ATHLETIC_AXES = {
 
 ATHLETIC_STALE_DAYS = 120   # quarterly cadence + grace; score kept but flagged
 
-# §3d strength ratios — TESTED view. Each pair's target is cited in the
-# bundled public configuration. `band` = [lo, hi] for the in-range flag (null = open end);
-# `ideal` is the display anchor. Ratios are numerator:denominator of e1RM
-# (strength kind) or hold seconds (endurance kind, McGill). Values that are
-# grip-/position-dependent carry a note. NEVER flag a compound-derived number
-# against these — tested view only.
+# Gym-load and endurance ratios remain descriptive: published protocols do not
+# establish universal personal targets for these measurements.
 RATIO_SEED = [
     {"key": "hq", "kind": "strength", "num": "leg-curl", "den": "leg-extension",
      "num_label": "Hamstring", "den_label": "Quadriceps", "per_side": True,
-     "ideal": 0.60, "band": [0.55, 0.65], "evidence": "strong",
+     "ideal": None, "band": None, "evidence": "descriptive",
      "method": "seated leg curl : leg extension 6–8RM e1RM, per side",
      "cite": "Aagaard 1998 Am J Sports Med; Grygorowicz 2010 Biol Sport 27(1):47–51"},
     {"key": "elbow", "kind": "strength", "num": "biceps-curl", "den": "triceps-extension",
      "num_label": "Elbow flexors", "den_label": "Elbow extensors", "per_side": True,
-     "ideal": 1.19, "band": [1.01, 1.37], "evidence": "moderate",
+     "ideal": None, "band": None, "evidence": "descriptive",
      "method": "biceps curl (SUPINATED grip) : triceps extension e1RM, per side",
      "cite": "Lategan & Krüger 2007, SA J Res Sport Phys Educ Recreat 29(2):67–74 (supinated ≈1.19)"},
     {"key": "reardelt", "kind": "strength", "num": "rear-delt-fly", "den": "front-raise",
      "num_label": "Rear delt", "den_label": "Front delt", "per_side": True,
-     "ideal": 0.50, "band": [0.40, 0.60], "evidence": "moderate",
+     "ideal": None, "band": None, "evidence": "descriptive",
      "method": "reverse fly : front raise e1RM — directional proxy for horiz. abd:add",
      "cite": "Ivey 1985 Arch Phys Med Rehabil 66(6):384–386 (add:abd ≈2:1 → rear:front ≈0.5)"},
     {"key": "erir", "kind": "strength", "num": "shoulder-er", "den": "shoulder-ir",
      "num_label": "External rot.", "den_label": "Internal rot.", "per_side": True,
-     "ideal": 0.66, "band": [0.66, None], "evidence": "moderate",
-     "method": "cable ER : IR e1RM, per side (≥0.66 is the target floor)",
+     "ideal": None, "band": None, "evidence": "descriptive",
+     "method": "cable ER : IR e1RM, per side",
      "cite": "IJSPT 2021 art.22162 (overhead-athlete review, ER:IR ≈0.66)"},
     {"key": "ankle", "kind": "strength", "num": "tibialis-raise", "den": "calf-raise",
      "num_label": "Dorsiflexors", "den_label": "Plantarflexors", "per_side": True,
      "ideal": None, "band": None, "evidence": "tracking",
      "method": "tibialis raise : single-leg calf raise e1RM, per side — trend-only",
      "cite": "Quarterly protocol tracking pair; the dynamometry ratio in Hussain & Frey-Law 2016 is not a target for unlike gym-test modalities"},
-    # TREND-ONLY contract: the IJSPT 2024 population SD is
-    # ±0.61 around a 1.36 mean — far too wide to support a target band or an
-    # out-of-range flag. ideal/band None → the ratio is shown and trended,
-    # never flagged. The >15% between-limb gap flag still applies (that
-    # threshold is Grygorowicz-validated, independent of the ratio target).
     {"key": "hip", "kind": "strength", "num": "hip-flexion", "den": "hip-extension",
      "num_label": "Hip flexors", "den_label": "Hip extensors", "per_side": True,
-     "ideal": None, "band": None, "evidence": "moderate",
+     "ideal": None, "band": None, "evidence": "descriptive",
      "method": "standing cable hip flexion : extension e1RM, per side — trend-only (population SD ±0.61 too wide for a target)",
      "cite": "IJSPT 2024 art.124117 Table 3 (standing, male mean 1.36±0.61 — context, not a target)"},
     {"key": "hip-abadd", "kind": "strength", "num": "hip-abduction", "den": "hip-adduction",
@@ -177,12 +168,13 @@ RATIO_SEED = [
      "cite": "Quarterly protocol tracking pair; no diagnostic target band asserted"},
     {"key": "mcgill-fe", "kind": "hold", "num": "mcgill-flexor", "den": "mcgill-extensor",
      "num_label": "Trunk flexors", "den_label": "Trunk extensors", "per_side": False,
-     "ideal": 0.66, "band": [None, 1.00], "evidence": "strong",
-     "method": "flexor : Sørensen extensor endurance hold (seconds) — >1.0 = extensor-weak red flag",
+     "ideal": None, "band": None, "evidence": "descriptive",
+     "method": "flexor : Sørensen extensor endurance hold (seconds)",
      "cite": "McGill 1999 (male mean flexor:extensor ≈0.66)"},
     {"key": "mcgill-sbe", "kind": "hold", "num": "mcgill-side-bridge", "den": "mcgill-extensor",
      "num_label": "Side bridge", "den_label": "Trunk extensors", "per_side": True,
-     "ideal": 0.65, "band": [0.55, 0.75], "evidence": "strong",
+     "den_side": "bilateral",
+     "ideal": None, "band": None, "evidence": "descriptive",
      "method": "side-bridge : extensor endurance hold (seconds), per side",
      "cite": "McGill 1999 (male mean side-bridge:extensor ≈0.65)"},
 ]
@@ -358,7 +350,7 @@ REHAB_CATALOG = {
 # `tests` say what result of each discriminating self-test points TOWARD it
 # (expect); the opposite result points against. `drills` are cited first-line
 # loads. v1 seeds the user's known regions (knee/low-back/glute/hamstring/
-# shoulder); a region absent here logs pain fine but the loop says so.
+# shoulder); pain capture requires a catalogued region.
 PAIN_CAUSE_MAP = {
     "anterior-knee": {
         "svg": ("knee",),   # joint region (FIGURE_NON_MUSCLE) — pain-lens colored
@@ -373,6 +365,8 @@ PAIN_CAUSE_MAP = {
              "tests": [{"key": "decline-squat-pain", "expect": "positive"}],
              "drills": ["patellar-isometrics", "patellar-hsr"]},
         ]},
+    # Anatomical capture only; no diagnostic or rehab pathway is assigned.
+    "lateral-knee": {"svg": ("knee",), "causes": []},
     "low-back": {
         "svg": ("lower-back-erectors", "lower-back-ql"),   # muscle (posterior core)
         "causes": [

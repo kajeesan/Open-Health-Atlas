@@ -77,7 +77,7 @@ def _write_tool_config(
         "range_from": fixture["range_from"],
         "range_to": fixture["range_to"],
         "readiness_ancestry_sidecar": None,
-        "readiness_fixture_lane": "development-v7",
+        "readiness_fixture_lane": "development-v8",
         "synthesis_writeback_enabled": False,
         "timeout_seconds": 90,
         "timezone": "UTC",

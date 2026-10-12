@@ -50,7 +50,7 @@ DATE_RANGE = _object({
 EVIDENCE_REFERENCE = _object({
     "contract": {"type": "string", "const": "openhealthatlas-evidence-ref-v1"},
     "operation": {"type": "string", "enum": [
-        "health_catalog", "health_query", "health_analyze",
+        "health_catalog", "health_query", "health_analyze", "health_describe", "health_training_evidence",
     ]},
     "arguments": {"type": "object",
                   "description": "Copy the complete returned arguments unchanged."},
@@ -89,6 +89,15 @@ TOOL_SCHEMAS = {
         "min_n": {"type": "integer", "minimum": 30, "maximum": 500, "default": 30},
         "top": {"type": "integer", "minimum": 1, "maximum": 20, "default": 10},
     }, ("outcome_key", "exposure_keys", "range")),
+    "health_describe": _object({
+        "outcome_key": {"type": "string"}, "exposure_keys": _strings(8),
+        "range": DATE_RANGE,
+        "lag_days": {"type": "integer", "enum": [0, 1, 2, 3, 7], "default": 1},
+    }, ("outcome_key", "range")),
+    "health_training_evidence": _object({
+        "range": DATE_RANGE, "region": {"type": "string", "default": "knee"},
+        "side": {"type": ["string", "null"], "enum": ["left", "right", "central", None]},
+    }, ("range",)),
     "health_evidence": _object({
         "evidence_refs": {"type": "array", "minItems": 1, "maxItems": 20,
                           "items": EVIDENCE_REFERENCE},
@@ -100,12 +109,16 @@ TOOL_DESCRIPTIONS = {
     "health_catalog": "Discover registered health features and availability. No SQL or paths.",
     "health_query": "Read registered features as latest, daily series, summary or period comparison. Preserves source, time, units and missingness.",
     "health_analyze": "Calculate bounded deterministic associations for an outcome and explicit exposures. Associations do not establish causation.",
+    "health_describe": "Describe sparse numeric records, source-compatible period means and explicitly lagged exposure contrasts with actual denominators and unknown missing days. Returns descriptive facts even below formal association gates; no confidence, causation or prediction. Replay evidence_refs before explaining.",
+    "health_training_evidence": "Retrieve bounded training records, strength comparisons, discomfort, recovery, reported context and missing-context questions with source parents. Requires schema v8. Estimates are not measured muscle force, diagnosis or causation. Replay evidence_refs before explaining.",
     "health_evidence": "Replay one to 20 complete evidence_refs objects from earlier results before explaining them. Copy contract, operation, arguments, result_id and optional finding_id unchanged. At most one analysis reference. Hash strings alone are invalid.",
 }
 DEFAULTS = {
     "health_catalog": {"limit": 20},
     "health_query": {"view": "latest"},
     "health_analyze": {"mode": "all", "interactions": False, "min_n": 30, "top": 10},
+    "health_describe": {"exposure_keys": [], "lag_days": 1},
+    "health_training_evidence": {"region": "knee", "side": None},
     "health_evidence": {"detail": "summary"},
 }
 

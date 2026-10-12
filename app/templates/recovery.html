@@ -11,8 +11,8 @@
    readiness all real). Sleep
    quality/stages come from sleep_log (/api/dash/sleep), which is empty on
    the demo DB (Fitbit sleep-stage sync awaits) — honest empty; the cards
-   light up on their own once real rows land. Cross-links card is
-   BUILD-LATER — honest placeholder, no engine, no drill link. #}
+   light up on their own once real rows land. Training evidence and explicit
+   remembered context use the validated engine/broker boundary. #}
 <div class="vstack">
   <div class="row-top between wrap">
     <div class="crumb">
@@ -84,11 +84,82 @@
       <h3 class="card-title">HRV &amp; resting HR <span class="muted micro">HRV ms · SDNN/RMSSD varies by source</span></h3>
       <div id="rHrv" class="h200"></div>
     </div>
-    <div class="card">
-      <h3 class="card-title mb-1">Cross-links</h3>
-      <p class="muted note-txt m0">The readiness score above is real now (see the › drill for
-        what's dragging it down). Still pending: cross-pillar linking — connecting that score to
-        dose timing, screen time, alcohol and training load.</p>
+    <section class="card" id="rEvidence" aria-labelledby="rEvidenceTitle">
+      <h3 class="card-title mb-1" id="rEvidenceTitle">Training &amp; symptoms</h3>
+      <p class="muted micro" id="rEvidenceScope">Loading the selected dates…</p>
+      <form id="rEvidenceRange" class="vstack">
+        <div class="row wrap">
+          <label class="field-label grow" for="rEvidenceFrom">From
+            <input class="select-input" type="date" id="rEvidenceFrom" required>
+          </label>
+          <label class="field-label grow" for="rEvidenceTo">Through
+            <input class="select-input" type="date" id="rEvidenceTo" required>
+          </label>
+        </div>
+        <div class="row wrap">
+          <label class="field-label grow" for="rEvidenceRegion">Location
+            <select class="select-input" id="rEvidenceRegion">
+              <option value="knee">Knee</option><option value="lateral-knee">Outer knee</option>
+              <option value="anterior-knee">Front of knee</option><option value="low-back">Low back</option>
+              <option value="lateral-hip">Outer hip</option><option value="hamstring">Hamstring</option>
+              <option value="shoulder">Shoulder</option>
+            </select>
+          </label>
+          <label class="field-label grow" for="rEvidenceSide">Side
+            <select class="select-input" id="rEvidenceSide">
+              <option value="">All recorded sides</option><option value="left">Left</option>
+              <option value="right">Right</option><option value="central">Central</option>
+            </select>
+          </label>
+          <button class="btn quiet" type="submit" id="rEvidenceApply">Show evidence</button>
+        </div>
+      </form>
+      <p id="rEvidenceReadError" role="alert" hidden></p>
+      <button class="btn quiet" id="rEvidenceReload" type="button" hidden>Retry loading</button>
+      <div id="rEvidenceBody" hidden>
+        <p id="rEvidenceCounts" class="micro"></p>
+        <p id="rEvidenceCoverage" class="muted micro"></p>
+        <div id="rEvidenceFacts"></div>
+        <p class="muted micro">These records describe what was logged. Missing days are unknown; temporal overlap does not establish a cause.</p>
+        <details class="evidence-details" id="rEvidenceSources">
+          <summary id="rEvidenceSourceSummary">Inspect source records</summary>
+          <p class="muted micro evidence-line" id="rEvidenceIdentity"></p>
+          <label class="field-label" for="rEvidenceSource">Source record
+            <select class="select-input" id="rEvidenceSource"></select>
+          </label>
+          <pre class="brief" id="rEvidenceSourceRecord"></pre>
+          <p class="muted micro">Records with shared parents are dependent evidence. HRV methods differ by source, and sleep sources can overlap.</p>
+        </details>
+        <details class="evidence-details" id="rContextSaved" hidden>
+          <summary>Saved context for these records</summary>
+          <div id="rContextSavedList"></div>
+        </details>
+        <form id="rContextForm" class="vstack mt-2" hidden>
+          <div>
+            <h4 id="rContextQuestion" class="card-title mb-1 evidence-line"></h4>
+            <p id="rContextReason" class="muted micro m0"></p>
+          </div>
+          <label class="field-label" for="rContextValue">Your answer
+            <textarea class="select-input" id="rContextValue" rows="2" maxlength="1000" required></textarea>
+          </label>
+          <div class="row wrap">
+            <label class="field-label grow" for="rContextFrom">Applies from
+              <input class="select-input" id="rContextFrom" type="date" required>
+            </label>
+            <label class="field-label grow" for="rContextTo">Through (optional)
+              <input class="select-input" id="rContextTo" type="date">
+            </label>
+          </div>
+          <p class="muted micro m0">Save only what you explicitly report. Skipping records an unknown answer.</p>
+          <div class="row wrap">
+            <button class="btn" id="rContextSave" type="submit">Save answer</button>
+            <button class="btn quiet" id="rContextSkip" type="button">Skip for now</button>
+            <button class="btn quiet" id="rContextCancel" type="button" hidden>Cancel correction</button>
+          </div>
+        </form>
+        <p id="rContextStatus" class="micro" role="status" aria-live="polite"></p>
+      </div>
+    </section>
     </div>
   </div>
 </div>
@@ -98,4 +169,5 @@
 <script src="{{ url_for('static', filename='js/charts-common.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/ui-common.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/recovery.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/recovery-context.js') }}" defer></script>
 {% endblock %}

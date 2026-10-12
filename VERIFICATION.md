@@ -1,5 +1,79 @@
 # Release verification
 
+## Integrated public repairs and local evidence, 12 October 2026
+
+Source: branch `codex/integrate-public-fixes-local-evidence`, the merge of
+public repairs `c392d97` and local evidence `3080d08` on `aff70df`. See
+[Refactoring](docs/REFACTORING.md#public-repairs-and-local-evidence-integration-12-october-2026)
+for the reviewed contract interaction and trace comparison.
+
+The three disjoint partitions ran once each on the final source tree, in a
+fresh Linux x86_64 environment built from the pinned requirements and
+`requirements-mcp.txt`, with Python 3.13.16, Node 22.22.0 and the native
+statistical library built by `scripts/build_native_stats.py`:
+
+| Partition | Result |
+| --- | --- |
+| Application, toolkit and integration | 2,532 passed |
+| Fictional journeys (`tests/e2e`) | 15 passed |
+| Actual MCP protocol (`tests/test_local_mcp.py`) | 6 passed |
+
+The total is 2,553 passed, with no failures or skips. The trace generator
+rebuilt all ten pins; the journey partition replayed them exactly. These checks
+do not cover desktop packaging, macOS runtime, live providers or deployment.
+
+## Local evidence workflow candidate, 2 October 2026
+
+This uncommitted local candidate starts from public source
+`aff70dfeb8c16a81f5294ffa2e69ae67ff897181`. It is not a published release or a
+qualification of a new signed installer. Historical verification below retains
+its original scope.
+
+The final runs used CPython 3.12.13, the pinned development and MCP dependencies,
+Node, fictional databases and local Unix sockets. The native-kernel tests used
+the verified library through `OHA_TEST_NATIVE_LIBRARY`; production acceleration
+was unset so the Python-reference tests exercised their intended path.
+
+| Disjoint partition | Result | Duration |
+|---|---|---|
+| Application, excluding journeys and the real MCP module | 2,461 passed; no failures or skips | 455.22 s |
+| Fictional end-to-end journeys | 15 passed; no failures or skips | 184.18 s |
+| Real local MCP client/server | 6 passed; no failures or skips | 3.87 s |
+| Total | **2,482 passed** | Three disjoint partitions |
+
+Focused author and reviewer runs overlap these totals. An earlier complete
+attempt found a runner configuration problem in five tests and a ledger-trigger
+count assertion that included the new training triggers. The interpreter and
+accelerator settings were corrected. The ledger assertion now targets its five
+tables while retaining the mutation-rejection checks. The final run above passed.
+
+All ten original trace digests reproduced at the baseline. Complete candidate
+traces retained their inputs, outcomes and behavioral assertions. Reviewed
+differences cover schema v8, lateral-knee readiness, source identities, ordering
+and five bootstrap intervals affected by changed deterministic seeds. Only the
+engine identity and digest pins were refreshed; the normal journey partition
+then passed. This does not claim complete numerical-output invariance.
+
+Real browser checks exercised profile and weight persistence, Recovery evidence,
+dated context answers and skips, source-specific comparisons, seven-day
+descriptions, partial nutrition records and the retained Body lenses. Desktop
+and 390-pixel layouts were inspected. Missing configuration remained explicit;
+no model or live provider was invoked.
+
+Both evaluation seed schedules ran 200 replicates in each of eight component
+scenarios. All seven descriptive boundary checks passed in each run, with
+unchanged source during execution. These characterize statistical primitives and
+selected data-handling boundaries, not clinical accuracy or a whole-engine
+false-discovery rate. See [Testing](docs/TESTING.md#opt-in-fictional-analysis-evaluation).
+
+Ruff, JavaScript syntax, whitespace, inventory and source/history privacy checks
+passed. The approved desktop source-copy path included the new modules and
+passed import and CLI checks. A native app build, signing, notarization,
+clean-machine installation and live external-agent behavior were not qualified.
+Exact local logs, hash manifests and comparison receipts remain outside source.
+
+## Historical source-release verification
+
 Verification dates: 15–16 September 2026. The current public source release
 uses the same runtime, tests and dependencies as the final **1,981-test**
 checkpoint below. The subsequent MIT license, creator-credit and publication

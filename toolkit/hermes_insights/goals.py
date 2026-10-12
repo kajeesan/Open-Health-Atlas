@@ -88,7 +88,7 @@ _GOAL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "pain_reduction": {
         "display_name": "Pain reduction",
-        "allowed": ((re.compile(r"^pain\.nrs\.(?!lateral-knee\.)[a-z0-9][a-z0-9._-]*\.(?:left|right|bilateral|central)$"), {"decrease"}),),
+        "allowed": ((re.compile(r"^pain\.nrs\.[a-z0-9][a-z0-9._-]*\.(?:left|right|bilateral|central)$"), {"decrease"}),),
         "leading_feature_families": ["training", "running", "recovery", "events", "timeline"],
         "data_requirements": "an existing concrete region and side",
         "review_frequency": "weekly plus event-triggered",

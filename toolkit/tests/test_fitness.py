@@ -216,30 +216,35 @@ def _log_pair(db, num_mv, den_mv, nval, dval, kind="strength"):
                 run(db, "fitness-test-log", mv, "--side", side, "--seconds", str(v))
 
 
-def test_tested_hq_in_range_and_symmetric(db):
+def test_tested_hq_is_descriptive_and_symmetric(db):
     _log_pair(db, "leg-curl", "leg-extension", 30, 50)               # ratio 0.6
     hq = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "hq")
-    assert hq["sides"][0]["ratio"] == 0.6 and hq["sides"][0]["flag"] == "in_range"
-    assert hq["side_gap_flag"] == "ok"
+    assert hq["sides"][0]["ratio"] == 0.6
+    assert hq["sides"][0]["flag"] == "trend_only"
+    assert hq["side_gap"] == 0
+    assert hq["side_gap_flag"] == "descriptive"
+    assert hq["reference_eligible"] is False
 
 
-def test_tested_side_gap_flags_asymmetry(db):
+def test_tested_side_gap_describes_asymmetry_without_a_cutoff(db):
     run(db, "fitness-test-log", "leg-extension", "--side", "left", "--load", "40", "--reps", "8")
     run(db, "fitness-test-log", "leg-extension", "--side", "right", "--load", "60", "--reps", "8")
     run(db, "fitness-test-log", "leg-curl", "--side", "left", "--load", "24", "--reps", "8")
     run(db, "fitness-test-log", "leg-curl", "--side", "right", "--load", "36", "--reps", "8")
     hq = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "hq")
-    assert hq["side_gap"] > 0.15 and hq["side_gap_flag"] == "asymmetry"   # 33% quad gap
+    assert hq["side_gap"] == 0.333
+    assert hq["side_gap_flag"] == "descriptive"
 
 
 def test_tested_side_gap_catches_denominator_asymmetry(db):
-    # hamstrings symmetric, quads (denominator) asymmetric 40 vs 60 → still flagged
+    # The numerator is symmetric; the denominator must still contribute its measured gap.
     run(db, "fitness-test-log", "leg-curl", "--side", "left", "--load", "30", "--reps", "8")
     run(db, "fitness-test-log", "leg-curl", "--side", "right", "--load", "30", "--reps", "8")
     run(db, "fitness-test-log", "leg-extension", "--side", "left", "--load", "40", "--reps", "8")
     run(db, "fitness-test-log", "leg-extension", "--side", "right", "--load", "60", "--reps", "8")
     hq = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "hq")
-    assert hq["side_gap_flag"] == "asymmetry"     # numerator alone would miss this
+    assert hq["side_gap"] == 0.333
+    assert hq["side_gap_flag"] == "descriptive"
 
 
 def test_tested_insufficient_until_both_movements(db):
@@ -252,7 +257,8 @@ def test_tested_mcgill_uses_hold_seconds(db):
     run(db, "fitness-test-log", "mcgill-flexor", "--seconds", "100")
     run(db, "fitness-test-log", "mcgill-extensor", "--seconds", "150")
     fe = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "mcgill-fe")
-    assert fe["sides"][0]["ratio"] == 0.67 and fe["sides"][0]["flag"] == "in_range"   # <1.0 band
+    assert fe["sides"][0]["ratio"] == 0.67
+    assert fe["sides"][0]["flag"] == "trend_only"
 
 
 def test_everyday_pattern_ratio_and_unmapped(db):
@@ -279,13 +285,13 @@ def test_tested_hip_is_trend_only_no_target_no_flag(db):
     assert left["ratio"] == 3.99 and left["flag"] == "trend_only"
 
 
-def test_tested_hip_side_gap_flag_still_applies(db):
-    # trend-only removes the ratio target, NOT the Grygorowicz >15% limb-gap flag
+def test_tested_hip_retains_measured_side_gap_without_normative_flag(db):
     for side, load in (("left", 40), ("right", 60)):
         run(db, "fitness-test-log", "hip-flexion", "--side", side, "--load", str(load), "--reps", "8")
         run(db, "fitness-test-log", "hip-extension", "--side", side, "--load", "30", "--reps", "8")
     hip = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "hip")
-    assert hip["side_gap_flag"] == "asymmetry"
+    assert hip["side_gap"] == 0.333
+    assert hip["side_gap_flag"] == "descriptive"
 
 
 def test_tested_ratio_outside_rep_protocol_is_not_range_flagged(db):

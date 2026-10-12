@@ -174,23 +174,32 @@ def routine_rows(routines, *, parse_number):
     return agg, dupes
 
 
-def workout_sets(workouts, *, parse_number, civil_timezone):
-    """Yield normalized set rows, or None for each implausible skipped set."""
+def validated_set_values(raw_set, *, parse_number):
+    """Return normalized set measurements, or None when any provider measurement is implausible."""
+    weight, reps, rpe = (parse_number(raw_set.get(key)) for key in ("weight_kg", "reps", "rpe"))
+    distance, duration = (parse_number(raw_set.get(key)) for key in ("distance_meters", "duration_seconds"))
+    if not ((weight is None or 0 <= weight <= 1000)
+            and (reps is None or 0 <= reps <= 1000)
+            and (rpe is None or 0 <= rpe <= 10)
+            and (distance is None or 0 <= distance <= 1_000_000)
+            and (duration is None or 0 <= duration <= 604_800)):
+        return None
+    return weight, reps, rpe, distance, duration
+
+
+def workout_sets(workouts, *, parse_number, civil_timezone, include_source=False):
+    """Yield normalized rows or None for skipped sets; optionally pair rows with exact source positions."""
     for w in workouts:
         d = parse_api_date(w.get("start_time"), civil_timezone=civil_timezone)
-        for ex in (w.get("exercises") or []):
-            for s in (ex.get("sets") or []):
-                wkg, rv, rpe = parse_number(s.get("weight_kg")), parse_number(s.get("reps")), parse_number(s.get("rpe"))
-                dist, dur = parse_number(s.get("distance_meters")), parse_number(s.get("duration_seconds"))
-                if not ((wkg is None or 0 <= wkg <= 1000)
-                        and (rv is None or 0 <= rv <= 1000)
-                        and (rpe is None or 0 <= rpe <= 10)
-                        and (dist is None or 0 <= dist <= 1_000_000)
-                        and (dur is None or 0 <= dur <= 604_800)):
+        for exercise_index, ex in enumerate(w.get("exercises") or []):
+            for set_index, s in enumerate(ex.get("sets") or []):
+                values = validated_set_values(s, parse_number=parse_number)
+                if values is None:
                     yield None
                     continue
+                wkg, rv, rpe, dist, dur = values
                 idx = s.get("index")
-                yield (d, truncate(w.get("title")), w.get("start_time"), w.get("end_time"),
+                row = (d, truncate(w.get("title")), w.get("start_time"), w.get("end_time"),
                    truncate(w.get("description")), truncate(ex.get("title")),
                    ex.get("supersets_id"), truncate(ex.get("notes")),
                    int(idx) + 1 if isinstance(idx, (int, float)) else None,
@@ -198,6 +207,7 @@ def workout_sets(workouts, *, parse_number, civil_timezone):
                    int(rv) if rv is not None else None,
                    round(dist / 1000.0, 3) if dist is not None else None,
                    dur, rpe)
+                yield (row, (w, ex, s, exercise_index, set_index)) if include_source else row
 
 
 def template_muscles(template):

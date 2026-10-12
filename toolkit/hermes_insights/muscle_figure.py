@@ -3,13 +3,17 @@
 import sys
 
 from . import runtime
-from .catalogs import ATHLETIC_STALE_DAYS, PAIN_CAUSE_MAP, SELF_TEST_CATALOG, REHAB_CATALOG
+from .catalogs import (
+    ATHLETIC_STALE_DAYS, CATALOG, RATIO_SEED, PAIN_CAUSE_MAP, SELF_TEST_CATALOG, REHAB_CATALOG,
+)
+from .adapters.quarterly import fitness_items, left_right_summary
+from .calculations import e1rm
 from .fitness import require_fitness_tables, latest_tests, tested_ratios
 from .muscles import require_submuscle_table, activation_set_counts, group_weight_maps, basis_weights
 from .figure_contracts import (
     FIGURE_REGION_GROUP, FIGURE_NON_MUSCLE, FIGURE_SUB_SVG, FIGURE_COARSE_SVG,
     FIGURE_LEVEL_EDGES, FIGURE_LEVEL_LEGEND, FIGURE_RATIO_MAP, FIGURE_BALANCE_LEGEND,
-    _BALANCE_RANK, RATIO_GAP_THRESHOLD, MOBILITY_STALE_DAYS, FIGURE_MOBILITY_LEGEND,
+    _BALANCE_RANK, MOBILITY_STALE_DAYS, FIGURE_MOBILITY_LEGEND,
     _MOBILITY_RANK, FLEX_OVERLAP_NOTE,
 )
 from .physio import (
@@ -38,115 +42,98 @@ def mobility_status(value, norm):
     return "normal" if value <= cut else "restricted"
 
 def balance(c, side_mode, *, clock):
-    """§3f strength-balance lens: tested agonist:antagonist ratios landed onto
-    SVG regions. Reuses _tested_ratios() output verbatim (no new ratio math —
-    the figure can never disagree with the Strength ratios card). Combined
-    mode judges each side's ratio against its cited band; the L/R sub-mode
-    judges only the >15% between-limb gap and flags the weaker side. DISPLAY
-    payload only — the panel paints CSS classes."""
+    """Project descriptive tested ratios or limb comparisons without normative cutoffs."""
     require_fitness_tables(c)
-    mode = side_mode
     regions = {rid: {"status": "untested", "approx": False, "tips": [],
-                     "group": g} for rid, g in FIGURE_REGION_GROUP.items()}
+                     "group": group, "worth_focus": False}
+               for rid, group in FIGURE_REGION_GROUP.items()}
 
     def apply(bases, side, status, tip, approx=False):
         sides = ("left", "right") if side == "bilateral" else (side,)
-        for b in bases:
-            for s in sides:
-                reg = regions[f"{b}-{s}"]
-                if _BALANCE_RANK[status] > _BALANCE_RANK[reg["status"]]:
-                    reg["status"] = status
-                reg["approx"] = reg["approx"] or approx
-                if tip and tip not in reg["tips"]:
-                    reg["tips"].append(tip)
+        for base in bases:
+            for member in sides:
+                region = regions[f"{base}-{member}"]
+                if _BALANCE_RANK[status] > _BALANCE_RANK[region["status"]]:
+                    region["status"] = status
+                region["approx"] = region["approx"] or approx
+                if tip and tip not in region["tips"]:
+                    region["tips"].append(tip)
 
-    for row in tested_ratios(c, clock=clock):
-        m = FIGURE_RATIO_MAP[row["key"]]
-        num_ap = "num" in m.get("approx", ())
-        den_ap = "den" in m.get("approx", ())
-        label = f"{row['num_label']}:{row['den_label']}"
-        if mode == "lr":
-            # left/right view: the between-limb gap is the ONLY judgement
-            # (Grygorowicz-validated independent of any ratio target, so it
-            # applies to trend-only pairs too); bilateral pairs and single-
-            # sided data carry no L/R information → honest untested
-            if not row["per_side"]:
+    if side_mode == "lr":
+        anchor = clock().date()
+        measurements = fitness_items(c, CATALOG, e1rm, anchor.isoformat())
+        comparisons = {row["movement"]: row for row in left_right_summary(measurements, anchor)}
+        for seed in RATIO_SEED:
+            if not seed["per_side"]:
                 continue
-            both = {p["side"]: p for p in row["sides"]
-                    if p.get("num_value") is not None}
-            if set(both) != {"left", "right"}:
-                continue
-            for part, bases, ap, name in (
-                    ("num_value", m["num"], num_ap, row["num_label"]),
-                    ("den_value", m["den"], den_ap, row["den_label"])):
-                vals = {s: both[s][part] for s in ("left", "right")}
-                top = max(vals.values())
-                if not top:
-                    # both sides zero (bodyweight-only tests): no between-limb
-                    # gap is computable — stay honest grey, never assert
-                    # "balanced" from no information (review finding)
+            mapping = FIGURE_RATIO_MAP[seed["key"]]
+            for part in ("num", "den"):
+                comparison = comparisons.get(seed[part])
+                if comparison is None:
                     continue
-                # round to 3 dp BEFORE the threshold compare, exactly like
-                # _tested_ratios' side_gap — otherwise a raw gap of 0.1500x
-                # paints red here while the Strength ratios card says ok
-                # (review finding; the shared-invariant would break)
-                gap = round((top - min(vals.values())) / top, 3)
-                tip = (f"{name} L/R gap {gap * 100:.1f}% "
-                       f"(flag >15% — Grygorowicz) · {row['cite']}")
-                if gap > RATIO_GAP_THRESHOLD:
-                    weak = min(vals, key=vals.get)
-                    apply(bases, weak, "deficient", tip, ap)
-                    apply(bases, "left" if weak == "right" else "right",
-                          "balanced", tip, ap)
+                values = comparison["values"]
+                unit = comparison["unit"].replace("_", " ")
+                measured = ", ".join(
+                    f"{side} {values[side]:g} {unit}" if side in values else f"{side} not recorded"
+                    for side in ("left", "right"))
+                gap = comparison["gap_fraction"]
+                gap_text = f"L/R gap {gap * 100:.1f}%" if gap is not None else "L/R gap unavailable"
+                reasons = [reason.replace("_", " ") for reason in comparison["limitations"]]
+                if gap is None and len(values) == 2:
+                    reasons.append("both recorded values are zero")
+                compatibility = ("comparison limited: " + "; ".join(reasons)
+                                 if reasons else "recorded setup and effort compatible")
+                tip = (f"{seed[part + '_label']}: {measured} · {gap_text} · {compatibility} · "
+                       f"descriptive only; no validated cutoff · {seed['cite']}")
+                if mapping.get("unrepresentable"):
+                    tip += " · " + mapping["unrepresentable"]
+                for side in ("left", "right"):
+                    apply(mapping[part], side, "trend_only" if side in values else "untested",
+                          tip, part in mapping.get("approx", ()))
+    else:
+        for row in tested_ratios(c, clock=clock):
+            mapping = FIGURE_RATIO_MAP[row["key"]]
+            label = f"{row['num_label']}:{row['den_label']}"
+            for result in row["sides"]:
+                side = result["side"]
+                num_side = result.get("num_side", side)
+                den_side = result.get("den_side", side)
+                side_text = "" if side == "bilateral" else f" {side}"
+                component_label = (f"{num_side} {row['num_label']} / {den_side} {row['den_label']}"
+                                   if num_side != den_side else label + side_text)
+                reasons = [reason.replace("_", " ") for reason in result.get("limitations", [])]
+                ratio = result.get("ratio")
+                if ratio is None:
+                    if not reasons:
+                        continue
+                    tip = f"{component_label} — ratio unavailable"
+                    status = "untested"
                 else:
-                    apply(bases, "bilateral", "balanced", tip, ap)
-            continue
-        for p in row["sides"]:
-            if p.get("ratio") is None:      # insufficient_data → stays grey
-                continue
-            side_txt = "" if p["side"] == "bilateral" else f" {p['side']}"
-            if row["band"] is None or not p.get("protocol_valid", True):
-                if p.get("protocol_valid", True):
-                    reason = ("measured; compare with your future same-method "
-                              "result, no valid target range")
-                else:
-                    reason = "recorded, but outside the 6–8-rep protocol"
-                tip = (f"{label}{side_txt} {p['ratio']} — {reason} · "
-                       f"{row['cite']}")
-                apply(m["num"], p["side"], "trend_only", tip, num_ap)
-                apply(m["den"], p["side"], "trend_only", tip, den_ap)
-                continue
-            lo, hi = row["band"]
-            band_txt = (f"band {lo if lo is not None else '…'}–"
-                        f"{hi if hi is not None else '…'}")
-            tip = (f"{label}{side_txt} {p['ratio']} ({band_txt}, "
-                   f"ideal {row['ideal']}) · {row['cite']}")
-            if m.get("unrepresentable"):
-                tip += " · internal rotators undrawn — see note"
-            if p["flag"] == "in_range":
-                apply(m["num"], p["side"], "balanced", tip, num_ap)
-                apply(m["den"], p["side"], "balanced", tip, den_ap)
-            else:                           # out_of_range: color the weak link
-                below = lo is not None and p["ratio"] < lo
-                weak, weak_ap = (m["num"], num_ap) if below else (m["den"], den_ap)
-                strong, strong_ap = (m["den"], den_ap) if below else (m["num"], num_ap)
-                apply(weak, p["side"], "deficient", tip, weak_ap)
-                apply(strong, p["side"], "balanced", tip, strong_ap)
-    for reg in regions.values():
-        reg["worth_focus"] = reg["status"] == "deficient"
-    return {"lens": "strength-balance", "side_mode": mode, "regions": regions,
-         "non_muscle": sorted(FIGURE_NON_MUSCLE),
-         "legend": FIGURE_BALANCE_LEGEND,
-         "unrepresentable": [{"key": k, "note": v["unrepresentable"]}
-                             for k, v in FIGURE_RATIO_MAP.items()
-                             if v.get("unrepresentable")],
-         "window_days": ATHLETIC_STALE_DAYS,
-         "note": ("colors come only from CITED tested ratios (quarterly "
-                  "isolation tests, e1RM/hold — see Strength ratios); "
-                  "untested regions stay grey. The everyday push:pull "
-                  "estimate is movement-pattern level and never colors the "
-                  "figure. Where ratios share a region the worst status "
-                  "wins; the tooltip lists every contributing ratio.")}
+                    tip = (f"{component_label} {ratio} — recorded comparison; "
+                           "no validated target range")
+                    status = "trend_only"
+                if den_side == "bilateral" and num_side != den_side:
+                    tip += (" · denominator is one bilateral measurement shared across side ratios, "
+                            "not independent left/right measurements")
+                if reasons:
+                    tip += " · " + "; ".join(reasons)
+                tip += " · " + row["cite"]
+                if mapping.get("unrepresentable"):
+                    tip += " · " + mapping["unrepresentable"]
+                apply(mapping["num"], num_side, status, tip, "num" in mapping.get("approx", ()))
+                apply(mapping["den"], den_side, status, tip, "den" in mapping.get("approx", ()))
+    return {"lens": "strength-balance", "side_mode": side_mode, "regions": regions,
+            "non_muscle": sorted(FIGURE_NON_MUSCLE),
+            "legend": FIGURE_BALANCE_LEGEND,
+            "unrepresentable": [{"key": key, "note": value["unrepresentable"]}
+                                for key, value in FIGURE_RATIO_MAP.items()
+                                if value.get("unrepresentable")],
+            "window_days": ATHLETIC_STALE_DAYS,
+            "note": ("Recorded tested ratios and limb gaps are descriptive, without a validated "
+                     "target or injury-risk cutoff. Setup, effort and session limitations remain "
+                     "visible; missing comparisons are untested. Shared regions are display "
+                     "projections, not independent muscle measurements. Everyday movement-pattern "
+                     "estimates do not color this figure.")}
 
 def pain(c, days, *, clock):
     """§3g pain lens: color every SVG region (incl. JOINT regions — design rule

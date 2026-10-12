@@ -436,7 +436,7 @@ def test_readiness_passes_only_the_explicit_fixture_lane_and_private_sidecar(
     assert payload["result"]["ancestry_sidecar"] == str(sidecar)
 
 
-@pytest.mark.parametrize("lane", ["development-v6", "development-v7"])
+@pytest.mark.parametrize("lane", ["development-v6", "development-v7", "development-v8"])
 def test_development_lane_omits_sidecar_and_rejects_configured_path(tmp_path, lane):
     completed, payload, _ = _run(
         tmp_path,

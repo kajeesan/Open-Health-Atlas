@@ -24,6 +24,7 @@ ACTIVITY_WRITES = (
     "commitment-set", "log-commitment", "checkin", "routine-set",
     "routine-remove", "routine-undo", "schedule-set", "write-note",
     "hypothesis-promote", "hermes-model-set",
+    "nutrition-profile-set", "training-context-log",
 )
 
 DAY_RATINGS = {"green", "yellow", "red"}

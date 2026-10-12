@@ -296,7 +296,8 @@ def test_exact_six_state_predicate_order_including_populated_unconnected(conn):
     )
     registry = {item.key: item for item in build_registry(conn, context())}
     definitions = (
-        registry["pain.nrs.lateral-knee.left"],
+        replace(registry["pain.nrs.lateral-knee.left"], implemented=False,
+                temporal_type="unavailable", candidate_enabled=False),
         registry["nutrition.logged.kcal"],
         registry["vitals.systolic_mean"],
         registry["subjective.energy"],

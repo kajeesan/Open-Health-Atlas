@@ -17,6 +17,7 @@ from . import readiness as insight_readiness
 from . import readiness_ancestry as insight_readiness_ancestry
 from . import registry as insight_registry
 from . import synthesis as insight_synthesis
+from . import calculations, catalogs, runtime
 from .catalogs import PRIMARY_MEDICATION
 from .commands import (
     collectors, cronometer, daily_capture, followthrough, google_health, hevy,
@@ -24,6 +25,7 @@ from .commands import (
     training, fitness, muscles, physio, daily_frames, recovery,
 )
 from .commands import labs as labs_commands, scores as scores_commands
+from .commands import training_evidence as training_evidence_commands
 from .commands.hevy import import_csv
 from .contracts import canonical_json
 from .commands import (
@@ -41,6 +43,7 @@ def out(payload):
 
 
 JSON_COMMANDS = {
+    "nutrition-profile-set", "training-evidence", "training-context-log",
     "analysis-job-start", "analysis-job-status", "analysis-job-work", "analysis-job-execute",
     "schema-status", "schema-plan", "migrate", "capture-raw", "capture-resolve",
     "event-log", "event-correct", "event-void", "events",
@@ -174,6 +177,25 @@ def build_parser(handlers, *, json_errors, output, meal_types, restock_actions, 
     s = add("nutrition-target-set"); s.add_argument("name")
     s.add_argument("--target", type=float, required=True)
     s = add("profile-set"); s.add_argument("key"); s.add_argument("value")
+    s = add("nutrition-profile-set", allow_abbrev=False)
+    s.add_argument("--height-cm", required=True)
+    s.add_argument("--sex", required=True, choices=["male", "female"])
+    s.add_argument("--dob", required=True)
+    s = add("training-evidence", allow_abbrev=False)
+    s.add_argument("--from", dest="from_date")
+    s.add_argument("--to", dest="to_date")
+    s.add_argument("--region", default="knee")
+    s.add_argument("--side", choices=["left", "right", "central"])
+    s = add("training-context-log", allow_abbrev=False)
+    s.add_argument("--capture-id", required=True)
+    s.add_argument("--subject-kind", required=True, choices=["exercise", "fitness", "pain", "history"])
+    s.add_argument("--subject-key", required=True)
+    s.add_argument("--context-key", required=True)
+    s.add_argument("--effective-from", required=True)
+    s.add_argument("--effective-to")
+    s.add_argument("--status", choices=["answered", "skipped"], default="answered")
+    s.add_argument("--value")
+    s.add_argument("--supersedes-id", type=int)
     s = add("phase-set"); s.add_argument("phase")
     s = add("nutrition-targets")
     s = add("nutrition-coverage")
@@ -506,6 +528,42 @@ def run(context, *, argv, output, parse_number,
 
     def profile_set(arguments):
         output(nutrition.profile_set(context, arguments))
+
+    def nutrition_profile_set(arguments):
+        try:
+            result = nutrition.nutrition_profile_set(context, arguments)
+        except (ValueError, SystemExit) as exc:
+            output({"ok": False, "error": {"code": "validation_error", "message": str(exc)}})
+            raise SystemExit(2) from exc
+        output(result)
+
+    def training_evidence(arguments):
+        try:
+            result = training_evidence_commands.evidence(
+                context, start=arguments.from_date, end=arguments.to_date,
+                region=arguments.region, side=arguments.side,
+                adapter_context=runtime.adapter_context(clock=context.clock, timezone=context.timezone),
+                catalog=catalogs.CATALOG, ratio_seeds=catalogs.RATIO_SEED,
+                e1rm=calculations.e1rm,
+            )
+        except ValueError as exc:
+            output({"ok": False, "error": {"code": getattr(exc, "code", "validation_error"), "message": str(exc)}})
+            raise SystemExit(2) from exc
+        output(result)
+
+    def training_context_log(arguments):
+        try:
+            result = training_evidence_commands.capture(
+                context, capture_id=arguments.capture_id,
+                subject_kind=arguments.subject_kind, subject_key=arguments.subject_key,
+                context_key=arguments.context_key, effective_from=arguments.effective_from,
+                effective_to=arguments.effective_to, status=arguments.status,
+                value=arguments.value, supersedes_id=arguments.supersedes_id,
+            )
+        except ValueError as exc:
+            output({"ok": False, "error": {"code": getattr(exc, "code", "validation_error"), "message": str(exc)}})
+            raise SystemExit(2) from exc
+        output(result)
 
     def phase_set(arguments):
         output(nutrition.phase_set(context, arguments))
@@ -854,6 +912,9 @@ def run(context, *, argv, output, parse_number,
         "restock-check": restock_check,
         "restock-mark": restock_mark,
         "profile-set": profile_set,
+        "nutrition-profile-set": nutrition_profile_set,
+        "training-evidence": training_evidence,
+        "training-context-log": training_context_log,
         "phase-set": phase_set,
         "nutrition-target-set": nutrition_target_set,
         "nutrition-targets": nutrition_targets,

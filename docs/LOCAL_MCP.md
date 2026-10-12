@@ -92,6 +92,8 @@ ask about a specific date range present in your records.
 | `health_catalog` | Discover available registered features, their units and supported operations. |
 | `health_query` | Read latest values, daily series, summaries or a period comparison. |
 | `health_analyze` | Start a bounded analysis for an outcome and selected exposures. |
+| `health_describe` | Read numeric summaries and exposure contrasts, including sparse ranges below formal association gates. |
+| `health_training_evidence` | Read training, discomfort, recovery, strength comparisons and saved reported context; requires schema v8. |
 | `health_evidence` | Start verification of complete evidence references returned by earlier results. |
 | `health_task_status` | Wait briefly for a background task and retrieve its result. |
 
@@ -137,6 +139,39 @@ argument objects, not text to paste into a shell.
 The [existing SDK tests](DEVELOPMENT.md#run-the-right-checks) exercise discovery,
 query, positive analysis, evidence verification and refusals without a model.
 A model client's own tool selection and final wording require separate review.
+
+### Sparse records and training questions
+
+Use `health_describe` when the available records cannot support formal analysis,
+or when you need to inspect the observations before requesting it:
+
+```json
+{"outcome_key": "subjective.energy", "exposure_keys": ["sleep.duration_hours"], "range": {"from": "2026-06-24", "to": "2026-06-30"}, "lag_days": 1}
+```
+
+The response follows the [descriptive contract](SYSTEM_DESIGN.md#descriptive-observations).
+An `ok` result means observations were returned; it does not establish a
+statistical association. Inspect the actual denominators and limitations.
+
+For training and discomfort context, call `health_training_evidence`:
+
+```json
+{"range": {"from": "2026-06-01", "to": "2026-06-30"}, "region": "knee", "side": "left"}
+```
+
+Omit `side` to retrieve all sides. The packet follows the
+[training evidence contract](SYSTEM_DESIGN.md#training-evidence-and-reported-context)
+and can include missing-context questions. Both new tools return their read
+results directly and provide evidence references for the existing
+`health_evidence` replay path. Copy complete references unchanged.
+
+The MCP connection cannot save answers. Use the Recovery context form or the
+validated CLI path described in [Architecture](ARCHITECTURE.md#training-and-movement-ownership).
+Upgrade older databases separately under the
+[migration procedure](DEPLOYMENT.md#training-context-schema-compatibility).
+The deployed `hermes-openhealthatlas-tool` adapter retains its original
+catalog/query/analyze/evidence operations; these additions belong to the local
+MCP and panel surfaces.
 
 ## Long analyses
 

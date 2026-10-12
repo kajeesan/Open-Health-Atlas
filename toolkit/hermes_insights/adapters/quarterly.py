@@ -13,6 +13,7 @@ from . import (
     in_range, make_observation, natural_key, range_bounds, table_columns,
 )
 from ..normalize import normalized_label
+from .. import training_context
 
 
 ADAPTER_ID = "quarterly"
@@ -186,7 +187,8 @@ def _ratio_episodes(valid, seed, side):
     tagged = []
     for item in valid:
         movement = item["row"]["movement"]
-        if item["row"]["side"] == side and movement in {seed["num"], seed["den"]}:
+        expected_side = seed.get("den_side", side) if movement == seed["den"] else side
+        if item["row"]["side"] == expected_side and movement in {seed["num"], seed["den"]}:
             tagged.append((item["date"], item["row"]["id"], movement, item))
     state = {}
     per_day = {}
@@ -199,20 +201,31 @@ def _ratio_episodes(valid, seed, side):
         parent_span = _parent_span_days(parents, item["date"])
         if parent_span > FITNESS_PARENT_MAX_AGE_DAYS:
             continue
+        reasons = []
+        if parent_span:
+            reasons.append("mixed_sessions")
+        if any(not parent["protocol"] for parent in parents):
+            reasons.append("setup_unknown")
+        if any(parent.get("pain_limited") != "no" for parent in parents):
+            reasons.append("effort_unknown_or_pain_limited")
+        if seed["kind"] == "strength" and any(not 6 <= parent["row"]["reps"] <= 8 for parent in parents):
+            reasons.append("outside_protocol_range")
         per_day[item["date"]] = {
             "date": item["date"],
             "value": numerator["value"] / denominator["value"],
             "numerator": numerator, "denominator": denominator,
             "protocol": (numerator["protocol"], denominator["protocol"]),
             "parent_span_days": parent_span,
+            "comparison_eligible": not reasons, "limitations": reasons,
         }
     return [per_day[day] for day in sorted(per_day)]
 
 
 def _ratio_side_gap_episodes(valid, seed):
     tagged = []
-    wanted = {(seed["num"], "left"), (seed["num"], "right"),
-              (seed["den"], "left"), (seed["den"], "right")}
+    den_sides = (seed["den_side"],) if seed.get("den_side") else ("left", "right")
+    wanted = {(seed["num"], "left"), (seed["num"], "right")}
+    wanted.update((seed["den"], side) for side in den_sides)
     for item in valid:
         pair = (item["row"]["movement"], item["row"]["side"])
         if pair in wanted:
@@ -225,14 +238,14 @@ def _ratio_side_gap_episodes(valid, seed):
         numerator_values = [state[(seed["num"], side)]["value"]
                             for side in ("left", "right")]
         denominator_values = [state[(seed["den"], side)]["value"]
-                              for side in ("left", "right")]
+                              for side in den_sides]
         numerator_protocols = {
             state[(seed["num"], side)]["protocol"]
             for side in ("left", "right")
         }
         denominator_protocols = {
             state[(seed["den"], side)]["protocol"]
-            for side in ("left", "right")
+            for side in den_sides
         }
         # A bilateral side gap is comparable only when each movement used the
         # same normalized equipment protocol on the left and right.
@@ -248,12 +261,141 @@ def _ratio_side_gap_episodes(valid, seed):
         parent_span = _parent_span_days(parents, item["date"])
         if parent_span > FITNESS_PARENT_MAX_AGE_DAYS:
             continue
+        limitations = []
+        if parent_span:
+            limitations.append("mixed_sessions")
+        if any(not parent["protocol"] for parent in parents):
+            limitations.append("setup_unknown")
+        if any(parent.get("pain_limited") != "no" for parent in parents):
+            limitations.append("effort_unknown_or_pain_limited")
+        if seed["kind"] == "strength" and any(not 6 <= parent["row"]["reps"] <= 8 for parent in parents):
+            limitations.append("outside_protocol_range")
         per_day[item["date"]] = {
             "date": item["date"], "value": max(gaps), "parents": parents,
             "protocol": tuple(parent["protocol"] for parent in parents),
             "parent_span_days": parent_span,
+            "comparison_eligible": not limitations, "limitations": limitations,
         }
     return [per_day[day] for day in sorted(per_day)]
+
+
+def fitness_items(conn, catalog, e1rm_fn, through=None):
+    """Read bounded raw tests with dated context shared by dashboard and agent evidence."""
+    rows = _rows(conn, """SELECT * FROM fitness_tests WHERE voided=0
+        AND (? IS NULL OR date<=?) ORDER BY date,id""", (through, through))
+    context = (training_context.context_rows(conn, through or "9999-12-31")
+               if has_columns(conn, "training_context_revisions", "id") else [])
+    items = []
+    for row in rows:
+        spec = catalog.get(row["movement"])
+        if not spec:
+            continue
+        value, unit = _test_value(row, spec, e1rm_fn)
+        if finite(value) is None:
+            continue
+        reported = training_context.resolve_context(context, "fitness", row["id"], row["date"])
+        setup = reported.get("setup", {})
+        protocol = normalized_label(setup.get("value") or row.get("equipment_note") or "")
+        if (row.get("source") or "").startswith("hevy-quarterly:") and not setup:
+            protocol = ""
+        if setup.get("status") == "skipped":
+            protocol = ""
+        items.append({"date": row["date"], "value": value, "unit": unit,
+                      "row": row, "spec": spec, "protocol": protocol,
+                      "pain_limited": reported.get("pain_limited", {}).get("value"),
+                      "reported_context": reported})
+    return items
+
+
+def tested_ratio_summary(conn, catalog, seeds, e1rm_fn, anchor):
+    """Return the current view of the same parent episodes consumed by the feature adapter."""
+    valid = fitness_items(conn, catalog, e1rm_fn, anchor.isoformat())
+    result = []
+    for seed in seeds:
+        row = {key: seed.get(key) for key in (
+            "key", "num_label", "den_label", "ideal", "band", "evidence", "method", "cite", "per_side")}
+        row.update(reference_eligible=False, reference_version="gym-reference-applicability-v1",
+                   reference_reason="measurement_method_or_population_not_validated",
+                   formula_version="fitness-comparisons-v2", sides=[])
+        for side in (("left", "right") if seed["per_side"] else ("bilateral",)):
+            current_denominators = [item for item in valid if item["row"]["movement"] == seed["den"]
+                                    and item["row"]["side"] == seed.get("den_side", side)]
+            if current_denominators and current_denominators[-1]["value"] == 0:
+                denominator = current_denominators[-1]
+                row["sides"].append({"side": side, "status": "insufficient_data",
+                                     "limitations": ["zero_denominator"],
+                                     "parent_ids": [natural_key("fitness_tests", denominator["row"])],
+                                     "parent_dates": [denominator["date"]]})
+                continue
+            episodes = _ratio_episodes(valid, seed, side)
+            episode = episodes[-1] if episodes else None
+            if not episode or any((anchor - date.fromisoformat(episode[key]["date"])).days >
+                                  FITNESS_PARENT_MAX_AGE_DAYS for key in ("numerator", "denominator")):
+                row["sides"].append({"side": side, "status": "insufficient_data"})
+                continue
+            n, d = episode["numerator"], episode["denominator"]
+            row["sides"].append({
+                "side": side, "ratio": round(episode["value"], 2),
+                "num_side": n["row"]["side"], "den_side": d["row"]["side"],
+                "num_value": n["value"], "den_value": d["value"],
+                "num_reps": n["row"].get("reps"), "den_reps": d["row"].get("reps"),
+                "date": episode["date"], "parent_dates": [n["date"], d["date"]],
+                "parent_ids": [natural_key("fitness_tests", p["row"]) for p in (n, d)],
+                "parent_span_days": episode["parent_span_days"],
+                "comparison_eligible": episode["comparison_eligible"],
+                "limitations": episode["limitations"],
+                "protocol_valid": "outside_protocol_range" not in episode["limitations"],
+                "flag": "outside_protocol_range" if "outside_protocol_range" in episode["limitations"] else "trend_only",
+            })
+        gaps = _ratio_side_gap_episodes(valid, seed) if seed["per_side"] else []
+        current_ids = {(item["row"]["movement"], item["row"]["side"]): item["row"]["id"] for item in valid}
+        gap_is_current = gaps and all(current_ids[(parent["row"]["movement"], parent["row"]["side"])] == parent["row"]["id"]
+                                      for parent in gaps[-1]["parents"])
+        if gap_is_current and all((anchor - date.fromisoformat(parent["date"])).days <= FITNESS_PARENT_MAX_AGE_DAYS
+                        for parent in gaps[-1]["parents"]):
+            gap = gaps[-1]
+            row.update(side_gap=round(gap["value"], 3), side_gap_flag="descriptive",
+                       side_gap_parent_ids=[natural_key("fitness_tests", p["row"]) for p in gap["parents"]],
+                       side_gap_comparison_eligible=gap["comparison_eligible"],
+                       side_gap_limitations=gap["limitations"],
+                       side_gap_parent_span_days=gap["parent_span_days"])
+        result.append(row)
+    return result
+
+
+def left_right_summary(items, anchor):
+    """Describe each measured movement's limb gap independently of opposing-muscle pairs."""
+    latest = defaultdict(dict)
+    for item in items:
+        row = item["row"]
+        if row["side"] in {"left", "right"} and (anchor - date.fromisoformat(item["date"])).days <= FITNESS_PARENT_MAX_AGE_DAYS:
+            latest[row["movement"]][row["side"]] = item
+    result = []
+    for movement, sides in sorted(latest.items()):
+        parents = list(sides.values())
+        values = [item["value"] for item in parents]
+        limitations = []
+        if len(sides) != 2:
+            limitations.append("missing_side")
+        if len({p["date"] for p in parents}) != 1:
+            limitations.append("mixed_sessions")
+        if any(not p["protocol"] for p in parents):
+            limitations.append("setup_unknown")
+        elif len({p["protocol"] for p in parents}) != 1:
+            limitations.append("different_setups")
+        if any(p.get("pain_limited") != "no" for p in parents):
+            limitations.append("effort_unknown_or_pain_limited")
+        if any(p["spec"]["kind"] == "strength" and not 6 <= p["row"]["reps"] <= 8 for p in parents):
+            limitations.append("outside_protocol_range")
+        gap = (max(values) - min(values)) / max(values) if len(values) == 2 and max(values) > 0 else None
+        result.append({"movement": movement, "values": {side: item["value"] for side, item in sides.items()},
+                       "unit": parents[0]["unit"], "gap_fraction": gap,
+                       "parent_ids": [natural_key("fitness_tests", item["row"]) for item in parents],
+                       "parent_dates": [item["date"] for item in parents],
+                       "comparison_eligible": gap is not None and not limitations,
+                       "limitations": limitations, "formula_version": "limb-gap-v2",
+                       "reference_eligible": False})
+    return result
 
 
 def _min_side_axis_episodes(valid, movement, upper_bound=None):

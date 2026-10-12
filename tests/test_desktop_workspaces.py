@@ -113,7 +113,7 @@ def test_supported_version_six_import_migrates_copy_and_preserves_all_records(tm
     assert record_snapshot(imported.health_db) == before
     assert record_snapshot(source) == before
     assert max(row[0] for row in read_rows(source, "schema_migrations")) == 6
-    assert max(row[0] for row in read_rows(imported.health_db, "schema_migrations")) == 7
+    assert max(row[0] for row in read_rows(imported.health_db, "schema_migrations")) == 8
 
 
 def test_interrupted_initialization_never_selects_partial_workspace(tmp_path, monkeypatch):

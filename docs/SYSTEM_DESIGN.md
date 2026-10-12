@@ -74,6 +74,120 @@ remain available with exclusion reasons. Existing eligibility rules also
 exclude incomplete nutrition totals from analytical freshness. Qualification checks recorded setup
 consistency, not whether a free-text description is accurate.
 
+## Descriptive observations
+
+`descriptive.py` returns observed values and arithmetic comparisons for
+registered numeric features, including ranges below the association minimum
+of 30 aligned units. It does not run statistical tests, assign confidence or
+produce ledger-eligible hypotheses. Formal association gates remain unchanged.
+
+Each feature retains its own observed-day and observed-unit counts, missing
+days, units and source identities. Each exposure comparison uses its own
+paired denominator; an unrelated empty feature does not remove other pairs.
+Missing days remain unknown. A zero is usable only when the canonical frame
+supplies it through an observation or its completeness contract.
+
+Period comparisons split the requested calendar range into chronological
+halves. Exposure contrasts use a requested lag, defaulting to one day, and
+reuse the association engine's alignment and lineage restrictions. The
+supported lags are 0, 1, 2, 3 and 7 days. Source-incompatible records retain
+separate summaries and `source_comparisons`, with no pooled mean difference.
+The response shows up to eight homogeneous outcome/exposure source pairs,
+ordered by paired count, and reports the total and shown counts. Each retains
+its own paired and group denominators, source parents and comparison limits.
+A source pair with only one observation cannot estimate a contrast; separate
+source comparisons are not independent corroboration.
+
+Slow fitness measurements and derived features require matching, nonempty
+canonical equipment-protocol identities before summary or contrast arithmetic.
+Missing or incompatible protocols block that arithmetic even within one source;
+recorded observations remain inspectable. Records the analytical layer marks
+ineligible only for `missing_protocol` or `mixed_protocols` stay in descriptive
+units, where this check reports them; other exclusions still apply.
+
+Known logged nutrition values without confirmed full-day coverage remain
+visible in `partial_recorded_facts`, with `value_scope: recorded_subtotal` and
+`completeness: full_day_coverage_unconfirmed`. They retain source identities
+but are excluded from comparison inputs and eligible daily-unit counts. A
+recorded subtotal is not a full-day total.
+
+Contrasts show group counts, arithmetic differences and counterexample counts.
+`no_clear_pattern` means equal observed means for that contrast, not evidence
+that no relationship exists. Shared lineage and source rows are explicitly
+dependent evidence; these summaries do not adjust for temporal dependence.
+Displayed samples contain at most the first six and last six units per
+summary or comparison; the input fingerprint covers every loaded observation.
+
+## Training evidence and reported context
+
+`training_evidence.py` assembles bounded training records, logged exposure,
+fitness comparisons, discomfort, recovery and explicitly reported context.
+It preserves parent identities, dates, classifications, coverage and
+conflicting evidence. Supporting fitness parents can precede the requested
+range and are labelled as lookback evidence. Same-day order remains unknown
+when records provide only civil dates; ingestion time is not event time.
+
+Training windows and pre-symptom contrasts describe logged sets, not total
+physical activity. Missing training dates remain unknown unless a valid
+explicit-none capture or source-sync interval proves an empty day. Exercise
+categories and e1RM are estimates; they do not measure performed technique,
+joint angles or isolated muscle force. Imported notes remain untrusted data.
+
+`training_context.py` stores explicit answers, skips and corrections as
+immutable revisions. Answers attach to an exercise template, fitness test,
+pain record or personal history, with inclusive effective dates. A repeated
+capture ID must contain the same payload. A correction must retain its
+subject and context field; it supersedes prior answers only within its
+effective interval. The resolved context on each dated record is authoritative,
+while superseded rows remain audit history. A skipped answer remains unknown.
+
+The packet proposes missing-context questions after reading saved context.
+Its conversation policy defaults to one question per turn, without a fixed
+overall question cap. External clients own follow-up selection, hypotheses and
+explanation. Packet retrieval does not invoke a model or establish causation.
+
+## Tested strength comparisons
+
+Tested opposing-muscle ratios and left/right gaps retain raw values, parent
+dates, source identities and comparison limitations. They do not establish
+adequate absolute strength or explain pain. Gym-load e1RM has no validated
+population reference in this implementation; tested target bands and
+diagnostic asymmetry cutoffs are not applied.
+
+Comparison eligibility requires recorded setup, matching measurement dates and
+explicitly non-pain-limited effort; strength tests also retain their repetition
+protocol gate. Missing setup, different setups, mixed sessions, missing sides
+and zero denominators remain visible where applicable. Available tested
+ratios and recorded limbs color the body balance lens as `trend_only`; an
+unrecorded side remains `untested` even when the other side has a value.
+Shared body regions are display projections,
+not independent muscle measurements.
+
+Same-exercise progress uses a prior eligible session within 120 days, with
+matching reported setup, side and notes. A recorded load change without that
+context remains visible but is not an eligible personal-baseline comparison.
+Reported setup does not verify technique. The separate everyday movement-pattern
+view retains its labelled heuristic behavior and does not color the body lens.
+
+## Lateral-knee event semantics
+
+The lateral-knee registry entries implement NRS severity, reported onset,
+first observed positive and observed resolution for central, left and right
+records. Each region/side is a distinct identity. The last non-voided record
+by ID wins within a date and identity.
+
+Reported onset retains its exact or approximate precision and cannot follow
+its report date. First observed positive refers to the earliest retained
+positive observation, not a newly inferred onset. Resolution requires an
+explicit NRS zero after an unresolved positive report. Missing reports neither
+resolve an episode nor establish a pain-free day.
+
+Absent event markers become structural zeros only under effective capture
+completeness for the exact pain region and side. General pain completeness
+does not fill a lateral-knee identity. Even exact completeness does not invent
+a zero NRS value. These event definitions do not implement a longitudinal
+asymmetry-to-pain model; see [U-12](../UNIMPLEMENTED.md#u-12--quarterly-asymmetry-to-pain-episode-analysis).
+
 ## External interpretation boundary
 
 Genuine external Hermes owns conversation and model reasoning. OpenHealthAtlas

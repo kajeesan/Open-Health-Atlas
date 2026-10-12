@@ -69,13 +69,14 @@ def db(tmp_path):
 
 
 
-def test_migrated_v7_readiness_uses_distinct_schema_without_mutating_snapshot(db):
-    migrated = run(db, "migrate", "--to", "7", "--expected-from", "6")
-    assert migrated["to_version"] == 7
-    assert [row["version"] for row in migrated["applied"]] == [7]
+@pytest.mark.parametrize("version", [7, 8])
+def test_migrated_readiness_uses_distinct_schema_without_mutating_snapshot(db, version):
+    migrated = run(db, "migrate", "--to", str(version), "--expected-from", "6")
+    assert migrated["to_version"] == version
+    assert [row["version"] for row in migrated["applied"]] == list(range(7, version + 1))
     before = db.read_bytes()
     result = readiness(db, anchor="2026-06-30")
-    assert result["evidence"]["snapshot_integrity"]["schema_version"] == 7
+    assert result["evidence"]["snapshot_integrity"]["schema_version"] == version
     assert db.read_bytes() == before
 
 

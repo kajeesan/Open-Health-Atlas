@@ -346,7 +346,7 @@ def test_real_fictional_query_evidence_and_delivery_renderer(
         "range_from": "2026-03-02",
         "range_to": "2026-06-30",
         "readiness_ancestry_sidecar": None,
-        "readiness_fixture_lane": "development-v7",
+        "readiness_fixture_lane": "development-v8",
         "synthesis_writeback_enabled": False,
         "timeout_seconds": 90,
         "timezone": "UTC",

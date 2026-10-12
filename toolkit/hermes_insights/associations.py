@@ -228,12 +228,6 @@ def _validate_outcome(
         or not outcome.candidate_enabled
     ):
         _validation("outcome is not an implemented registered outcome")
-    if outcome_key.startswith("pain.nrs.lateral-knee."):
-        raise AssociationError(
-            "logic_not_implemented",
-            "lateral-knee outcome logic is not implemented",
-            validation=True,
-        )
     if outcome_key == "subjective.day_rating":
         modes = [
             "ordinal",

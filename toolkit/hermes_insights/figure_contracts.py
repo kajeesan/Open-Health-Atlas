@@ -137,8 +137,8 @@ FIGURE_LEVEL_LEGEND = (
 
 # RATIO_SEED key -> the figure region bases its numerator/denominator muscles
 # draw on. ANATOMICAL DISPLAY mapping, definitional like FIGURE_SUB_SVG
-# (docs/muscle-figure-map.md); every judgement (band, flag, gap) comes only
-# from RATIO_SEED + _tested_ratios(). An empty side is allowed ONLY with an
+# (docs/muscle-figure-map.md); values and comparisons come from the canonical
+# tested-ratio and limb-gap owners. An empty side is allowed ONLY with an
 # `unrepresentable` reason — surfaced in the payload, never guessed onto a
 # wrong region (the ER:IR internal rotators are subscapularis-deep; coloring
 # the chest would be anatomically wrong). `approx` marks a side whose muscle
@@ -170,28 +170,15 @@ FIGURE_RATIO_MAP = {
                    "den": ("lower-back-erectors",)},
 }
 
-# The four region statuses, worst first. deficient = the weak side of an
-# out-of-band cited ratio (red means exactly this, nothing else); balanced =
-# tested (green — in band, or the tested-not-weak partner of a flagged pair;
-# the tooltip always shows the ratio + band); trend_only = the pair has no
-# cited band, amber pattern signal (design rule 2026-07-19 — NOT grey, data
-# exists); untested = the honest grey default until the isolation battery
-# lands. The legend is served with the payload so labels can't drift from
-# the statuses the engine emits.
+# Recorded comparisons remain distinct from absent data without treating
+# gym-test ratios as validated population targets or injury-risk cutoffs.
 FIGURE_BALANCE_LEGEND = [
-    {"status": "deficient", "label": "weak link — worth focus"},
-    {"status": "balanced", "label": "balanced / not the weak link"},
     {"status": "trend_only",
      "label": "measured trend only — no valid target range"},
     {"status": "untested", "label": "untested"},
 ]
 
-_BALANCE_RANK = {"untested": 0, "balanced": 1, "trend_only": 2, "deficient": 3}
-
-# Between-limb gap threshold (Grygorowicz 2010) — the same 0.15 literal
-# _tested_ratios pins in side_gap_flag and strength_ratios reports as
-# asymmetry_threshold; change all three together or the views disagree.
-RATIO_GAP_THRESHOLD = 0.15
+_BALANCE_RANK = {"untested": 0, "trend_only": 1}
 
 # Keep a quarterly screen visible beyond the general fitness window.
 MOBILITY_STALE_DAYS = 180
@@ -205,7 +192,7 @@ FIGURE_MOBILITY_LEGEND = [
     {"status": "untested", "label": "untested / no cited cutoff"},
 ]
 
-# worst wins on a shared region (mirrors the balance lens rank)
+# The most restricted cited mobility status wins on a shared region.
 _MOBILITY_RANK = {"untested": 0, "normal": 1, "restricted": 2}
 
 FLEX_OVERLAP_NOTE = ("Sit-and-reach also feeds the Athletic radar's Flexibility "

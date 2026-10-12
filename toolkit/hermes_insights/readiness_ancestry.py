@@ -12,7 +12,7 @@ The v5 sidecar proves the integrity and reproducibility of the *current*
 snapshot.  It deliberately does not claim to prove the original historical
 fixture-generation invocation.
 
-Development-v6 and development-v7 databases have separate initialization contracts:
+Development-v6, development-v7 and development-v8 databases have separate initialization contracts:
 ``SCHEMA.sql`` provides structure only, then the explicit migration workflow
 must record the contiguous ledger through the selected lane version before Recovery reads the
 database.  This module never treats an empty, missing, malformed, or gapped
@@ -40,7 +40,9 @@ ANCESTRY_CONTRACT = "openhealthatlas-readiness-ancestry-v2"
 ACCEPTED_V5_LANE = "accepted-v5"
 DEVELOPMENT_V6_LANE = "development-v6"
 DEVELOPMENT_V7_LANE = "development-v7"
-_LANE_SCHEMA = {ACCEPTED_V5_LANE: 5, DEVELOPMENT_V6_LANE: 6, DEVELOPMENT_V7_LANE: 7}
+DEVELOPMENT_V8_LANE = "development-v8"
+_LANE_SCHEMA = {ACCEPTED_V5_LANE: 5, DEVELOPMENT_V6_LANE: 6,
+                DEVELOPMENT_V7_LANE: 7, DEVELOPMENT_V8_LANE: 8}
 LANE_ENV = "OPENHEALTHATLAS_READINESS_FIXTURE_LANE"
 SIDECAR_ENV = "OPENHEALTHATLAS_READINESS_ANCESTRY_SIDECAR"
 
@@ -533,8 +535,8 @@ def _validate_sidecar(
 
 def _lane(configured: str | None, schema_version: int) -> str:
     if configured is None:
-        if schema_version in {6, 7}:
-            return DEVELOPMENT_V6_LANE if schema_version == 6 else DEVELOPMENT_V7_LANE
+        if schema_version in {6, 7, 8}:
+            return {version: lane for lane, version in _LANE_SCHEMA.items()}[schema_version]
         _fail(
             "fixture_lane_required",
             "Schema-v5 Recovery snapshots require the explicit accepted-v5 fixture lane",
@@ -652,6 +654,7 @@ __all__ = [
     "ANCESTRY_CONTRACT",
     "DEVELOPMENT_V6_LANE",
     "DEVELOPMENT_V7_LANE",
+    "DEVELOPMENT_V8_LANE",
     "ReadinessAncestryError",
     "SnapshotAttestation",
     "build_accepted_v5_sidecar",

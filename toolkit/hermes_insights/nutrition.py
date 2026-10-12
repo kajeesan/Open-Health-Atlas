@@ -29,6 +29,8 @@ OWNER_PROFILE_KEYS = {"height_cm", "sex", "dob", "activity_fallback"}
 
 SEX_VALUES = {"male", "female"}
 
+NUTRITION_PROFILE_FIELDS = {"height_cm", "sex", "dob"}
+
 ACTIVITY_FALLBACK_VALUES = {"sedentary", "light", "moderate", "active", "very_active"}
 
 DIET_PHASES = {"cut", "maintain", "bulk"}
@@ -58,6 +60,36 @@ RECIPE_MICRO_UNITS = {m["key"]: m["unit"] for m in MICRO_SEED}
 NUTRITION_WEIGHTS = {"protein": 25, "kcal": 15, "micro_each": 6}
 
 NUTRITION_TARGET_NAMES = {"protein_g", "kcal"}
+
+
+def validate_nutrition_profile(payload, *, today):
+    """Validate the complete editable profile; reject unknown or missing fields."""
+    if not isinstance(payload, dict) or set(payload) != NUTRITION_PROFILE_FIELDS:
+        raise ValueError("profile must contain exactly height_cm, sex and dob")
+    raw_height = payload["height_cm"]
+    if isinstance(raw_height, bool) or not isinstance(raw_height, (str, int, float)):
+        raise ValueError("height_cm must be a finite number between 100 and 250")
+    try:
+        height = float(raw_height)
+    except (ValueError, OverflowError) as exc:
+        raise ValueError("height_cm must be a finite number between 100 and 250") from exc
+    if not math.isfinite(height) or not 100 <= height <= 250:
+        raise ValueError("height_cm must be a finite number between 100 and 250")
+    sex = payload["sex"]
+    if not isinstance(sex, str) or sex not in SEX_VALUES:
+        raise ValueError("sex must be male or female for the supported equation")
+    raw_dob = payload["dob"]
+    if not isinstance(raw_dob, str):
+        raise ValueError("dob must be ISO YYYY-MM-DD")
+    try:
+        dob = date.fromisoformat(raw_dob)
+    except ValueError as exc:
+        raise ValueError("dob must be ISO YYYY-MM-DD") from exc
+    if dob.isoformat() != raw_dob:
+        raise ValueError("dob must be ISO YYYY-MM-DD")
+    if not date(1900, 1, 1) <= dob <= date.fromisoformat(today):
+        raise ValueError("dob must be between 1900-01-01 and today")
+    return {"height_cm": height, "sex": sex, "dob": raw_dob}
 
 
 def configured_positive_number(name, default, *, environ):

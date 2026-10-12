@@ -198,6 +198,8 @@ def _load_pain(conn, definitions, date_range, context, include_provenance, out):
             for day, comp in complete_dates(
                 effective, "pain", entity_key,
             ).items():
+                if comp["entity_key"] != entity_key:
+                    continue
                 for marker in (
                     "reported_onset", "first_observed_positive",
                     "resolution_observed",
@@ -377,7 +379,7 @@ def _exposure_payload(conn, start, end, context, include_provenance):
 
 
 def _reported_onset_for_episode(rows):
-    """Latest exact owner metadata for an identity; never infer an onset."""
+    """Latest valid owner metadata; retain exact or approximate precision."""
     candidates = [row for row in rows if _valid_reported_onset(row)]
     return max(candidates, key=lambda row: (row["date"], row["id"])) \
         if candidates else None

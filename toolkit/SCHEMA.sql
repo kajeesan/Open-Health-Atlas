@@ -890,3 +890,82 @@ BEFORE DELETE ON hypothesis_annotations
 BEGIN
   SELECT RAISE(ABORT,'append_only_table');
 END;
+
+CREATE TABLE IF NOT EXISTS fitness_source_revisions (
+  fitness_id INTEGER PRIMARY KEY REFERENCES fitness_tests(id),
+  source_revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id),
+  body_mass_revision_id INTEGER REFERENCES exercise_source_revisions(id)
+);
+
+CREATE TABLE IF NOT EXISTS exercise_template_sources (
+  template_id TEXT PRIMARY KEY,
+  revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id)
+);
+
+CREATE TABLE IF NOT EXISTS exercise_source_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_key TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  ingested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source_key, fingerprint)
+);
+
+CREATE TABLE IF NOT EXISTS hevy_set_sources (
+  set_id INTEGER PRIMARY KEY REFERENCES hevy_sets(id) ON DELETE CASCADE,
+  revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id)
+);
+
+CREATE TABLE IF NOT EXISTS training_context_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  capture_id TEXT NOT NULL UNIQUE,
+  subject_kind TEXT NOT NULL CHECK(subject_kind IN ('exercise','fitness','pain','history')),
+  subject_key TEXT NOT NULL,
+  context_key TEXT NOT NULL CHECK(context_key IN
+    ('setup','side','pain_limited','location','provoking_movement','history_note')),
+  effective_from TEXT NOT NULL,
+  effective_to TEXT,
+  status TEXT NOT NULL CHECK(status IN ('answered','skipped')),
+  value TEXT,
+  supersedes_id INTEGER UNIQUE REFERENCES training_context_revisions(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK(effective_to IS NULL OR effective_to >= effective_from),
+  CHECK((status='answered' AND value IS NOT NULL AND length(trim(value)) BETWEEN 1 AND 1000)
+    OR (status='skipped' AND value IS NULL))
+);
+
+CREATE TRIGGER IF NOT EXISTS exercise_source_revisions_no_update
+BEFORE UPDATE ON exercise_source_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;
+
+CREATE TRIGGER IF NOT EXISTS exercise_source_revisions_no_delete
+BEFORE DELETE ON exercise_source_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;
+
+CREATE TRIGGER IF NOT EXISTS training_context_revisions_no_update
+BEFORE UPDATE ON training_context_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;
+
+CREATE TRIGGER IF NOT EXISTS training_context_revisions_no_delete
+BEFORE DELETE ON training_context_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;
+
+CREATE TRIGGER IF NOT EXISTS fitness_source_revisions_no_update
+BEFORE UPDATE ON fitness_source_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;
+
+CREATE TRIGGER IF NOT EXISTS fitness_source_revisions_no_delete
+BEFORE DELETE ON fitness_source_revisions
+BEGIN
+  SELECT RAISE(ABORT,'append_only_table');
+END;

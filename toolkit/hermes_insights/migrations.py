@@ -19,7 +19,7 @@ import subprocess
 from .settings import CANON_TZ
 
 
-AUTONOMOUS_SCHEMA_VERSION = 7
+AUTONOMOUS_SCHEMA_VERSION = 8
 SCHEMA_CONTRACT = "hermes-autonomous-schema-v1"
 class SchemaError(RuntimeError):
     """A controlled schema validation or migration failure."""
@@ -860,6 +860,56 @@ LAB_CATALOG_V7_DDL = LAZY_TABLE_DDL["lab_catalog"].replace(
 MIGRATION_007_SQL = LAB_CATALOG_V7_DDL + "\n"
 
 
+TRAINING_CONTEXT_DDL = {
+    "fitness_source_revisions": """CREATE TABLE IF NOT EXISTS fitness_source_revisions (
+  fitness_id INTEGER PRIMARY KEY REFERENCES fitness_tests(id),
+  source_revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id),
+  body_mass_revision_id INTEGER REFERENCES exercise_source_revisions(id)
+);""",
+    "exercise_template_sources": """CREATE TABLE IF NOT EXISTS exercise_template_sources (
+  template_id TEXT PRIMARY KEY,
+  revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id)
+);""",
+    "exercise_source_revisions": """CREATE TABLE IF NOT EXISTS exercise_source_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_key TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  ingested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source_key, fingerprint)
+);""",
+    "hevy_set_sources": """CREATE TABLE IF NOT EXISTS hevy_set_sources (
+  set_id INTEGER PRIMARY KEY REFERENCES hevy_sets(id) ON DELETE CASCADE,
+  revision_id INTEGER NOT NULL REFERENCES exercise_source_revisions(id)
+);""",
+    "training_context_revisions": """CREATE TABLE IF NOT EXISTS training_context_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  capture_id TEXT NOT NULL UNIQUE,
+  subject_kind TEXT NOT NULL CHECK(subject_kind IN ('exercise','fitness','pain','history')),
+  subject_key TEXT NOT NULL,
+  context_key TEXT NOT NULL CHECK(context_key IN
+    ('setup','side','pain_limited','location','provoking_movement','history_note')),
+  effective_from TEXT NOT NULL,
+  effective_to TEXT,
+  status TEXT NOT NULL CHECK(status IN ('answered','skipped')),
+  value TEXT,
+  supersedes_id INTEGER UNIQUE REFERENCES training_context_revisions(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK(effective_to IS NULL OR effective_to >= effective_from),
+  CHECK((status='answered' AND value IS NOT NULL AND length(trim(value)) BETWEEN 1 AND 1000)
+    OR (status='skipped' AND value IS NULL))
+);""",
+}
+TRAINING_CONTEXT_TRIGGERS = {
+    f"{table}_no_{operation.lower()}": _append_only_trigger_ddl(table, operation)
+    for table in ("exercise_source_revisions", "training_context_revisions", "fitness_source_revisions")
+    for operation in ("UPDATE", "DELETE")
+}
+MIGRATION_008_SQL = "\n\n".join([
+    *TRAINING_CONTEXT_DDL.values(), *TRAINING_CONTEXT_TRIGGERS.values(),
+]) + "\n"
+
+
 @dataclass(frozen=True)
 class Migration:
     version: int
@@ -880,6 +930,7 @@ MIGRATIONS = (
     Migration(5, "005_recipe_restock_state", MIGRATION_005_SQL),
     Migration(6, "006_provider_neutral_synthesis", MIGRATION_006_SQL),
     Migration(7, "007_lab_catalog_confidence_history", MIGRATION_007_SQL),
+    Migration(8, "008_training_context", MIGRATION_008_SQL),
 )
 MIGRATION_BY_VERSION = {m.version: m for m in MIGRATIONS}
 
@@ -1070,6 +1121,7 @@ def _validate_table(
         table in EVENT_TABLE_DDL
         or table in PHASE3_TABLE_DDL
         or table in PHASE5_TABLE_DDL
+        or table in TRAINING_CONTEXT_DDL
         or table in {"schema_migrations", "lab_catalog"}
     ):
         if table == "schema_migrations":
@@ -1163,6 +1215,10 @@ def require_version(c: sqlite3.Connection, minimum: int) -> None:
         _validate_phase5_objects(
             c, provider_neutral=_existing_phase5_provider_neutral(c),
         )
+    if minimum >= 7:
+        _preflight_007(c)
+    if minimum >= 8:
+        _preflight_008(c, required=True)
 
 
 def recorded_version(c: sqlite3.Connection) -> int:
@@ -1716,6 +1772,32 @@ def _apply_007(c: sqlite3.Connection) -> None:
     _validate_lab_catalog_dependencies(c)
 
 
+def _preflight_008(c: sqlite3.Connection, *, required=False) -> None:
+    for table in TRAINING_CONTEXT_DDL:
+        for row in c.execute("""SELECT name FROM sqlite_master
+            WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL""", (table,)):
+            if row["name"] not in TRAINING_CONTEXT_TRIGGERS:
+                raise SchemaError("incompatible_schema", f"unexpected training context object: {row['name']}")
+    for name, ddl in TRAINING_CONTEXT_DDL.items():
+        row = c.execute("SELECT type FROM sqlite_master WHERE name=?", (name,)).fetchone()
+        if row is not None or required:
+            _validate_table(c, name, ddl)
+    for name, ddl in TRAINING_CONTEXT_TRIGGERS.items():
+        row = c.execute("SELECT type,sql FROM sqlite_master WHERE name=?", (name,)).fetchone()
+        if row is None and not required:
+            continue
+        if (row is None or row["type"] != "trigger" or
+                _normalized_named_object_sql(row["sql"], "trigger") !=
+                _normalized_named_object_sql(ddl, "trigger")):
+            raise SchemaError("incompatible_schema", f"training context trigger differs: {name}")
+
+
+def _apply_008(c: sqlite3.Connection) -> None:
+    for ddl in (*TRAINING_CONTEXT_DDL.values(), *TRAINING_CONTEXT_TRIGGERS.values()):
+        c.execute(ddl)
+    _preflight_008(c, required=True)
+
+
 def _preflight_003(c: sqlite3.Connection) -> None:
     _require_training_snapshot_sources(c)
     for table, ddl in PHASE3_TABLE_DDL.items():
@@ -1850,6 +1932,8 @@ def schema_status(db_path: str) -> dict:
             _preflight_005(c)
         if current >= 7:
             _preflight_007(c)
+        if current >= 8:
+            _preflight_008(c, required=True)
         applied = _migration_rows(c)
         return {
             "ok": True,
@@ -1910,6 +1994,10 @@ def schema_plan(db_path: str, target: int) -> dict:
             _preflight_006(c)
         if current < 7 <= target or current >= 7:
             _preflight_007(c)
+        if current >= 8:
+            _preflight_008(c, required=True)
+        elif target >= 8:
+            _preflight_008(c)
         steps = [
             {"version": m.version, "name": m.name, "checksum_sha256": m.checksum,
              "transaction": "BEGIN IMMEDIATE", "destructive": m.version in {6, 7}}
@@ -2031,6 +2119,9 @@ def migrate(db_path: str, target: int, expected_from: int, code_version: str | N
             elif migration.version == 7:
                 _preflight_007(c)
                 _apply_007(c)
+            elif migration.version == 8:
+                _preflight_008(c)
+                _apply_008(c)
             c.execute(
                 "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at,code_version) VALUES(?,?,?,?,?)",
                 (migration.version, migration.name, migration.checksum,

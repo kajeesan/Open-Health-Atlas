@@ -1,0 +1,14 @@
+{
+  "fixture_id": "fictional-sparse-sleep-energy-v1",
+  "from": "2026-01-01",
+  "to": "2026-01-12",
+  "ingested_at": "2026-01-13T12:00:00Z",
+  "records": [
+    {"date": "2026-01-01", "sleep_hours": 6.0, "energy": 4},
+    {"date": "2026-01-02", "sleep_hours": 7.0, "energy": 2},
+    {"date": "2026-01-04", "sleep_hours": 8.0, "energy": 4},
+    {"date": "2026-01-07", "sleep_hours": 6.0, "energy": 1},
+    {"date": "2026-01-09", "sleep_hours": 7.5, "energy": 3},
+    {"date": "2026-01-12", "sleep_hours": 9.0, "energy": 1}
+  ]
+}

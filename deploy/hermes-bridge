@@ -118,7 +118,7 @@ def _audit(record):
 
 # personal free text: audited as sha256+length, never verbatim (same policy as
 # write-note stdin) — the audit proves WHICH text was written without keeping it
-REDACT_FLAGS = {"--why", "--note"}
+REDACT_FLAGS = {"--why", "--note", "--value", "--dob"}
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 _FEATURE_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,159}$")
 _PANEL_SESSION = re.compile(
@@ -232,6 +232,8 @@ def _validate(subcmd, args):
         return f"subcommand not allowed via the bridge: {subcmd}"
     if len(args) > MAX_ARGS:
         return "too many arguments"
+    if subcmd in {"nutrition-profile-set", "training-evidence", "training-context-log"}:
+        return _evidence_workflow_values(subcmd, args)
     if subcmd == "analysis-job-start":
         return None if not args else "analysis job start accepts only request JSON"
     if subcmd == "analysis-job-status":
@@ -276,6 +278,59 @@ def _validate(subcmd, args):
             return "invalid readiness dates"
         return None
     return _phase5_values(subcmd, args)
+
+
+def _evidence_workflow_values(subcmd, args):
+    """Accept only complete, unique flag/value pairs for the bounded workflow."""
+    flags = {}
+    if len(args) % 2:
+        return "expected complete flag/value pairs"
+    for index in range(0, len(args), 2):
+        flag, value = args[index:index + 2]
+        if flag not in ALLOWED[subcmd] or flag in flags:
+            return "unknown or repeated workflow flag"
+        if not isinstance(value, str) or "\x00" in value:
+            return "invalid workflow value"
+        flags[flag] = value
+    required = {
+        "nutrition-profile-set": {"--height-cm", "--sex", "--dob"},
+        "training-evidence": set(),
+        "training-context-log": {"--capture-id", "--subject-kind", "--subject-key", "--context-key", "--effective-from"},
+    }[subcmd]
+    if not required <= flags.keys():
+        return "missing required workflow flags"
+    if subcmd == "nutrition-profile-set":
+        try:
+            height = float(flags["--height-cm"])
+            birth = date.fromisoformat(flags["--dob"])
+        except ValueError:
+            return "invalid profile values"
+        if not 100 <= height <= 250 or flags["--sex"] not in {"male", "female"}:
+            return "invalid profile values"
+        if birth.isoformat() != flags["--dob"] or birth < date(1900, 1, 1):
+            return "invalid profile date"
+    if subcmd == "training-context-log":
+        keys = {
+            "exercise": {"setup", "side", "pain_limited"},
+            "fitness": {"setup", "pain_limited"},
+            "pain": {"location", "provoking_movement"},
+            "history": {"history_note"},
+        }
+        if flags["--context-key"] not in keys.get(flags["--subject-kind"], set()):
+            return "invalid context field"
+        status = flags.get("--status", "answered")
+        if status not in {"answered", "skipped"}:
+            return "invalid context status"
+        if status == "answered" and (not flags.get("--value") or len(flags["--value"]) > 1000):
+            return "invalid context answer"
+        if status == "skipped" and "--value" in flags:
+            return "skipped context cannot contain an answer"
+        if any(not flags[key] or flags[key].strip() != flags[key] or len(flags[key]) > 200
+               for key in ("--capture-id", "--subject-key")):
+            return "invalid context identity"
+        if "--supersedes-id" in flags and not re.fullmatch(r"[1-9][0-9]*", flags["--supersedes-id"]):
+            return "invalid correction identity"
+    return None
 
 
 def _analysis_request(stdin):
@@ -327,12 +382,20 @@ def _analysis_request(stdin):
 
 def _audit_argv(subcmd, args):
     """argv for audit records, with free-text flag values redacted."""
+    if subcmd in {"training-context-log", "nutrition-profile-set"}:
+        # Refused argv can be malformed or ambiguous; hash the complete request.
+        raw = json.dumps(args, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        return [subcmd, f"sha256:{hashlib.sha256(raw).hexdigest()} ({len(raw)}B)"]
     red = [subcmd]
     i = 0
     while i < len(args):
         a = args[i]
         red.append(a)
-        if a in REDACT_FLAGS and i + 1 < len(args):
+        if "=" in a and a.split("=", 1)[0] in REDACT_FLAGS:
+            flag, value = a.split("=", 1)
+            raw = value.encode("utf-8")
+            red[-1] = f"{flag}=sha256:{hashlib.sha256(raw).hexdigest()[:16]} ({len(raw)}B)"
+        elif a in REDACT_FLAGS and i + 1 < len(args):
             raw = args[i + 1].encode("utf-8")
             red.append(f"sha256:{hashlib.sha256(raw).hexdigest()[:16]} ({len(raw)}B)")
             i += 1

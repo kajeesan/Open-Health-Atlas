@@ -143,7 +143,7 @@ def test_readiness_default_mode_is_governed_and_privacy_projected(client):
     assert body["evidence"]["snapshot_integrity"]["schema_version"] == 6
 
 
-@pytest.mark.parametrize("schema_version, lane", [(5, "accepted-v5"), (6, "development-v6"), (7, "development-v7")])
+@pytest.mark.parametrize("schema_version, lane", [(5, "accepted-v5"), (6, "development-v6"), (7, "development-v7"), (8, "development-v8")])
 def test_fixed_fictional_scope_is_server_owned_and_evidence_bearing(
     tmp_path, monkeypatch, schema_version, lane,
 ):

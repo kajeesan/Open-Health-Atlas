@@ -203,7 +203,7 @@ def _insert_legacy_synthesis(connection: sqlite3.Connection) -> None:
 def test_migration_006_name_and_checksum_are_frozen():
     migration = MIGRATION_BY_VERSION[6]
     normalized = MIGRATION_006_SQL.replace("\r\n", "\n").replace("\r", "\n")
-    assert AUTONOMOUS_SCHEMA_VERSION == 7
+    assert AUTONOMOUS_SCHEMA_VERSION == 8
     assert migration.name == "006_provider_neutral_synthesis"
     assert migration.checksum == FROZEN_MIGRATION_006_CHECKSUM
     assert hashlib.sha256(normalized.encode()).hexdigest() == migration.checksum
@@ -221,7 +221,7 @@ def test_current_schema_can_intentionally_stop_at_v5_then_upgrade_to_v6(tmp_path
     at_v5 = schema_status(str(database))
     assert at_v5["current_version"] == 5
     assert at_v5["status"] == "pending"
-    assert [item["version"] for item in at_v5["pending"]] == [6, 7]
+    assert [item["version"] for item in at_v5["pending"]] == [6, 7, 8]
 
     plan = schema_plan(str(database), 6)
     assert [item["version"] for item in plan["steps"]] == [6]

@@ -188,8 +188,9 @@ and protected generic health tools also retain separate limits.
 
 Deploy the complete matching toolkit and broker declarations. An older health
 database needs an explicit schema plan and migrations through `health.py`;
-version 6 rebuilds two synthesis tables and version 7 updates the lab catalog
-constraint while preserving records and historical confirmation labels. Make verified consistent
+version 6 rebuilds two synthesis tables, version 7 updates the lab catalog
+constraint, and [version 8](#training-context-schema-compatibility) adds training
+context and source revisions. Make verified consistent
 snapshots first, rehearse locally on the server, pause writers during the final
 migration and compare named-column record contents before resuming. A failed
 later migration can leave an earlier step committed; restore the verified
@@ -215,6 +216,25 @@ continues to write `user-confirmed`. Rehearse upgrades against verified private
 copies before enabling the updated code against existing records.
 
 Readiness fixture lanes remain explicit: accepted-v5, development-v6 and
-development-v7 identify their exact schema versions. Existing fixtures are
+development-v7 identify their exact schema versions; development-v8 identifies
+the training-context schema. Existing fixtures are
 validated and keep their matching lane; configuration changes do not silently
 migrate or relabel them.
+
+## Training-context schema compatibility
+
+Migration `008_training_context` adds source-revision and reported-context
+tables to the public v7 schema. It preserves the provider-neutral synthesis
+migration at v6 and lab-confirmation history at v7. Use the snapshot, rehearsal
+and rollback procedure above; context reads and writes require v8.
+
+An older experimental ledger named `006_training_context` conflicts with the
+public v6 identity and is rejected with `migration_checksum_mismatch`. No
+conversion route is supplied. Do not edit its ledger, relabel the database or
+reuse it as a public-v7 upgrade fixture. Keep it with compatible code until a
+separate, verified conversion is available.
+
+Deploy matching panel, broker declarations and CLI code for the new bounded
+profile/context operations. Standalone MCP remains read-only and cannot apply
+the migration or capture context. Existing protected Hermes deployments retain
+their original generic tool contract; updating local MCP does not extend it.

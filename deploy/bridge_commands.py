@@ -63,6 +63,12 @@ COMMAND_FLAGS = {
     # T44 targets engine — read-only compute, zero flags (profile-set /
     # phase-set / nutrition-target-set are owner config, NOT here)
     "nutrition-targets":   set(),
+    "nutrition-profile-set": {"--height-cm", "--sex", "--dob"},
+    "training-evidence": {"--from", "--to", "--region", "--side"},
+    "training-context-log": {
+        "--capture-id", "--subject-kind", "--subject-key", "--context-key",
+        "--effective-from", "--effective-to", "--status", "--value", "--supersedes-id",
+    },
     # T46 target-coverage score — read-only, shares the T44 targets engine;
     # value whitelist (7/30/90/365) is enforced by health.py's own argparse
     # choices, this flag whitelist is defense in depth
@@ -113,6 +119,7 @@ COMMAND_FLAGS = {
 # Preserve the existing client-side flag-check subset. The broker checks flags
 # for every command; extending client checks is a separate behavior change.
 CLIENT_FLAG_CHECKS = {
+    "nutrition-profile-set", "training-evidence", "training-context-log",
     "day-rating", "log-commitment", "checkin", "eat", "log-food", "readiness",
     "feature-registry", "feature-frame", "data-readiness", "goal-list",
     "outcome-associations", "finding-evidence", "hypothesis-promote",

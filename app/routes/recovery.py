@@ -6,14 +6,17 @@ that is a normal, valid reply here, not a bridge error, so the client
 renders the honest state itself rather than the panel guessing at one.
 """
 from copy import deepcopy
-from datetime import date
+from datetime import date, timedelta
 import hashlib
 import json
 import re
 
 from flask import Blueprint, current_app, jsonify, request
 
-from app import bridge
+from app import bridge, canon
+from toolkit.hermes_insights.catalogs import PAIN_CAUSE_MAP
+from toolkit.hermes_insights.provenance import sha256_id
+from toolkit.hermes_insights.training_context import CONTEXT_KEYS
 
 bp = Blueprint("recovery", __name__, url_prefix="/api/recovery")
 
@@ -25,6 +28,7 @@ _FIXTURE_LANE_SCHEMA = {
     "accepted-v5": 5,
     "development-v6": 6,
     "development-v7": 7,
+    "development-v8": 8,
 }
 _FINGERPRINT_SCOPE = [
     "calculation_relevant_projection",
@@ -122,7 +126,7 @@ def _public_readiness_evidence(result, *, expected_schema_version=None):
         or projected_integrity["status"] != "verified"
         or projected_integrity["scope"]
         != "current_snapshot_integrity_and_reproducibility"
-        or projected_integrity["schema_version"] not in {5, 6, 7}
+        or projected_integrity["schema_version"] not in {5, 6, 7, 8}
         or (
             expected_schema_version is not None
             and projected_integrity["schema_version"] != expected_schema_version
@@ -374,3 +378,120 @@ def readiness():
     if scope is not None:
         evidence.update(scope)
     return jsonify(ok=True, result=result, evidence=evidence)
+
+
+def _training_display_scope():
+    _args, scope = _fixed_scope()
+    return {
+        "anchor_date": scope["anchor_date"] if scope else canon.today_iso(),
+        "data_class": "fictional" if scope else "personal",
+    }
+
+
+@bp.get("/training-evidence")
+def training_evidence():
+    """Read a bounded canonical packet; empty records remain a successful read."""
+    allowed = {"from", "to", "region", "side"}
+    if set(request.args) - allowed or any(len(request.args.getlist(key)) != 1 for key in request.args):
+        return jsonify(ok=False, error="unexpected or repeated query parameter"), 400
+    try:
+        display = _training_display_scope()
+    except ValueError:
+        return jsonify(ok=False, error="recovery display configuration is invalid"), 503
+    try:
+        if ("from" in request.args) != ("to" in request.args):
+            raise ValueError("provide both from and to dates")
+        anchor = canon.canonical_date(display["anchor_date"])
+        end = canon.canonical_date(request.args.get("to", anchor.isoformat()), field="to")
+        start = canon.canonical_date(request.args["from"], field="from") if "from" in request.args else end - timedelta(days=6)
+        if start > end or (end - start).days > 365 or end > anchor:
+            raise ValueError("choose an ordered range of at most 366 days, ending on or before the displayed anchor")
+        region = request.args.get("region", "knee")
+        side = request.args.get("side")
+        if region not in {"knee", *PAIN_CAUSE_MAP}:
+            raise ValueError("unknown pain region")
+        if side not in {None, "left", "right", "central"}:
+            raise ValueError("side must be left, right or central; omit it for all sides")
+    except (ValueError, OverflowError) as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    args = ["--from", start.isoformat(), "--to", end.isoformat(), "--region", region]
+    if side is not None:
+        args.extend(["--side", side])
+    try:
+        packet = bridge.run("training-evidence", *args)
+    except bridge.BridgeError as exc:
+        return jsonify(ok=False, error=str(exc), code=exc.code), 502
+    collections = (
+        "training_records", "training_exposure", "pain_reports", "fitness_measurements",
+        "coverage", "next_questions", "remembered_context", "training_before_symptoms",
+    )
+    if (
+        not isinstance(packet, dict)
+        or packet.get("contract") != "training-evidence-v1"
+        or packet.get("range") != {"from": start.isoformat(), "to": end.isoformat()}
+        or packet.get("region") != region or packet.get("side") != side
+        or any(not isinstance(packet.get(key), list) for key in collections)
+        or not isinstance(packet.get("recovery"), dict)
+        or any(not isinstance(packet["recovery"].get(key), list) for key in ("daily", "sleep", "reported"))
+        or packet.get("evidence_id") != sha256_id({key: value for key, value in packet.items() if key != "evidence_id"})
+    ):
+        return jsonify(ok=False, error="training evidence failed validation"), 502
+    display.update(range_from=start.isoformat(), range_to=end.isoformat())
+    return jsonify(ok=True, result=packet, display=display)
+
+
+@bp.post("/training-context")
+def training_context():
+    """Save an explicit answer, unknown skip or correction through the broker."""
+    body = request.get_json(silent=True)
+    required = {"capture_id", "subject_kind", "subject_key", "context_key", "effective_from", "status"}
+    optional = {"effective_to", "value", "supersedes_id"}
+    if not isinstance(body, dict) or not required <= body.keys() or body.keys() - required - optional:
+        return jsonify(ok=False, error="context requires the exact documented fields"), 400
+    try:
+        display = _training_display_scope()
+    except ValueError:
+        return jsonify(ok=False, error="recovery display configuration is invalid"), 503
+    try:
+        kind, key = body["subject_kind"], body["context_key"]
+        if not isinstance(kind, str) or not isinstance(key, str) or key not in CONTEXT_KEYS.get(kind, set()):
+            raise ValueError("invalid context field")
+        for field in ("capture_id", "subject_key"):
+            value = body[field]
+            if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > 200 or "\x00" in value:
+                raise ValueError(f"{field} must contain 1–200 characters without surrounding whitespace")
+        start = canon.canonical_date(body["effective_from"], field="effective_from")
+        end = canon.canonical_date(body["effective_to"], field="effective_to") if body.get("effective_to") is not None else None
+        anchor = canon.canonical_date(display["anchor_date"])
+        if start > anchor or (end is not None and (end < start or end > anchor)):
+            raise ValueError("context dates must be ordered and not after the displayed anchor")
+        status, value = body["status"], body.get("value")
+        if not isinstance(status, str) or status not in {"answered", "skipped"}:
+            raise ValueError("context status must be answered or skipped")
+        if status == "skipped" and value is not None:
+            raise ValueError("a skipped answer must remain unknown")
+        if status == "answered":
+            if not isinstance(value, str) or not value.strip() or len(value) > 1000 or "\x00" in value:
+                raise ValueError("answer must contain 1–1000 characters")
+            if key == "side" and value not in {"left", "right", "bilateral"}:
+                raise ValueError("exercise side must be left, right or bilateral")
+            if key == "pain_limited" and value not in {"yes", "no"}:
+                raise ValueError("pain-limited answer must be yes or no")
+        correction = body.get("supersedes_id")
+        if correction is not None and (type(correction) is not int or correction < 1):
+            raise ValueError("supersedes_id must be a positive integer")
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    args = []
+    for field in ("capture_id", "subject_kind", "subject_key", "context_key", "effective_from",
+                  "effective_to", "status", "value", "supersedes_id"):
+        if body.get(field) is not None:
+            args.extend(["--" + field.replace("_", "-"), str(body[field])])
+    try:
+        result = bridge.run("training-context-log", *args)
+    except bridge.BridgeError as exc:
+        status_code = 409 if exc.code in {"capture_id_conflict", "context_already_corrected"} else 400 if exc.code else 502
+        return jsonify(ok=False, error=str(exc), code=exc.code), status_code
+    if not isinstance(result, dict) or result.get("ok") is not True or type(result.get("id")) is not int:
+        return jsonify(ok=False, error="context confirmation failed validation"), 502
+    return jsonify(ok=True, result=result)

@@ -1,5 +1,37 @@
 # Independent source-release review
 
+## Local evidence workflow review, 2 October 2026
+
+Independent GPT-6 Astra reviewers examined the local candidate based on
+`aff70dfeb8c16a81f5294ffa2e69ae67ff897181`. The implementers did not supply their
+own independent approval. The reviewed scopes are accepted with no unresolved
+blocking findings; this is not publication or clinical approval.
+
+The write-boundary review verified closed broker operations, authentication,
+CSRF, atomic profile saves and audit privacy. A malformed-argument disclosure
+was reproduced and fixed by hashing complete sensitive write requests in both
+audit surfaces.
+
+The evidence review verified v8 migration refusal/upgrade behavior, immutable
+source/context revisions, correction resolution, read-only access and replay.
+It reproduced and verified fixes for mixed fitness protocols, import-order
+identity drift, parentless quarterly derivations, rounded-zero baselines and
+hidden partial nutrition observations.
+
+The interface review verified record-specific prompts and corrections,
+bilateral denominator presentation, source-specific denominators, visible
+partial subtotals and asynchronous profile/weight refreshes. Reproduced target
+ambiguity and stale-response races were fixed and rechecked. A later responsive
+class change and the scoped ledger-trigger assertion were separately reviewed.
+
+Exact content hashes and independent reproduction logs were retained outside
+the checkout. The coordinator separately completed the full disjoint test
+partitions and browser checks recorded in
+[Verification](VERIFICATION.md#local-evidence-workflow-candidate-2-october-2026).
+No live model, private health records or production service were used.
+
+## Historical initial source-release review
+
 Review date: 16 September 2026.
 
 This is the historical review of the initial MIT release. It is not an
