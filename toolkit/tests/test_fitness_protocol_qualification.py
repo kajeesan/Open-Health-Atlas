@@ -121,6 +121,21 @@ def test_distinct_known_setups_are_not_pooled(fitness_db, context, outcome):
     assert row["candidate_qualification"]["reasons"] == ["mixed_protocols"]
 
 
+def test_research_reference_does_not_create_band_observations(fitness_db, context):
+    seed_protocols(fitness_db, ["fixture-machine"] * 5)
+    definitions = registry.build_registry(fitness_db, context, family="fitness")
+    window = DateRange(date(2026, 6, 1), date(2026, 6, 5))
+
+    result = frame.build_feature_frame(
+        fitness_db, definitions, window, context, include_provenance=True,
+    )
+
+    assert [row for row in result["observations"]
+            if row["feature_key"] == "fitness.ratio.hq.left.value"]
+    assert not [row for row in result["observations"]
+                if row["feature_key"].endswith(".distance_to_band")]
+
+
 def test_single_setup_range_ignores_other_protocols_outside_range(fitness_db, context):
     seed_protocols(fitness_db, ["fixture-machine-a"] * 10 + ["fixture-machine-b"] * 30)
     definitions = registry.build_registry(fitness_db, context)

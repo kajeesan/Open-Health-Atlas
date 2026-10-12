@@ -114,28 +114,40 @@ ATHLETIC_AXES = {
 ATHLETIC_STALE_DAYS = 120   # quarterly cadence + grace; score kept but flagged
 
 # Gym-load and endurance ratios remain descriptive: published protocols do not
-# establish universal personal targets for these measurements.
+# establish universal personal targets for these measurements. `ideal`/`band`
+# stay None so no target enters flags or analysis. `reference` carries the
+# published research value for display and agent context only: `typical`,
+# optional `range` [lo, hi] (None = open end), an `evidence` grade
+# (strong | moderate | rough_estimate) and how the study measured it.
 RATIO_SEED = [
     {"key": "hq", "kind": "strength", "num": "leg-curl", "den": "leg-extension",
      "num_label": "Hamstring", "den_label": "Quadriceps", "per_side": True,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "seated leg curl : leg extension 6–8RM e1RM, per side",
-     "cite": "Aagaard 1998 Am J Sports Med; Grygorowicz 2010 Biol Sport 27(1):47–51"},
+     "cite": "Aagaard 1998 Am J Sports Med; Grygorowicz 2010 Biol Sport 27(1):47–51",
+     "reference": {"typical": 0.60, "range": [0.55, 0.65], "evidence": "strong",
+                   "measured_with": "isokinetic dynamometer knee torque, not gym-machine loads"}},
     {"key": "elbow", "kind": "strength", "num": "biceps-curl", "den": "triceps-extension",
      "num_label": "Elbow flexors", "den_label": "Elbow extensors", "per_side": True,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "biceps curl (SUPINATED grip) : triceps extension e1RM, per side",
-     "cite": "Lategan & Krüger 2007, SA J Res Sport Phys Educ Recreat 29(2):67–74 (supinated ≈1.19)"},
+     "cite": "Lategan & Krüger 2007, SA J Res Sport Phys Educ Recreat 29(2):67–74 (supinated ≈1.19)",
+     "reference": {"typical": 1.19, "range": [1.01, 1.37], "evidence": "moderate",
+                   "measured_with": "published elbow strength testing with a supinated grip"}},
     {"key": "reardelt", "kind": "strength", "num": "rear-delt-fly", "den": "front-raise",
      "num_label": "Rear delt", "den_label": "Front delt", "per_side": True,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "reverse fly : front raise e1RM — directional proxy for horiz. abd:add",
-     "cite": "Ivey 1985 Arch Phys Med Rehabil 66(6):384–386 (add:abd ≈2:1 → rear:front ≈0.5)"},
+     "cite": "Ivey 1985 Arch Phys Med Rehabil 66(6):384–386 (add:abd ≈2:1 → rear:front ≈0.5)",
+     "reference": {"typical": 0.50, "range": [0.40, 0.60], "evidence": "rough_estimate",
+                   "measured_with": "derived from shoulder adduction:abduction torque (≈2:1), not measured as fly:raise loads"}},
     {"key": "erir", "kind": "strength", "num": "shoulder-er", "den": "shoulder-ir",
      "num_label": "External rot.", "den_label": "Internal rot.", "per_side": True,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "cable ER : IR e1RM, per side",
-     "cite": "IJSPT 2021 art.22162 (overhead-athlete review, ER:IR ≈0.66)"},
+     "cite": "IJSPT 2021 art.22162 (overhead-athlete review, ER:IR ≈0.66)",
+     "reference": {"typical": 0.66, "range": [0.66, None], "evidence": "moderate",
+                   "measured_with": "isokinetic shoulder rotation torque in overhead athletes"}},
     {"key": "ankle", "kind": "strength", "num": "tibialis-raise", "den": "calf-raise",
      "num_label": "Dorsiflexors", "den_label": "Plantarflexors", "per_side": True,
      "ideal": None, "band": None, "evidence": "tracking",
@@ -145,7 +157,9 @@ RATIO_SEED = [
      "num_label": "Hip flexors", "den_label": "Hip extensors", "per_side": True,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "standing cable hip flexion : extension e1RM, per side — trend-only (population SD ±0.61 too wide for a target)",
-     "cite": "IJSPT 2024 art.124117 Table 3 (standing, male mean 1.36±0.61 — context, not a target)"},
+     "cite": "IJSPT 2024 art.124117 Table 3 (standing, male mean 1.36±0.61 — context, not a target)",
+     "reference": {"typical": 1.36, "range": None, "evidence": "rough_estimate",
+                   "measured_with": "standing hip strength testing in men; population spread ±0.61"}},
     {"key": "hip-abadd", "kind": "strength", "num": "hip-abduction", "den": "hip-adduction",
      "num_label": "Hip abductors", "den_label": "Hip adductors", "per_side": True,
      "ideal": None, "band": None, "evidence": "tracking",
@@ -170,13 +184,17 @@ RATIO_SEED = [
      "num_label": "Trunk flexors", "den_label": "Trunk extensors", "per_side": False,
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "flexor : Sørensen extensor endurance hold (seconds)",
-     "cite": "McGill 1999 (male mean flexor:extensor ≈0.66)"},
+     "cite": "McGill 1999 (male mean flexor:extensor ≈0.66)",
+     "reference": {"typical": 0.66, "range": [None, 1.00], "evidence": "strong",
+                   "measured_with": "the same endurance-hold test in healthy young men"}},
     {"key": "mcgill-sbe", "kind": "hold", "num": "mcgill-side-bridge", "den": "mcgill-extensor",
      "num_label": "Side bridge", "den_label": "Trunk extensors", "per_side": True,
      "den_side": "bilateral",
      "ideal": None, "band": None, "evidence": "descriptive",
      "method": "side-bridge : extensor endurance hold (seconds), per side",
-     "cite": "McGill 1999 (male mean side-bridge:extensor ≈0.65)"},
+     "cite": "McGill 1999 (male mean side-bridge:extensor ≈0.65)",
+     "reference": {"typical": 0.65, "range": [0.55, 0.75], "evidence": "strong",
+                   "measured_with": "the same endurance-hold test in healthy young men"}},
 ]
 
 # Medication grouping is deployment-owned configuration. The public default is

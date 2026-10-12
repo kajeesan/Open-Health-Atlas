@@ -1,5 +1,13 @@
 # Release verification
 
+## Research context for tested ratios, 12 October 2026
+
+The display-only ratio references were verified on the integration branch with
+the same environment and partitions as the integration record below:
+2,538 application, 15 journey and 6 MCP protocol tests passed (2,559 total, no
+failures or skips). Engine identity is unchanged, and the journeys replayed
+all ten trace pins exactly, so analytical outputs are byte-identical.
+
 ## Integrated public repairs and local evidence, 12 October 2026
 
 Source: branch `codex/integrate-public-fixes-local-evidence`, the merge of

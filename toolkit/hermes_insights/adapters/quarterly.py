@@ -307,14 +307,31 @@ def fitness_items(conn, catalog, e1rm_fn, through=None):
     return items
 
 
+def _reference_position(ratio, reference):
+    """Place a ratio against published research context without judging it."""
+    bounds = (reference or {}).get("range")
+    if ratio is None or not bounds:
+        return None
+    low, high = bounds
+    if low is not None and ratio < low:
+        return "below_research_range"
+    if high is not None and ratio > high:
+        return "above_research_range"
+    return "within_research_range"
+
+
 def tested_ratio_summary(conn, catalog, seeds, e1rm_fn, anchor):
     """Return the current view of the same parent episodes consumed by the feature adapter."""
     valid = fitness_items(conn, catalog, e1rm_fn, anchor.isoformat())
     result = []
     for seed in seeds:
         row = {key: seed.get(key) for key in (
-            "key", "num_label", "den_label", "ideal", "band", "evidence", "method", "cite", "per_side")}
-        row.update(reference_eligible=False, reference_version="gym-reference-applicability-v1",
+            "key", "num_label", "den_label", "ideal", "band", "evidence", "method", "cite", "per_side",
+            "reference")}
+        # A published reference is display and conversation context only; it is
+        # never a personal target, flag or analytical input.
+        row.update(reference_eligible=False, reference_version="gym-reference-applicability-v2",
+                   reference_use="research_context_only" if seed.get("reference") else None,
                    reference_reason="measurement_method_or_population_not_validated",
                    formula_version="fitness-comparisons-v2", sides=[])
         for side in (("left", "right") if seed["per_side"] else ("bilateral",)):
@@ -345,6 +362,7 @@ def tested_ratio_summary(conn, catalog, seeds, e1rm_fn, anchor):
                 "comparison_eligible": episode["comparison_eligible"],
                 "limitations": episode["limitations"],
                 "protocol_valid": "outside_protocol_range" not in episode["limitations"],
+                "reference_position": _reference_position(round(episode["value"], 2), seed.get("reference")),
                 "flag": "outside_protocol_range" if "outside_protocol_range" in episode["limitations"] else "trend_only",
             })
         gaps = _ratio_side_gap_episodes(valid, seed) if seed["per_side"] else []

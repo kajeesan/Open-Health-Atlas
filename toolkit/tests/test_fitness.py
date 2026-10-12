@@ -226,6 +226,40 @@ def test_tested_hq_is_descriptive_and_symmetric(db):
     assert hq["reference_eligible"] is False
 
 
+@pytest.mark.parametrize("curl,position", [
+    (24, "below_research_range"),    # 0.48
+    (30, "within_research_range"),   # 0.60
+    (40, "above_research_range"),    # 0.80
+])
+def test_tested_ratio_shows_research_reference_without_judging(db, curl, position):
+    _log_pair(db, "leg-curl", "leg-extension", curl, 50)
+    hq = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "hq")
+    assert hq["reference"] == {
+        "typical": 0.6, "range": [0.55, 0.65], "evidence": "strong",
+        "measured_with": "isokinetic dynamometer knee torque, not gym-machine loads",
+    }
+    assert hq["reference_use"] == "research_context_only"
+    assert hq["reference_eligible"] is False
+    # Research context never becomes a target, band or verdict.
+    assert hq["ideal"] is None and hq["band"] is None
+    assert [side["reference_position"] for side in hq["sides"]] == [position, position]
+    assert [side["flag"] for side in hq["sides"]] == ["trend_only", "trend_only"]
+
+
+def test_ratio_without_published_reference_stays_unlabelled(db):
+    _log_pair(db, "tibialis-raise", "calf-raise", 20, 40)
+    ankle = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "ankle")
+    assert ankle["reference"] is None and ankle["reference_use"] is None
+    assert [side["reference_position"] for side in ankle["sides"]] == [None, None]
+
+
+def test_open_ended_reference_range_has_only_a_lower_bound(db):
+    _log_pair(db, "shoulder-er", "shoulder-ir", 20, 25)                # 0.80
+    erir = next(r for r in run(db, "strength-ratios", "--view", "tested")["rows"] if r["key"] == "erir")
+    assert erir["reference"]["range"] == [0.66, None]
+    assert erir["sides"][0]["reference_position"] == "within_research_range"
+
+
 def test_tested_side_gap_describes_asymmetry_without_a_cutoff(db):
     run(db, "fitness-test-log", "leg-extension", "--side", "left", "--load", "40", "--reps", "8")
     run(db, "fitness-test-log", "leg-extension", "--side", "right", "--load", "60", "--reps", "8")

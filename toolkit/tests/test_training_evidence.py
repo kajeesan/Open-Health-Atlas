@@ -237,6 +237,9 @@ def test_ratios_expose_comparison_limitations(db, den_date, expected):
     assert ratio["sides"][0]["flag"] == "trend_only"
     assert expected in ratio["sides"][0]["limitations"]
     assert ratio["reference_eligible"] is False
+    assert ratio["reference"]["typical"] == 0.6
+    assert ratio["reference_use"] == "research_context_only"
+    assert ratio["sides"][0]["reference_position"] == "within_research_range"
     assert ratio["sides"][1]["status"] == "insufficient_data"
 
 

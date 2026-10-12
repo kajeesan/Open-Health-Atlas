@@ -154,6 +154,15 @@ adequate absolute strength or explain pain. Gym-load e1RM has no validated
 population reference in this implementation; tested target bands and
 diagnostic asymmetry cutoffs are not applied.
 
+Where a cited study reports one, a ratio carries a `reference` with the
+published typical value, optional range, an evidence grade (`strong`,
+`moderate` or `rough_estimate`) and how the study measured it. Each side
+states `reference_position` relative to that range. The reference is research
+context for display and conversation (`reference_use: research_context_only`):
+it does not set `ideal` or `band`, change flags or colors, or create
+distance-to-band observations. Most references come from dynamometer torque
+or derived ratios, not gym-machine loads, so they are not personal targets.
+
 Comparison eligibility requires recorded setup, matching measurement dates and
 explicitly non-pain-limited effort; strength tests also retain their repetition
 protocol gate. Missing setup, different setups, mixed sessions, missing sides

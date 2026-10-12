@@ -24,9 +24,10 @@ async function main() {
     sides:[{side:'left',status:'insufficient_data',limitations:['zero_denominator']},
            {side:'right',status:'insufficient_data'}]};
   const mcgill={key:'mcgill-sbe',num_label:'Side bridge',den_label:'Trunk extensors',per_side:true,
-    evidence:'descriptive',cite:'Fictional hold reference',sides:[
-      {side:'left',num_side:'left',den_side:'bilateral',ratio:0.6,num_value:60,den_value:100,limitations:[],parent_ids:['left-hold','bilateral-hold']},
-      {side:'right',num_side:'right',den_side:'bilateral',ratio:0.7,num_value:70,den_value:100,limitations:[],parent_ids:['right-hold','bilateral-hold']},
+    evidence:'descriptive',cite:'Fictional hold reference',
+    reference:{typical:0.65,range:[0.55,0.75],evidence:'strong',measured_with:'a fictional <hold> protocol'},sides:[
+      {side:'left',num_side:'left',den_side:'bilateral',ratio:0.6,num_value:60,den_value:100,limitations:[],parent_ids:['left-hold','bilateral-hold'],reference_position:'within_research_range'},
+      {side:'right',num_side:'right',den_side:'bilateral',ratio:0.8,num_value:80,den_value:100,limitations:[],parent_ids:['right-hold','bilateral-hold'],reference_position:'above_research_range'},
     ]};
   async function fetch(url) {
     if(url==='/api/training/exercises') return {status:200,ok:true,json:async()=>({exercises:[]})};
@@ -65,6 +66,19 @@ async function main() {
   assert.match(tooltip(4),/ratio 0.6/);
   assert.match(tooltip(4),/one bilateral measurement shared across side ratios/);
   assert.match(tooltip(5),/not independent left\/right measurements/);
+  // Published research context is shown, labelled and never coloured as a verdict.
+  assert.equal(options.series[1].label.formatter({dataIndex:4}),'0.6 (recorded) · research ≈0.65');
+  assert.match(tooltip(4),/Research: typical 0.65 · range 0.55–0.75 · strong evidence/);
+  assert.match(tooltip(4),/Your ratio is within the research range/);
+  assert.match(tooltip(5),/Your ratio is above the research range/);
+  assert.match(tooltip(4),/a fictional &lt;hold&gt; protocol\. Context, not a personal target/);
+  assert.doesNotMatch(tooltip(4),/no validated target range/);
+  assert.equal(options.series[0].data[4].itemStyle.color,'--ch-1');
+  assert.equal(options.series[0].data[5].itemStyle.color,'--ch-1');
+  const marker=options.series[2];
+  assert.equal(marker.type,'scatter');
+  assert.equal(JSON.stringify(marker.data),JSON.stringify([[-0.65/1.65,4],[-0.65/1.65,5]]));
+  assert.match(node('ratio-note').textContent,/◇ marks the typical ratio in published research \(context, not a target\)/);
   assert.equal(tabs.has('mflens'),true);
   assert.equal(tabs.has('mfside'),true);
   assert.match(node('mf-note').textContent,/shared regions are not independent measurements/);

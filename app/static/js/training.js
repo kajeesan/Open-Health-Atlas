@@ -513,6 +513,9 @@
     const rows = ratioView === "tested" ? ratioRowsTested(d.rows)
                                         : ratioRowsEveryday(d.rows);
     note.textContent = d.caveat || "";
+    if (ratioView === "tested" && rows.some(r => r.refShare != null)) {
+      note.textContent += " ◇ marks the typical ratio in published research (context, not a target).";
+    }
     if (!rows.length) {
       charts.ratio.setOption(emptyOpt(ratioView === "tested"
         ? "No isolation tests logged yet (log the quarterly battery)."
@@ -545,8 +548,31 @@
           itemStyle: { borderRadius: 3 },
           label: { show: true, position: "right", color: P.muted, fontSize: 11,
             formatter: (p) => rows[p.dataIndex].rightLabel } },
+        // Published research context: a hollow marker at the typical ratio's
+        // numerator share. Never coloured as a pass/fail judgement.
+        { name: "research", type: "scatter", symbol: "diamond", symbolSize: 10, z: 5,
+          silent: true, tooltip: { show: false },
+          itemStyle: { color: "transparent", borderColor: P.muted, borderWidth: 1.5 },
+          data: rows.map((r, i) => r.refShare == null ? null : [-r.refShare, i]).filter(Boolean) },
       ],
     });
+  }
+  const EVIDENCE_LABEL = { strong: "strong evidence", moderate: "moderate evidence",
+    rough_estimate: "rough estimate" };
+  const POSITION_LABEL = { below_research_range: "below the research range",
+    within_research_range: "within the research range",
+    above_research_range: "above the research range" };
+  function researchText(ref, position) {
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g,
+      (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+    const range = Array.isArray(ref.range)
+      ? (ref.range[0] == null ? `below ${ref.range[1]}` : ref.range[1] == null
+        ? `${ref.range[0]} or higher` : `${ref.range[0]}–${ref.range[1]}`)
+      : null;
+    return `<br>Research: typical ${esc(ref.typical)}` + (range ? ` · range ${esc(range)}` : "")
+      + ` · ${esc(EVIDENCE_LABEL[ref.evidence] || ref.evidence)}`
+      + (position ? `<br>Your ratio is ${esc(POSITION_LABEL[position] || position)}` : "")
+      + `<br><span class="muted">Measured with ${esc(ref.measured_with)}. Context, not a personal target.</span>`;
   }
   function ratioRowsTested(rows) {
     const out = [];
@@ -577,10 +603,13 @@
         const gap = r.per_side && r.side_gap != null
           ? `<br>Largest component L/R gap ${(r.side_gap * 100).toFixed(1)}% (descriptive)` : "";
         const gapLimitations = (r.side_gap_limitations || []).map((reason) => safeText(reason.replaceAll("_", " ")));
+        const ref = r.reference && Number.isFinite(r.reference.typical) ? r.reference : null;
         out.push({ label, ok: true, flag: "trend_only",
           numShare: s.num_value / tot, denShare: s.den_value / tot,
-          rightLabel: `${s.ratio} (recorded)`,
-          tip: `${safeText(label)}<br>ratio ${s.ratio} · no validated target range`
+          refShare: ref ? ref.typical / (1 + ref.typical) : null,
+          rightLabel: `${s.ratio} (recorded)` + (ref ? ` · research ≈${ref.typical}` : ""),
+          tip: `${safeText(label)}<br>ratio ${s.ratio}`
+             + (ref ? researchText(ref, s.reference_position) : " · no validated target range")
              + `<br>Recorded values ${s.num_value} : ${s.den_value}`
              + (sharedDenominator
                ? "<br>Denominator is one bilateral measurement shared across side ratios, not independent left/right measurements."

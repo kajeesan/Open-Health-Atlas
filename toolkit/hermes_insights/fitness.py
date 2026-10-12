@@ -361,6 +361,8 @@ def strength_ratios(c, view, *, clock):
     view = (view or "tested").lower()
     caveat = ("Estimated gym loads are not dynamometer torque. Tested ratios are "
               "descriptive, with no validated population target or diagnostic cutoff. "
+              "Research values are shown for context; most were measured differently, "
+              "so they are not personal targets. "
               "Unknown setup or effort limits comparisons. Everyday view is movement-pattern level.")
     if view == "everyday":
         rows, unmapped = everyday_ratios(c, clock=clock)

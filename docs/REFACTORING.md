@@ -1,5 +1,17 @@
 # Refactoring checkpoint
 
+## Research context for tested ratios, 12 October 2026
+
+The owner asked to show published muscle-ratio values again. `RATIO_SEED`
+entries with a cited value now carry a display-only `reference`; the
+analytical `ideal` and `band` remain empty, so flags, the body lens, readiness
+and associations are unchanged and no distance-to-band observations return.
+The tested-ratio summary, the strength-ratio view and the training evidence
+packet expose the reference and a neutral per-side position. The Training
+chart adds a hollow marker at the typical ratio and lists the range, evidence
+grade and measurement method in its tooltip. See
+[System design](SYSTEM_DESIGN.md#tested-strength-comparisons).
+
 ## Public repairs and local evidence integration, 12 October 2026
 
 Branch `codex/integrate-public-fixes-local-evidence` starts from public `main`
