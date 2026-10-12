@@ -171,7 +171,7 @@ def _configuration() -> dict[str, Any]:
     if type(value["synthesis_writeback_enabled"]) is not bool:
         raise Refused("synthesis writeback gate must be true or false")
     lane = value["readiness_fixture_lane"]
-    if lane not in {"accepted-v5", "development-v6", "development-v7"}:
+    if lane not in {"accepted-v5", "development-v6", "development-v7", "development-v8"}:
         raise Refused("readiness fixture lane is invalid")
     sidecar = value["readiness_ancestry_sidecar"]
     if lane == "accepted-v5":

@@ -11,6 +11,10 @@ from flask import Blueprint, current_app, jsonify, request
 
 from app import bridge, limiter
 from app.canon import CanonicalRangeError, canonical_range, range_bounds
+from toolkit.hermes_insights.frame import FrameError
+from toolkit.hermes_insights.hermes_surface import SurfaceError
+from toolkit.hermes_insights.local_surface import LocalSurface
+from toolkit.hermes_insights.migrations import SchemaError
 bp = Blueprint("insights", __name__, url_prefix="/api/insights")
 
 # Consistency page's range dropdown (owner-review r2), mirroring dash.py's
@@ -262,6 +266,51 @@ def canonical_window():
     except CanonicalRangeError:
         return _invalid_query("invalid_range")
     return jsonify(ok=True, result=result)
+
+
+def _descriptive_read(operation, arguments):
+    try:
+        surface = LocalSurface(
+            current_app.config["HEALTH_DB"],
+            timezone=current_app.config["HERMES_TIMEZONE"],
+        )
+        result = surface.execute({"operation": operation, "arguments": arguments})
+    except SurfaceError as exc:
+        status = 400 if exc.code == "validation_error" else 422
+        return jsonify(ok=False, error={"code": exc.code, "message": str(exc)}), status
+    except (OSError, ValueError, SchemaError, FrameError):
+        return jsonify(ok=False, error={
+            "code": "descriptive_unavailable",
+            "message": "Records could not be read. Check the configured database and try again.",
+        }), 503
+    response = jsonify(ok=True, result=result)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.get("/descriptive-catalog")
+def descriptive_catalog():
+    """Expose registered measurement choices from the configured local surface."""
+    if set(request.args) - {"cursor"}:
+        return _invalid_query("unexpected_query_parameter")
+    if len(request.args.getlist("cursor")) > 1:
+        return _invalid_query("duplicate_query_parameter")
+    return _descriptive_read("health_catalog", {
+        "cursor": request.args.get("cursor", "0"), "limit": 50,
+        "availability": ["implemented", "connected"],
+    })
+
+
+@bp.post("/descriptions")
+@limiter.limit("12/minute")
+def descriptions():
+    """Return descriptive records without inference gates or canonical writes."""
+    if request.args:
+        return _invalid_query("unexpected_query_parameter")
+    arguments = request.get_json(silent=True)
+    if not isinstance(arguments, dict):
+        return _invalid_query("invalid_descriptive_request")
+    return _descriptive_read("health_describe", arguments)
 
 
 @bp.get("/outcomes")

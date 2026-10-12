@@ -122,18 +122,16 @@ def adapter_context(*, clock=now, bindings=None, timezone=None):
     names. Only the declared adapter bindings are read, so a CLI compatibility
     namespace cannot introduce additional capabilities into the context.
     """
+    from .fitness import tested_ratios
+
     overrides = bindings if bindings is not None else {}
     constants = {
         name: overrides.get(name, getattr(catalogs, name))
         for name in _CONTEXT_CONSTANTS
     }
-    latest_tests = partial(
-        calculations._latest_tests,
-        today=partial(today, clock=clock), days_ago=partial(days_ago, clock=clock),
-    )
     defaults = {
         **vars(calculations),
-        "_tested_ratios": partial(calculations._tested_ratios, latest_tests=latest_tests),
+        "_tested_ratios": partial(tested_ratios, clock=clock),
     }
     if timezone is not None:
         defaults["_start_hhmm"] = partial(calculations._start_hhmm,

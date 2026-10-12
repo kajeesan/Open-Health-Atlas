@@ -34,7 +34,7 @@ def test_empty_initialization_is_external_private_and_idempotence_safe(tmp_path)
     health = sqlite3.connect(data_dir / "health.db")
     panel = sqlite3.connect(data_dir / "panel.db")
     try:
-        assert health.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 7
+        assert health.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 8
         assert health.execute("SELECT COUNT(*) FROM recipe_restock_state").fetchone()[0] == 0
         assert health.execute("SELECT COUNT(*) FROM daily_metrics").fetchone()[0] == 0
         assert health.execute("SELECT COUNT(*) FROM analysis_runs").fetchone()[0] == 0
@@ -101,7 +101,7 @@ def test_demo_is_fictional_migrated_and_reproducible_for_fixed_anchor(tmp_path):
 
     connection = sqlite3.connect(left)
     try:
-        assert connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 7
+        assert connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 8
         drugs = {row[0] for row in connection.execute("SELECT DISTINCT drug FROM meds_log")}
         assert drugs == {"medication"}
         assert connection.execute("SELECT COUNT(*) FROM exercise_submuscles").fetchone()[0] == 42

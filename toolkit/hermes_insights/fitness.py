@@ -7,6 +7,7 @@ import sys
 from . import calculations, migrations, runtime
 from .calculations import e1rm, _axis_score as axis_score, _ratio_flag as ratio_flag
 from .catalogs import ATHLETIC_AXES, ATHLETIC_STALE_DAYS, CATALOG, KIND_BETTER, MUSCLE_GROUP_AXES, RATIO_SEED
+from .adapters.quarterly import tested_ratio_summary
 
 
 # §3d EVERYDAY view — movement-PATTERN balance from compound e1RM. HEURISTIC
@@ -312,10 +313,8 @@ def athletic_radar(c, *, clock):
 
 
 def tested_ratios(c, *, clock):
-    return calculations._tested_ratios(
-        c, latest_tests=partial(latest_tests, clock=clock), stale_days=ATHLETIC_STALE_DAYS,
-        ratio_seed=RATIO_SEED, ratio_flag=ratio_flag,
-    )
+    """Return descriptive comparisons with raw parents and dated setup context."""
+    return tested_ratio_summary(c, CATALOG, RATIO_SEED, e1rm, clock().date())
 
 
 def pattern_e1rm(c, pattern, *, clock):
@@ -357,19 +356,16 @@ def everyday_ratios(c, *, clock):
 
 
 def strength_ratios(c, view, *, clock):
-    """§3d: agonist:antagonist ratios. Two views — 'tested' (valid, from quarterly
-    isolation tests, clinical targets) and 'everyday' (estimate, from compound
-    e1RM, heuristic targets, no injury-risk claims). The e1RM-vs-isokinetic caveat
-    rides on every payload."""
+    """Return descriptive test comparisons or heuristic movement-pattern estimates."""
     require_fitness_tables(c)
     view = (view or "tested").lower()
-    caveat = ("Estimated 1RM (Epley) is not isokinetic dynamometry; targets are "
-              "guides. Everyday view is movement-pattern level, "
-              "not muscle-specific.")
+    caveat = ("Estimated gym loads are not dynamometer torque. Tested ratios are "
+              "descriptive, with no validated population target or diagnostic cutoff. "
+              "Unknown setup or effort limits comparisons. Everyday view is movement-pattern level.")
     if view == "everyday":
         rows, unmapped = everyday_ratios(c, clock=clock)
         return {"view": "everyday", "rows": rows, "unmapped_exercises": unmapped,
              "caveat": caveat, "note": "heuristic targets; trend-only flags — never clinical"}
     else:
         return {"view": "tested", "rows": tested_ratios(c, clock=clock), "caveat": caveat,
-             "asymmetry_threshold": 0.15}
+             "asymmetry_threshold": None}

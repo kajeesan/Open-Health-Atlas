@@ -119,19 +119,21 @@
   // schema field or engine output, so it never claims to be measured data.
   const LOG_SCHEDULE = 3;
 
-  // One fetch of /api/nutrition/targets per page load, shared by
+  // One fetch of /api/nutrition/targets per page load or saved profile/weight, shared by
   // loadToday/loadWater/loadTargetCard/loadCalories/loadGaps. Cached (never
   // re-fetched on themechange, only re-rendered); a bridge error resolves to
   // a synthetic {status:"error"} so every consumer's `status !== "ok"` check
   // renders the honest state instead of throwing.
   let targetsPromise = null;
+  let targetsGeneration = 0;
   function loadTargets() {
     if (!targetsPromise) {
+      const generation = targetsGeneration;
       targetsPromise = fetchJSON("/api/nutrition/targets")
         .then((d) => d.result || { status: "error", reason: "The target response was incomplete." })
         .catch((error) => ({ status: "error", reason: error.message || "The target request failed." }))
         .then((targets) => {
-          renderTargetHelp(targets);
+          if (generation === targetsGeneration) renderTargetHelp(targets);
           return targets;
         });
     }
@@ -145,6 +147,141 @@
     document.getElementById("nTgtReason").textContent = targets.reason || "The engine did not return a reason.";
     document.getElementById("nTgtReload").hidden = targets.status !== "error";
   }
+
+  const profileInputs = ["nProfileHeight", "nProfileSex", "nProfileDob"]
+    .map((id) => document.getElementById(id));
+  const profileSave = document.getElementById("nProfileSave");
+  const profileStatus = document.getElementById("nProfileStatus");
+  const profileRetry = document.getElementById("nProfileRetry");
+  let profileLoaded = false;
+  let profileWritePending = false;
+  let profileReadPending = false;
+
+  function disableProfile(disabled) {
+    profileInputs.forEach((input) => { input.disabled = disabled; });
+    profileSave.disabled = disabled;
+  }
+
+  function lockProfileWrites(pending) {
+    profileWritePending = pending;
+    const busy = pending || profileReadPending;
+    disableProfile(busy || !profileLoaded);
+    profileRetry.disabled = busy;
+    document.getElementById("nProfileWeightSave").disabled = busy;
+    document.getElementById("nProfileWeightInput").disabled = busy;
+  }
+
+  async function loadProfile(populate = true) {
+    if (populate && (profileReadPending || profileWritePending)) return null;
+    if (populate) {
+      profileReadPending = true;
+      lockProfileWrites(profileWritePending);
+      profileStatus.textContent = "Loading saved profile…";
+      profileRetry.hidden = true;
+    }
+    try {
+      const data = await fetchJSON("/api/nutrition/profile");
+      const saved = data.result;
+      if (!saved || !saved.profile || !saved.canonical_today) throw new Error("The profile response was incomplete.");
+      if (populate) {
+        ["height_cm", "sex", "dob"].forEach((key, index) => {
+          profileInputs[index].value = saved.profile[key] == null ? "" : saved.profile[key];
+        });
+        profileInputs[2].max = saved.canonical_today;
+        profileLoaded = true;
+        disableProfile(profileWritePending);
+        const missing = profileInputs.some((input) => !input.value);
+        profileStatus.textContent = missing ? "Complete these three fields to save your profile." : "Saved profile loaded. Edit any field, then save.";
+        if (missing) document.getElementById("nutrition-profile-editor").open = true;
+      }
+      const weight = saved.weight;
+      document.getElementById("nProfileWeight").textContent = weight
+        ? `Latest weight used: ${weight.weight_kg} kg · ${weight.date}.`
+        : "No weight recorded on or before today. Log a weight below to complete this input.";
+      return saved;
+    } catch (error) {
+      if (populate) {
+        profileLoaded = false;
+        profileStatus.textContent = "Could not load your saved profile: " + error.message;
+        profileRetry.hidden = false;
+      }
+      document.getElementById("nProfileWeight").textContent = "Latest weight could not be loaded. Retry loading the profile.";
+      return null;
+    } finally {
+      if (populate) {
+        profileReadPending = false;
+        lockProfileWrites(profileWritePending);
+      }
+    }
+  }
+
+  async function refreshProfileTargets() {
+    targetsGeneration += 1;
+    targetsPromise = null;
+    await Promise.allSettled([
+      loadToday(), loadCalories(), loadWater(), loadFoodQuality(), loadTargetCard(), loadGaps(), loadMenu(),
+    ]);
+    return loadTargets();
+  }
+
+  document.getElementById("nProfileOpen").addEventListener("click", () => {
+    document.getElementById("nutrition-profile-editor").open = true;
+    const firstEmpty = profileInputs.find((input) => !input.value) || profileInputs[0];
+    firstEmpty.focus();
+  });
+  profileRetry.addEventListener("click", () => loadProfile());
+  document.getElementById("nProfileForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!profileLoaded || profileReadPending || profileWritePending || profileSave.disabled) return;
+    const payload = { height_cm: profileInputs[0].value, sex: profileInputs[1].value, dob: profileInputs[2].value };
+    lockProfileWrites(true);
+    profileStatus.textContent = "Saving profile…";
+    try {
+      await postJSON("/api/nutrition/profile", payload);
+    } catch (error) {
+      profileStatus.textContent = "Profile save was not confirmed: " + error.message + ". Your entries are kept; reload the profile to check saved values.";
+      profileRetry.hidden = false;
+      lockProfileWrites(false);
+      return;
+    }
+    const targets = await refreshProfileTargets();
+    profileStatus.textContent = targets.status === "ok"
+      ? "Profile saved. Estimated targets updated."
+      : "Profile saved. Targets are still unavailable: " + (targets.reason || "check the setup message above.");
+    profileRetry.hidden = true;
+    lockProfileWrites(false);
+  });
+
+  document.getElementById("nProfileWeightForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = document.getElementById("nProfileWeightInput");
+    const button = document.getElementById("nProfileWeightSave");
+    const status = document.getElementById("nProfileWeightStatus");
+    if (profileReadPending || profileWritePending || button.disabled) return;
+    const rawWeight = input.value.trim();
+    const weight = Number(rawWeight);
+    status.hidden = false;
+    if (!rawWeight || !Number.isFinite(weight) || weight < 30 || weight > 400) {
+      status.textContent = "Enter a weight between 30 and 400 kg.";
+      return;
+    }
+    lockProfileWrites(true);
+    status.textContent = "Logging weight…";
+    try {
+      await postJSON("/api/log/body", { weight_kg: weight });
+    } catch (error) {
+      status.textContent = "Weight save was not confirmed: " + error.message + ". Check the latest weight before retrying.";
+      lockProfileWrites(false);
+      return;
+    }
+    input.value = "";
+    await loadProfile(false);
+    const targets = await refreshProfileTargets();
+    status.textContent = targets.status === "ok"
+      ? "Weight logged. Estimated targets updated."
+      : "Weight logged. Targets are still unavailable: " + (targets.reason || "check the setup message above.");
+    lockProfileWrites(false);
+  });
 
   // Task 61 fix C: same cached-promise shape as loadTargets above, for the
   // two other endpoints multiple loaders on this page each fetched their own
@@ -216,18 +353,22 @@
   // consistency_habits.js FLAG_CLASS); no new CSS classes.
   const FQ_FLAG = { good: "in", warn: "bd", bad: "out" };
   async function loadFoodQuality() {
+    const generation = targetsGeneration;
     const r = range();
     const chip = document.getElementById("nFqChip");
     let d;
     try { d = await fetchJSON(`/api/nutrition/coverage?days=${COVERAGE_RANGE_DAYS[r]}`); }
     catch (_) {
+      if (generation !== targetsGeneration) return;
       chip.className = "chip muted"; chip.textContent = "—";
       empty("nFoodQual", "Food-quality trend unavailable"); return;
     }
+    if (generation !== targetsGeneration) return;
     const cov = d.result || {};
     if (cov.status !== "ok" || !cov.rows || !cov.rows.length) {
       chip.className = "chip muted"; chip.textContent = "—";
       const targets = await loadTargets();
+      if (generation !== targetsGeneration) return;
       empty("nFoodQual", targets.status !== "ok"
         ? "Coverage unavailable while nutrition targets are unavailable."
         : "No nutrition data in this window yet — the coverage score starts when you log a recipe or import a Cronometer day.");
@@ -251,11 +392,13 @@
      (band-colored fill + dashed 100% marker via fillBar/bandFor); Water is
      handled entirely by loadWater (same fetch feeds both). ------- */
   async function loadToday() {
+    const generation = targetsGeneration;
     const t = await loadTargets();
     const ok = t.status === "ok";
     const phaseLabel = ok ? titleCase(t.phase.phase) : "";
     try {
       const d = await loadNutritionToday();
+      if (generation !== targetsGeneration) return;
       const kcal = Math.round(d.totals.kcal || 0);
       const protein = Math.round(d.totals.protein_g || 0);
       document.getElementById("nCalMeta").textContent = ok
@@ -310,6 +453,7 @@
      daily intake with a maintenance-band shaded region (markArea across
      band_low..band_high) + a target markLine, once ok. ------- */
   async function loadCalories() {
+    const generation = targetsGeneration;
     const r = range();
     const P = pal();
     const t = await loadTargets();
@@ -317,6 +461,7 @@
     const kt = ok ? t.targets.kcal : null;
     let kcalToday = null;
     try { kcalToday = Math.round((await loadNutritionToday()).totals.kcal || 0); } catch (_) { /* gauge falls back honest */ }
+    if (generation !== targetsGeneration) return;
 
     if (ok && kcalToday != null) {
       const pct = Math.round(kcalToday / kt.target * 100);
@@ -360,7 +505,11 @@
 
     let rows = [];
     try { rows = (await fetchJSON(`/api/nutrition/calories?days=${RANGE_DAYS[r]}`)).rows || []; }
-    catch (_) { empty("nCalTrend", "Intake unavailable"); return; }
+    catch (_) {
+      if (generation !== targetsGeneration) return;
+      empty("nCalTrend", "Intake unavailable"); return;
+    }
+    if (generation !== targetsGeneration) return;
     if (!rows.length) {
       empty("nCalTrend", "No food logged in this window — appears once you log meals");
       return;
@@ -398,12 +547,14 @@
      why this doesn't gate on `t.status === "ok"`. Feeds BOTH the standalone
      Water card and the KPI tile (same fetches, no duplicate requests). ------- */
   async function loadWater() {
+    const generation = targetsGeneration;
     const r = range();
     const [todayR, waterR] = await Promise.allSettled([
       loadDashToday(),
       fetchJSON(`/api/nutrition/water?days=${RANGE_DAYS[r]}`),
     ]);
     const t = await loadTargets();
+    if (generation !== targetsGeneration) return;
     const waterMl = todayR.status === "fulfilled" ? todayR.value.water_ml : null;
     const targetMl = t.targets && t.targets.water_ml ? t.targets.water_ml.target : null;
     const rows = waterR.status === "fulfilled" ? waterR.value.rows : [];
@@ -495,6 +646,7 @@
     fillBar(prefix + "Bar", pct, bandVar(pct, 100, Infinity));
   }
   async function loadTargetCard() {
+    const generation = targetsGeneration;
     const t = await loadTargets();
     const ok = t.status === "ok";
     let totals = {}, micros = {};
@@ -502,6 +654,7 @@
       const d = await loadNutritionToday();
       totals = d.totals || {}; micros = d.micros || {};
     } catch (_) { /* rows fall back to their honest-pending state below */ }
+    if (generation !== targetsGeneration) return;
 
     if (ok) {
       const kt = t.targets.kcal, pt = t.targets.protein_g, ct = t.targets.carbs_g, ft = t.targets.fat_g;
@@ -539,6 +692,7 @@
     const waterTarget = t.targets && t.targets.water_ml ? t.targets.water_ml.target : null;
     let waterMl = null;
     try { waterMl = (await loadDashToday()).water_ml; } catch (_) { /* honest dash below */ }
+    if (generation !== targetsGeneration) return;
     const waterVal = document.getElementById("nTgtWater");
     if (waterMl != null && waterTarget != null) {
       const pct = Math.round((waterMl / waterTarget) * 100);
@@ -580,6 +734,7 @@
      gaps. We never claim micro gaps and never re-sort recipes: both would
      need more than this task builds. */
   async function loadGaps() {
+    const generation = targetsGeneration;
     const banner = document.getElementById("nGaps");
     const txt = document.getElementById("nGapsTxt");
     const t = await loadTargets();
@@ -591,6 +746,7 @@
       const waterTarget = t.targets && t.targets.water_ml ? t.targets.water_ml.target : null;
       let waterMl = null;
       try { waterMl = (await loadDashToday()).water_ml; } catch (_) { /* honest line below */ }
+      if (generation !== targetsGeneration) return;
       const gaps = [];
       if (waterTarget != null) {
         if (waterMl == null) gaps.push("water not logged today");
@@ -605,6 +761,7 @@
     const [todayR, nutR] = await Promise.allSettled([
       loadDashToday(), loadNutritionToday(),
     ]);
+    if (generation !== targetsGeneration) return;
     const waterMl = todayR.status === "fulfilled" ? todayR.value.water_ml : null;
     const totals = nutR.status === "fulfilled" ? nutR.value.totals : null;
 
@@ -649,17 +806,24 @@
   let gapsRank = null;
 
   async function refreshGapsRank() {
+    const generation = targetsGeneration;
     try {
       const d = await fetchJSON("/api/nutrition/recipe-gaps");
+      if (generation !== targetsGeneration) return;
       gapsRank = d.result || { status: "error" };
-    } catch (_) { gapsRank = { status: "error" }; }
+    } catch (_) {
+      if (generation === targetsGeneration) gapsRank = { status: "error" };
+    }
   }
 
   async function loadMenu() {
+    const generation = targetsGeneration;
     const d = await fetchJSON("/api/nutrition/menu").catch((e) => ({ _err: e.message }));
+    if (generation !== targetsGeneration) return;
     lastMenu = (d.result && d.result.menu) || [];
     if (d._err) { document.getElementById("nMenu").innerHTML = `<p class="dim">${esc(d._err)}</p>`; return; }
     if (activePill === "gaps") await refreshGapsRank();   // post-write deficits changed
+    if (generation !== targetsGeneration) return;
     renderMenu();
   }
 
@@ -949,6 +1113,6 @@
     if (tab === "intake" || tab === "supp") Object.values(charts).forEach((c) => c && c.resize());
   });
 
-  loadToday(); loadCalories(); loadWater(); loadFoodQuality(); loadTargetCard();
+  loadProfile(); loadToday(); loadCalories(); loadWater(); loadFoodQuality(); loadTargetCard();
   loadGaps(); loadMenu(); loadRecipes(); loadSupplements(); loadSupplementsAdherence();
 })();

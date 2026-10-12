@@ -1,5 +1,25 @@
 # Refactoring checkpoint
 
+## Local evidence workflows, 2 October 2026
+
+The uncommitted local candidate on public baseline `aff70df` adds modular
+training evidence and dated context with migration v8, bounded descriptive
+reads and local MCP tools, Recovery context forms, a nutrition profile editor,
+and the twelve lateral-knee features. Tested ratio displays now retain
+measurements and explicit laterality without unsupported target bands.
+
+The port preserves the public v6/v7 migration history and refuses the conflicting
+experimental training-v6 history. Descriptive reads retain partial records and
+separate compatible source groups; they do not change statistical thresholds or
+become ledger-eligible hypotheses. The opt-in evaluation harness records method
+behavior without claiming a new calibrated inference method.
+
+The three disjoint partitions passed 2,482 tests. Independent runtime, write and
+interface reviews accepted the corrected candidate. See
+[Verification](../VERIFICATION.md#local-evidence-workflow-candidate-2-october-2026)
+for scope and [System design](SYSTEM_DESIGN.md#descriptive-observations) for the
+contracts. No commit, push, service activation or installer publication occurred.
+
 ## Dependabot commit metadata, 25 September 2026
 
 The pull-request privacy check encountered Dependabot's public support-address

@@ -1,15 +1,7 @@
-"""§3f muscle figure, Phase 2: the `muscle-map --lens strength-balance`
-payload + the authored FIGURE_RATIO_MAP's integrity.
+"""Body-figure projections preserve descriptive values without normative cutoffs.
 
-Two layers, mirroring test_muscle_map.py:
-- mapping integrity — every RATIO_SEED pair is either projected onto known
-  figure region bases or EXPLICITLY listed unrepresentable (never silently
-  dropped, never guessed onto a wrong region);
-- behavior — statuses derive from _tested_ratios() output only: deficient
-  (weak side of an out-of-band ratio), balanced (in cited band), trend_only
-  (pattern signal, no cited band — design rule 2026-07-19), untested (honest
-  grey default). Worst-status-wins for shared regions; the L/R sub-mode flags
-  only the weaker side of a >15% between-limb gap (Grygorowicz).
+Mapping checks retain explicit undrawn regions; behavior checks distinguish
+recorded comparisons, missing data and comparison limitations.
 """
 import json
 import os
@@ -54,9 +46,9 @@ def test_unprojectable_sides_are_explicitly_declared():
     assert "internal rotator" in health.FIGURE_RATIO_MAP["erir"]["unrepresentable"]
 
 
-def test_balance_legend_is_the_four_statuses_in_severity_order():
+def test_balance_legend_distinguishes_recorded_comparisons_from_missing_data():
     assert [x["status"] for x in health.FIGURE_BALANCE_LEGEND] == \
-        ["deficient", "balanced", "trend_only", "untested"]
+        ["trend_only", "untested"]
     # Amber means a real measurement exists, but no defensible target range.
     trend = [x for x in health.FIGURE_BALANCE_LEGEND if x["status"] == "trend_only"][0]
     assert trend["label"] == "measured trend only — no valid target range"
@@ -126,49 +118,41 @@ def test_empty_db_is_all_untested_grey(db):
     assert all(r["status"] == "untested" and r["worth_focus"] is False
                for r in d["regions"].values())
     assert [x["status"] for x in d["legend"]] == \
-        ["deficient", "balanced", "trend_only", "untested"]
+        ["trend_only", "untested"]
     assert next(x["label"] for x in d["legend"]
                 if x["status"] == "trend_only") == \
         "measured trend only — no valid target range"
 
 
-def test_below_band_flags_num_regions_deficient_weak_side_only(db):
-    # hq left = 50/100 = 0.50 < band lo 0.55 → hamstrings (num) weak → red,
-    # quads (den) tested-not-weak → balanced; the untested right leg stays grey
+def test_low_ratio_is_recorded_without_flagging_a_weak_muscle(db):
     seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100)])
-    d = balance(db)
-    r = d["regions"]
-    for b in ("hamstrings-medial", "hamstrings-lateral"):
-        assert r[f"{b}-left"]["status"] == "deficient"
-        assert r[f"{b}-left"]["worth_focus"] is True
-        assert r[f"{b}-right"]["status"] == "untested"
-    assert r["quads-left"]["status"] == "balanced"
-    assert r["quads-right"]["status"] == "untested"
 
+    result = balance(db)
 
-def test_in_band_ratio_is_balanced_both_muscles(db):
+    for base in ("hamstrings-medial", "hamstrings-lateral", "quads"):
+        assert result["regions"][f"{base}-left"]["status"] == "trend_only"
+        assert result["regions"][f"{base}-left"]["worth_focus"] is False
+        assert result["regions"][f"{base}-right"]["status"] == "untested"
+
+def test_former_in_band_ratio_is_descriptive_for_both_muscles(db):
     seed_ft(db, [("leg-curl", "left", 60), ("leg-extension", "left", 100)])
-    d = balance(db)
-    assert d["regions"]["hamstrings-medial-left"]["status"] == "balanced"
-    assert d["regions"]["quads-left"]["status"] == "balanced"
 
+    result = balance(db)
 
-def test_above_band_flags_den_regions_deficient(db):
-    # mcgill-fe = 120/100 = 1.2 > band hi 1.0 → extensors (den) weak → red on
-    # both sides (bilateral hold); flexors (num) balanced
-    seed_ft(db, [("mcgill-flexor", "bilateral", 120),
-                 ("mcgill-extensor", "bilateral", 100)])
-    d = balance(db)
-    r = d["regions"]
-    for s in ("left", "right"):
-        assert r[f"lower-back-erectors-{s}"]["status"] == "deficient"
-        assert r[f"abs-upper-{s}"]["status"] == "balanced"
-        assert r[f"abs-lower-{s}"]["status"] == "balanced"
+    assert result["regions"]["hamstrings-medial-left"]["status"] == "trend_only"
+    assert result["regions"]["quads-left"]["status"] == "trend_only"
 
+def test_high_bilateral_hold_ratio_does_not_infer_deficiency(db):
+    seed_ft(db, [("mcgill-flexor", "bilateral", 120), ("mcgill-extensor", "bilateral", 100)])
 
-def test_trend_only_pair_is_amber_not_red_or_grey(db):
-    # hip flex:ext has no cited band (RATIO_SEED band None) → amber pattern
-    # signal on both muscles (design rule 1) — never deficient, never grey
+    result = balance(db)
+
+    for side in ("left", "right"):
+        for base in ("lower-back-erectors", "abs-upper", "abs-lower"):
+            assert result["regions"][f"{base}-{side}"]["status"] == "trend_only"
+            assert result["regions"][f"{base}-{side}"]["worth_focus"] is False
+
+def test_trend_only_pair_remains_distinct_from_missing_data(db):
     seed_ft(db, [("hip-flexion", "left", 60), ("hip-extension", "left", 100)])
     d = balance(db)
     assert d["regions"]["hip-flexor-left"]["status"] == "trend_only"
@@ -187,38 +171,34 @@ def test_outside_rep_protocol_is_recorded_but_not_range_judged(db):
     con.commit()
     con.close()
     d = balance(db)
-    # Both muscles were tested, so they are amber rather than grey. The
-    # 6–8-rep target band is not used to paint a red deficiency.
     assert d["regions"]["tibialis-anterior-left"]["status"] == "trend_only"
     assert d["regions"]["calves-gastroc-medial-left"]["status"] == "trend_only"
-    assert "outside the 6–8-rep protocol" in \
+    assert "outside protocol range" in \
         d["regions"]["tibialis-anterior-left"]["tips"][0]
 
 
-def test_shared_region_takes_worst_status(db):
-    # deltoid-rear is num of BOTH reardelt (0.50 in band → green) and erir
-    # (0.50 < 0.66 floor → red) → red wins, and the tooltip lists both ratios.
-    # (The other shared region, lower-back-erectors, can't be exercised this
-    # way: mcgill-sbe pairs per-side against the bilateral Sørensen hold and
-    # is insufficient_data in _tested_ratios as shipped — pre-existing.)
+def test_shared_region_retains_each_contributing_ratio_without_severity_ranking(db):
     seed_ft(db, [("rear-delt-fly", "left", 50), ("front-raise", "left", 100),
                  ("shoulder-er", "left", 50), ("shoulder-ir", "left", 100)])
-    d = balance(db)
-    reg = d["regions"]["deltoid-rear-left"]
-    assert reg["status"] == "deficient"
-    assert len(reg["tips"]) == 2
-    assert d["regions"]["shoulder-front-left"]["status"] == "balanced"
 
+    result = balance(db)
 
-def test_tooltip_lists_ratio_band_and_cite(db):
+    region = result["regions"]["deltoid-rear-left"]
+    assert region["status"] == "trend_only"
+    assert len(region["tips"]) == 2
+    assert result["regions"]["shoulder-front-left"]["status"] == "trend_only"
+    assert "not independent muscle measurements" in result["note"]
+
+def test_tooltip_lists_exact_ratio_and_source_without_normative_band(db):
     seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100)])
-    d = balance(db)
-    tip = d["regions"]["hamstrings-medial-left"]["tips"][0]
-    # exact prefix — a substring check like "0.5 in tip" would be vacuously
-    # true via the band's own "0.55" (review finding)
-    assert tip.startswith("Hamstring:Quadriceps left 0.5 (band 0.55–0.65, ideal 0.6)")
-    assert "Aagaard" in tip                      # cite rides on the tooltip
 
+    result = balance(db)
+
+    tip = result["regions"]["hamstrings-medial-left"]["tips"][0]
+    assert tip.startswith("Hamstring:Quadriceps left 0.5 — recorded comparison; no validated target range")
+    assert "Aagaard" in tip
+    assert "ideal" not in tip
+    assert "band 0.55" not in tip
 
 def test_voided_and_stale_tests_leave_regions_untested(db):
     seed_ft(db, [("leg-curl", "left", 50, 0, 1),          # voided
@@ -233,11 +213,8 @@ def test_voided_and_stale_tests_leave_regions_untested(db):
 def test_erir_unrepresentable_is_surfaced_never_on_the_chest(db):
     seed_ft(db, [("shoulder-er", "left", 50), ("shoulder-ir", "left", 100)])
     d = balance(db)
-    # ER weak (0.50 < 0.66 floor) → rear-delt colored (approx: ER shown on the
-    # rear-delt region); the IR side is undrawn — surfaced in the payload and
-    # the rear-delt tooltip, and NO chest region is ever colored by this ratio
     reg = d["regions"]["deltoid-rear-left"]
-    assert reg["status"] == "deficient" and reg["approx"] is True
+    assert reg["status"] == "trend_only" and reg["approx"] is True
     assert any(x["key"] == "erir" for x in d["unrepresentable"])
     assert "internal rotator" in " ".join(reg["tips"]).lower()
     for b in ("chest-upper", "chest-lower"):
@@ -245,85 +222,196 @@ def test_erir_unrepresentable_is_surfaced_never_on_the_chest(db):
             assert d["regions"][f"{b}-{s}"]["status"] == "untested"
 
 
-def test_lr_mode_flags_only_the_weaker_side_of_a_gap(db):
-    # hams: left 50 vs right 80 → gap 37.5% > 15% → LEFT (weaker) red, right
-    # green. quads symmetric → green both. The right ratio (0.80) is above
-    # band — combined-mode red on quads-right — but the L/R view judges the
-    # between-limb gap only, so quads stay green here.
+def test_lr_mode_records_both_sides_without_flagging_the_lower_value(db):
     seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100),
                  ("leg-curl", "right", 80), ("leg-extension", "right", 100)])
-    d = balance(db, "--side-mode", "lr")
-    assert d["side_mode"] == "lr"
-    r = d["regions"]
-    assert r["hamstrings-medial-left"]["status"] == "deficient"
-    assert r["hamstrings-medial-left"]["worth_focus"] is True
-    assert r["hamstrings-medial-right"]["status"] == "balanced"
-    assert r["quads-left"]["status"] == "balanced"
-    assert r["quads-right"]["status"] == "balanced"
-    # combined mode on the same data: quads-right IS the weak link (0.80 above
-    # band → den deficient)
-    c = balance(db)
-    assert c["regions"]["quads-right"]["status"] == "deficient"
 
+    result = balance(db, "--side-mode", "lr")
 
-def test_lr_mode_needs_both_sides_and_per_side_pairs(db):
-    # single-sided data → no gap computable → untested in L/R view; the
-    # bilateral McGill fe pair carries no left/right information at all
+    assert result["side_mode"] == "lr"
+    for base in ("hamstrings-medial", "quads"):
+        for side in ("left", "right"):
+            assert result["regions"][f"{base}-{side}"]["status"] == "trend_only"
+            assert result["regions"][f"{base}-{side}"]["worth_focus"] is False
+
+def test_lr_mode_preserves_single_sided_records_without_inventing_other_side(db):
     seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100),
-                 ("mcgill-flexor", "bilateral", 120),
-                 ("mcgill-extensor", "bilateral", 100)])
-    d = balance(db, "--side-mode", "lr")
-    assert d["regions"]["hamstrings-medial-left"]["status"] == "untested"
-    assert d["regions"]["lower-back-erectors-left"]["status"] == "untested"
+                 ("mcgill-flexor", "bilateral", 120), ("mcgill-extensor", "bilateral", 100)])
 
+    result = balance(db, "--side-mode", "lr")
 
-def test_lr_gap_applies_to_trend_only_pairs_too(db):
-    # the >15% between-limb threshold is Grygorowicz-validated independent of
-    # any ratio target (RATIO_SEED note) — so the band-less hip pair still
-    # flags its weaker side in the L/R view
+    assert result["regions"]["hamstrings-medial-left"]["status"] == "trend_only"
+    assert result["regions"]["hamstrings-medial-right"]["status"] == "untested"
+    assert "right not recorded" in result["regions"]["hamstrings-medial-left"]["tips"][0]
+    assert "L/R gap unavailable" in result["regions"]["hamstrings-medial-left"]["tips"][0]
+    assert result["regions"]["lower-back-erectors-left"]["status"] == "untested"
+
+def test_lr_gap_is_descriptive_for_tracking_pairs(db):
     seed_ft(db, [("hip-flexion", "left", 60), ("hip-extension", "left", 100),
                  ("hip-flexion", "right", 80), ("hip-extension", "right", 100)])
-    d = balance(db, "--side-mode", "lr")
-    assert d["regions"]["hip-flexor-left"]["status"] == "deficient"
-    assert d["regions"]["hip-flexor-right"]["status"] == "balanced"
-    assert d["regions"]["gluteus-maximus-left"]["status"] == "balanced"
 
+    result = balance(db, "--side-mode", "lr")
 
-def test_lr_gap_boundary_matches_the_ratios_card(db):
-    # raw hamstring gap (133.3-113.3)/133.3 = 0.150038 rounds to 0.150 — the
-    # Strength-ratios card rounds to 3 dp BEFORE its >0.15 check and reports
-    # 'ok', so the figure must too (review finding: the raw compare painted
-    # red here while the card said ok, breaking the shared-invariant)
+    assert result["regions"]["hip-flexor-left"]["status"] == "trend_only"
+    assert result["regions"]["hip-flexor-right"]["status"] == "trend_only"
+    assert result["regions"]["gluteus-maximus-left"]["status"] == "trend_only"
+
+def test_former_lr_gap_boundary_is_reported_without_a_cutoff_judgment(db):
+    # Retains the rounding-boundary regression without retaining its old cutoff.
     seed_ft(db, [("leg-curl", "left", 113.3), ("leg-extension", "left", 100),
                  ("leg-curl", "right", 133.3), ("leg-extension", "right", 100)])
-    d = balance(db, "--side-mode", "lr")
-    assert d["regions"]["hamstrings-medial-left"]["status"] == "balanced"
-    assert d["regions"]["hamstrings-medial-right"]["status"] == "balanced"
 
+    result = balance(db, "--side-mode", "lr")
 
-def test_lr_tooltip_shows_gap_percent_threshold_and_cite(db):
-    # hams gap (80-50)/80 = 37.5% — the tip must show the true one-decimal
-    # percent (an integer-rounded "15%" beside "flag >15%" self-contradicts
-    # at the boundary — review finding) + the threshold's citation
+    region = result["regions"]["hamstrings-medial-left"]
+    assert region["status"] == "trend_only"
+    assert "L/R gap 15.0%" in region["tips"][0]
+    assert "flag" not in region["tips"][0]
+
+def test_lr_tooltip_shows_exact_values_gap_and_source_with_limitations(db):
     seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100),
                  ("leg-curl", "right", 80), ("leg-extension", "right", 100)])
-    d = balance(db, "--side-mode", "lr")
-    tip = " ".join(d["regions"]["hamstrings-medial-left"]["tips"])
-    assert "37.5%" in tip and "Grygorowicz" in tip
 
+    result = balance(db, "--side-mode", "lr")
 
-def test_lr_zero_valued_pair_stays_untested_not_balanced(db):
-    # load_kg 0 is clamp-legal (bodyweight-only test) → e1RM 0.0 on both
-    # sides: no between-limb gap is computable (0/0) — the regions must stay
-    # honest grey, never assert green "balanced" from no information
-    # (review finding: top==0 fell into the gap-0 → balanced branch)
+    tip = result["regions"]["hamstrings-medial-left"]["tips"][0]
+    assert "left 63.3 kg e1rm, right 101.3 kg e1rm" in tip
+    assert "L/R gap 37.5%" in tip
+    assert "setup unknown" in tip
+    assert "effort unknown or pain limited" in tip
+    assert "Grygorowicz" in tip
+    assert "no validated cutoff" in tip
+
+def test_lr_zero_values_remain_recorded_with_an_unavailable_gap(db):
+    # A recorded zero is not missing, and 0/0 must not imply balanced limbs.
     seed_ft(db, [("tibialis-raise", "left", 0), ("calf-raise", "left", 100),
                  ("tibialis-raise", "right", 0), ("calf-raise", "right", 100)])
-    d = balance(db, "--side-mode", "lr")
-    assert d["regions"]["tibialis-anterior-left"]["status"] == "untested"
-    assert d["regions"]["tibialis-anterior-right"]["status"] == "untested"
-    # the denominator (calves, 100 both sides) still judges normally
-    assert d["regions"]["calves-soleus-left"]["status"] == "balanced"
+
+    result = balance(db, "--side-mode", "lr")
+
+    assert result["regions"]["tibialis-anterior-left"]["status"] == "trend_only"
+    assert result["regions"]["tibialis-anterior-right"]["status"] == "trend_only"
+    tip = result["regions"]["tibialis-anterior-left"]["tips"][0]
+    assert "left 0 kg e1rm, right 0 kg e1rm" in tip
+    assert "L/R gap unavailable" in tip
+    assert "both recorded values are zero" in tip
+    assert result["regions"]["calves-soleus-left"]["status"] == "trend_only"
+    assert "L/R gap 0.0%" in result["regions"]["calves-soleus-left"]["tips"][0]
+
+
+def test_lr_comparison_does_not_require_an_opposing_muscle_test(db):
+    seed_ft(db, [("leg-curl", "left", 50), ("leg-curl", "right", 80)])
+
+    result = balance(db, "--side-mode", "lr")
+
+    assert result["regions"]["hamstrings-medial-left"]["status"] == "trend_only"
+    assert "L/R gap 37.5%" in result["regions"]["hamstrings-medial-left"]["tips"][0]
+    assert result["regions"]["quads-left"]["status"] == "untested"
+
+
+def test_lr_different_equipment_preserves_values_with_a_comparison_limitation(db):
+    seed_ft(db, [("leg-curl", "left", 50), ("leg-curl", "right", 80)])
+    with sqlite3.connect(db) as connection:
+        connection.execute("UPDATE fitness_tests SET equipment_note='Fictional machine A' WHERE side='left'")
+        connection.execute("UPDATE fitness_tests SET equipment_note='Fictional machine B' WHERE side='right'")
+
+    result = balance(db, "--side-mode", "lr")
+
+    region = result["regions"]["hamstrings-medial-left"]
+    assert region["status"] == "trend_only"
+    assert region["worth_focus"] is False
+    assert "L/R gap 37.5%" in region["tips"][0]
+    assert "different setups" in region["tips"][0]
+
+
+def test_lr_outside_rep_protocol_is_visible_without_a_deficiency_label(db):
+    seed_ft(db, [("leg-curl", "left", 50), ("leg-curl", "right", 80)])
+    with sqlite3.connect(db) as connection:
+        connection.execute("UPDATE fitness_tests SET reps=15 WHERE side='right'")
+
+    result = balance(db, "--side-mode", "lr")
+
+    region = result["regions"]["hamstrings-medial-left"]
+    assert region["status"] == "trend_only"
+    assert "L/R gap 47.2%" in region["tips"][0]
+    assert "outside protocol range" in region["tips"][0]
+
+
+def test_combined_zero_denominator_reports_why_no_ratio_can_be_displayed(db):
+    seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 0)])
+
+    result = balance(db)
+
+    region = result["regions"]["hamstrings-medial-left"]
+    assert region["status"] == "untested"
+    assert "ratio unavailable" in region["tips"][0]
+    assert "zero denominator" in region["tips"][0]
+
+
+def test_side_bridge_projects_its_recorded_bilateral_denominator_on_both_sides(db):
+    seed_ft(db, [("mcgill-side-bridge", "left", 60), ("mcgill-extensor", "bilateral", 100)])
+
+    ratios = run(db, "strength-ratios", "--view", "tested")
+    result = balance(db)
+
+    row = next(row for row in ratios["rows"] if row["key"] == "mcgill-sbe")
+    left = next(side for side in row["sides"] if side["side"] == "left")
+    assert left["ratio"] == 0.6
+    assert left["num_side"] == "left"
+    assert left["den_side"] == "bilateral"
+    assert result["regions"]["obliques-left"]["status"] == "trend_only"
+    assert result["regions"]["obliques-right"]["status"] == "untested"
+    for side in ("left", "right"):
+        region = result["regions"][f"lower-back-erectors-{side}"]
+        assert region["status"] == "trend_only"
+        assert "left Side bridge / bilateral Trunk extensors 0.6" in region["tips"][0]
+        assert "one bilateral measurement" in region["tips"][0]
+
+
+def test_two_side_bridges_retain_one_shared_extensor_parent(db):
+    seed_ft(db, [("mcgill-side-bridge", "left", 60), ("mcgill-side-bridge", "right", 70),
+                 ("mcgill-extensor", "bilateral", 100)])
+
+    ratios = run(db, "strength-ratios", "--view", "tested")
+    result = balance(db)
+
+    row = next(row for row in ratios["rows"] if row["key"] == "mcgill-sbe")
+    left, right = row["sides"]
+    assert (left["ratio"], right["ratio"]) == (0.6, 0.7)
+    assert left["parent_ids"][1] == right["parent_ids"][1]
+    assert left["den_side"] == right["den_side"] == "bilateral"
+    for side in ("left", "right"):
+        region = result["regions"][f"lower-back-erectors-{side}"]
+        assert region["status"] == "trend_only"
+        assert len(region["tips"]) == 2
+        assert all("not independent left/right measurements" in tip for tip in region["tips"])
+
+
+def test_side_bridge_without_bilateral_denominator_cannot_paint_extensors(db):
+    seed_ft(db, [("mcgill-side-bridge", "left", 60)])
+
+    ratios = run(db, "strength-ratios", "--view", "tested")
+    result = balance(db)
+
+    row = next(row for row in ratios["rows"] if row["key"] == "mcgill-sbe")
+    assert row["sides"][0]["status"] == "insufficient_data"
+    assert row["sides"][0].get("den_side") is None
+    assert result["regions"]["lower-back-erectors-left"]["status"] == "untested"
+    assert result["regions"]["lower-back-erectors-right"]["status"] == "untested"
+
+
+def test_ordinary_unilateral_ratio_keeps_each_component_on_its_recorded_side(db):
+    seed_ft(db, [("leg-curl", "left", 50), ("leg-extension", "left", 100)])
+
+    ratios = run(db, "strength-ratios", "--view", "tested")
+    result = balance(db)
+
+    row = next(row for row in ratios["rows"] if row["key"] == "hq")
+    left = row["sides"][0]
+    assert left["num_side"] == left["den_side"] == "left"
+    assert left["ratio"] == 0.5
+    assert result["regions"]["quads-left"]["status"] == "trend_only"
+    assert result["regions"]["quads-right"]["status"] == "untested"
 
 
 def test_bad_side_mode_is_refused(db):

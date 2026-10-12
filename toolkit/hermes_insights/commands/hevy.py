@@ -2,7 +2,7 @@
 
 from zoneinfo import ZoneInfo
 
-from .. import migrations, runtime, orchestrator
+from .. import migrations, runtime, orchestrator, training_context
 from ..catalogs import CATALOG
 from ..routine_history import require_history, snapshot
 from ..importers import hevy_json as payload
@@ -54,13 +54,18 @@ def _import_quarterly_fitness_tests(c, workouts, *, quarterly_routines, parse_nu
                  detail="quarterly workout needs id and valid start_time")
             continue
         body_weight = c.execute(
-            """SELECT date,weight_kg FROM body_metrics
+            """SELECT id,date,weight_kg,source FROM body_metrics
                WHERE date<=? AND weight_kg IS NOT NULL
                ORDER BY date DESC LIMIT 1""", (workout_date,)).fetchone()
-        for exercise in (workout.get("exercises") or []):
+        quarterly_exercises = workout.get("exercises") or []
+        for exercise in quarterly_exercises:
             template_id = exercise.get("exercise_template_id")
             movement = config["templates"].get(template_id)
             if movement is None:
+                continue
+            if sum(ex.get("exercise_template_id") == template_id for ex in quarterly_exercises) > 1:
+                result["quarterly_tests_rejected"] += 1
+                warn("ambiguous_repeated_template", workout, exercise, movement)
                 continue
             spec = CATALOG[movement]
             working = [s for s in (exercise.get("sets") or [])
@@ -77,6 +82,10 @@ def _import_quarterly_fitness_tests(c, workouts, *, quarterly_routines, parse_nu
                      detail=f"expected {expected}, got {len(working)}; extras ignored")
             for ordinal, raw_set in enumerate(working[:expected]):
                 side = ("left", "right")[ordinal] if spec["unilateral"] else "bilateral"
+                if payload.validated_set_values(raw_set, parse_number=parse_number) is None:
+                    result["quarterly_tests_rejected"] += 1
+                    warn("invalid_workout_set", workout, exercise, movement, side)
+                    continue
                 # The exact quarterly calf template is a bodyweight movement.
                 # Hevy correctly leaves external weight empty; its system load
                 # is the latest measured body mass on/before the test date.
@@ -109,6 +118,9 @@ def _import_quarterly_fitness_tests(c, workouts, *, quarterly_routines, parse_nu
                     (base_source, base_source + ":r%")).fetchone()
                 if active is not None and all(active[field] == observation[field]
                                               for field in value_fields):
+                    if migrations.recorded_version(c) >= 8:
+                        training_context.link_fitness_source(c, active["id"], workout, exercise, raw_set,
+                                                            body_weight if used_body_weight else None)
                     result["quarterly_tests_unchanged"] += 1
                     continue
                 if active is not None:
@@ -138,6 +150,9 @@ def _import_quarterly_fitness_tests(c, workouts, *, quarterly_routines, parse_nu
                      observation["rating"], observation["cm"], observation["degrees"],
                      observation["passed"], note, source))
                 row_id = str(c.execute("SELECT last_insert_rowid()").fetchone()[0])
+                if migrations.recorded_version(c) >= 8:
+                    training_context.link_fitness_source(c, row_id, workout, exercise, raw_set,
+                                                        body_weight if used_body_weight else None)
                 if migrations.recorded_version(c) >= 4:
                     orchestrator.enqueue_internal_trigger(
                         c, trigger_kind="quarterly_observation",
@@ -153,7 +168,10 @@ def import_json(context: CommandContext, path, *, force, parse_number, quarterly
     try:
         with c:
             migrations.require_table(c, "hevy_sets", ("source",))
-            workouts = payload.load_json(path, "workouts")
+            workouts = training_context.unique_workouts(payload.load_json(path, "workouts"))
+            retain_identity = migrations.recorded_version(c) >= 8
+            if retain_identity:
+                migrations.require_version(c, 8)
             incoming = sum(len(ex.get("sets") or [])
                            for w in workouts for ex in (w.get("exercises") or []))
             existing = c.execute(
@@ -163,11 +181,12 @@ def import_json(context: CommandContext, path, *, force, parse_number, quarterly
                          "hevy rows (API incident / response-shape drift?) — --force to override")
             c.execute("DELETE FROM hevy_sets WHERE source='hevy'")
             n = skipped = null_dates = 0
-            for row in payload.workout_sets(workouts, parse_number=parse_number,
-                                            civil_timezone=ZoneInfo(context.timezone)):
-                if row is None:
+            for item in payload.workout_sets(workouts, parse_number=parse_number,
+                                             civil_timezone=ZoneInfo(context.timezone), include_source=True):
+                if item is None:
                     skipped += 1
                     continue
+                row, source = item
                 if row[0] is None:
                     null_dates += 1
                 c.execute("""INSERT INTO hevy_sets(date,workout_title,start_time,end_time,description,
@@ -175,6 +194,8 @@ def import_json(context: CommandContext, path, *, force, parse_number, quarterly
                           distance_km,duration_seconds,rpe)
                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                           row)
+                if retain_identity:
+                    training_context.import_set_source(c, c.execute("SELECT last_insert_rowid()").fetchone()[0], *source)
                 n += 1
             quarterly = _import_quarterly_fitness_tests(
                 c, workouts, quarterly_routines=quarterly_routines,
@@ -193,11 +214,16 @@ def import_templates(context: CommandContext, path):
         with c:
             migrations.require_table(c, "exercise_muscles", ("source",))
             templates = payload.load_json(path, "exercise_templates")
+            retain_identity = migrations.recorded_version(c) >= 8
+            if retain_identity:
+                migrations.require_version(c, 8)
             used = {r["exercise_title"] for r in c.execute(
                 "SELECT DISTINCT exercise_title FROM hevy_sets"
                 " UNION SELECT DISTINCT exercise_title FROM routines")}
             mapped = skipped = 0
             for t in templates:
+                if retain_identity:
+                    training_context.import_template_source(c, t)
                 title = payload.truncate(t.get("title"))
                 if not title or title not in used:
                     continue

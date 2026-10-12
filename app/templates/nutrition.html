@@ -114,14 +114,50 @@
         <li>Weight: a body-weight record on or before today.</li>
         <li>Configuration: micronutrient targets, phase offsets and protein targets.</li>
       </ul>
-      <p class="note-txt">Setup currently uses the OpenHealthAtlas command-line toolkit, run by you or a local setup agent you authorize to edit this workspace. A connected read-only MCP client cannot save these values, and this page has no profile editor.</p>
-      <ol class="note-txt">
-        <li>Identify the intended workspace's active <code>health.db</code> and timezone. On the Mac app, use its current database generation, not the original file you imported.</li>
-        <li>Use an OpenHealthAtlas source checkout with its Python dependencies installed. Set <code>HEALTH_DB</code> explicitly to that database and <code>HERMES_TIMEZONE</code> to its timezone for every command; do not rely on the defaults.</li>
-        <li>Use <code>profile-set KEY VALUE</code> for <code>height_cm</code>, <code>sex</code> (male or female), and <code>dob</code> (YYYY-MM-DD). Record weight through the supported <code>log body_metrics</code> command or an importer. Check the nutrition configuration separately if the engine reports it missing.</li>
-        <li>Run <code>nutrition-targets</code> for the same workspace to check the result, then reload this page.</li>
-      </ol>
-      <p class="muted note-txt">Commands are subcommands of <code>python toolkit/health.py</code>. Use <code>--help</code> on a subcommand for its accepted arguments. A local setup agent must have access to the selected workspace and permission to run these tools; ordinary chat access alone is not enough.</p>
+      <p class="note-txt">Save your profile and, if needed, log a weight below. These actions use this app's current workspace. A connected read-only MCP client cannot save these values.</p>
+      <p class="note-txt">If configuration is missing, the workspace owner still needs to configure micronutrient targets, phase offsets and protein targets. Saving a profile does not supply missing configuration.</p>
+    </details>
+    <button class="btn quiet mt-2" type="button" id="nProfileOpen">Edit nutrition profile</button>
+  </section>
+
+  <section class="card nutrition-target-help" aria-label="Nutrition profile">
+    <details class="evidence-details" id="nutrition-profile-editor">
+      <summary>Nutrition profile</summary>
+      <p class="note-txt">Height, date of birth and the equation's sex input help estimate energy needs with the Mifflin–St Jeor formula. Estimates also use your latest logged weight, activity and saved target settings.</p>
+      <form id="nProfileForm">
+        <div class="grid-3">
+          <label class="field" for="nProfileHeight">Height (cm)
+            <input class="select-input" id="nProfileHeight" name="height_cm" type="number" min="100" max="250" step="any" inputmode="decimal" required disabled>
+          </label>
+          <label class="field" for="nProfileSex">Sex input for equation
+            <select class="select-input" id="nProfileSex" name="sex" aria-describedby="nProfileSexHelp" required disabled>
+              <option value="">Choose an equation input</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </label>
+          <label class="field" for="nProfileDob">Date of birth
+            <input class="select-input" id="nProfileDob" name="dob" type="date" min="1900-01-01" required disabled>
+          </label>
+        </div>
+        <p class="field-hint" id="nProfileSexHelp">The current equation supports female and male inputs only. This field describes its calculation input.</p>
+        <button class="btn" type="submit" id="nProfileSave" disabled>Save profile</button>
+        <button class="btn quiet" type="button" id="nProfileRetry" hidden>Retry loading profile</button>
+        <p class="note-txt" id="nProfileStatus" role="status">Loading saved profile…</p>
+      </form>
+      <p class="note-txt" id="nProfileWeight">Loading latest weight…</p>
+      <details class="evidence-details">
+        <summary>Log a weight for today</summary>
+        <p class="note-txt">This saves a separate body-weight observation. Leave it blank unless you want to record a new measurement.</p>
+        <form id="nProfileWeightForm" class="field-row">
+          <label class="field" for="nProfileWeightInput">Weight (kg)
+            <input class="select-input" id="nProfileWeightInput" name="weight_kg" type="number" min="30" max="400" step="any" inputmode="decimal" required>
+          </label>
+          <button class="btn" type="submit" id="nProfileWeightSave">Log weight</button>
+        </form>
+        <p class="note-txt" id="nProfileWeightStatus" role="status" hidden></p>
+      </details>
+      <p class="muted note-txt">Profile saves keep your activity fallback, diet phase and manual targets. Targets are estimates, not measured energy expenditure or a clinical assessment.</p>
     </details>
   </section>
 

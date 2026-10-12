@@ -8,6 +8,7 @@ import json
 import pathlib
 import sys
 import threading
+import pytest
 from unittest.mock import patch
 
 from app import bridge as client_bridge
@@ -33,6 +34,91 @@ def test_flag_value_starting_with_dash_is_data():
 def test_unknown_flag_still_refused():
     b = _load()
     assert b._validate("log-commitment", ["kept", "--nope", "x"]) is not None
+
+
+def test_profile_editor_has_one_closed_broker_operation():
+    broker = _load()
+    assert broker._validate("nutrition-profile-set", [
+        "--height-cm", "174", "--sex", "female", "--dob", "1996-04-12",
+    ]) is None
+    assert broker._validate("profile-set", ["height_cm", "174"]) is not None
+
+
+@pytest.mark.parametrize("args", [
+    ["--height-cm", "174", "--sex", "female"],
+    ["--height-cm", "174", "--sex", "female", "--dob", "1996-04-12", "--sex", "male"],
+    ["--height-cm=174", "--sex", "female", "--dob", "1996-04-12"],
+    ["--height-cm", "174", "--sex", "female", "--dob", "19960412"],
+    ["--height-cm", "nan", "--sex", "female", "--dob", "1996-04-12"],
+    ["--height-cm", "174", "--sex", "female", "--dob", "1996-04-12", "--database", "foreign.db"],
+])
+def test_profile_broker_rejects_incomplete_ambiguous_or_unbounded_requests(args):
+    assert _load()._validate("nutrition-profile-set", args) is not None
+
+
+def test_context_broker_accepts_explicit_unknown_without_an_answer():
+    broker = _load()
+    args = ["--capture-id", "fictional-context-1", "--subject-kind", "history",
+            "--subject-key", "personal", "--context-key", "history_note",
+            "--effective-from", "2026-06-01", "--status", "skipped"]
+    assert broker._validate("training-context-log", args) is None
+    assert broker._validate("training-context-log", [*args, "--value", "invented answer"]) is not None
+
+
+def test_context_broker_rejects_a_field_outside_the_selected_subject():
+    assert _load()._validate("training-context-log", [
+        "--capture-id", "fictional-context-2", "--subject-kind", "history",
+        "--subject-key", "personal", "--context-key", "side",
+        "--effective-from", "2026-06-01", "--value", "left",
+    ]) is not None
+
+
+def test_new_workflow_commands_remain_outside_the_fixed_readonly_profile(monkeypatch):
+    monkeypatch.setenv("BRIDGE_PROFILE", "dashboard-green-days-readonly")
+    broker = _load()
+    assert broker._validate("training-evidence", []) is not None
+    assert broker._validate("training-context-log", []) is not None
+    assert broker._validate("nutrition-profile-set", []) is not None
+
+
+def test_context_answer_is_redacted_from_both_audit_surfaces(app):
+    answer = "Fictional personal context that should not be duplicated in audit logs"
+    args = ["--value", answer]
+    assert answer not in json.dumps(_load()._audit_argv("training-context-log", args))
+    with app.app_context():
+        client_bridge._audit("training-context-log", args, "refused-client")
+        row = client_bridge.get_db().execute("SELECT detail FROM audit_log").fetchone()
+    assert answer not in row["detail"]
+    assert "sha256:" in row["detail"]
+
+
+def test_flag_like_context_identity_cannot_escape_either_audit_redactor(app):
+    sensitive = "fictional-sensitive-answer"
+    args = ["--subject-kind", "history", "--subject-key", "personal",
+            "--context-key", "history_note", "--effective-from", "2026-06-01",
+            "--capture-id", "--value", "--value", sensitive]
+    assert sensitive not in json.dumps(_load()._audit_argv("training-context-log", args))
+    with app.app_context():
+        client_bridge._audit("training-context-log", args, "refused-client")
+        row = client_bridge.get_db().execute("SELECT detail FROM audit_log").fetchone()
+    assert sensitive not in row["detail"]
+    assert "sha256:" in row["detail"]
+
+
+@pytest.mark.parametrize(("command", "flag"), [
+    ("training-context-log", "--value"),
+    ("nutrition-profile-set", "--dob"),
+])
+def test_refused_equals_values_are_not_duplicated_in_durable_audit(monkeypatch, command, flag):
+    broker = _load()
+    records = []
+    monkeypatch.setattr(broker, "_audit", records.append)
+    sensitive = "fictional-private-context-value"
+    result = broker.handle(command, [f"{flag}={sensitive}"], peer_uid=99999)
+    assert result["ok"] is False
+    assert records[0]["phase"] == "refused"
+    assert sensitive not in json.dumps(records)
+    assert "sha256:" in json.dumps(records)
 
 
 def test_recipe_import_and_batch_portion_changes_remain_unavailable():

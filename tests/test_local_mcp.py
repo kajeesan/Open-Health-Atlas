@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import sqlite3
 import subprocess
 import sys
 
@@ -59,6 +60,43 @@ async def _finish(session, receipt):
     pytest.fail("fictional task did not complete within one minute")
 
 
+def test_real_stdio_sparse_descriptions_replay_their_actual_source_counts(tmp_path):
+    from toolkit.hermes_insights import migrations
+
+    database = tmp_path / "fictional-sparse.db"
+    with sqlite3.connect(database) as connection:
+        connection.executescript((ROOT / "toolkit/SCHEMA.sql").read_text())
+    migrations.migrate(str(database), 3, 0, code_version="b" * 40)
+    with sqlite3.connect(database) as connection:
+        connection.execute("INSERT INTO subjective_daily(date,energy) VALUES(?,?)", ("2026-06-25", 4))
+    before = database.read_bytes()
+
+    async def exercise():
+        async with stdio_client(_parameters(database, tmp_path)) as (reader, writer):
+            async with mcp.ClientSession(reader, writer) as session:
+                await session.initialize()
+                result, error = await _call(session, "health_describe", {
+                    "outcome_key": "subjective.energy",
+                    "range": {"from": "2026-06-24", "to": "2026-06-30"},
+                })
+                assert error is False
+                assert result["status"] == "ok"
+                assert result["findings"] == []
+                feature = result["facts"][0]["features"][0]
+                assert feature["observed_units"] == 1
+                assert feature["summary"]["mean"] == 4
+                receipt, error = await _call(session, "health_evidence", {
+                    "evidence_refs": result["evidence_refs"], "detail": "lineage",
+                })
+                assert error is False
+                replay = await _finish(session, receipt)
+                assert replay["facts"][0]["verified"] is True
+                assert replay["facts"][0]["facts"] == result["facts"]
+
+    asyncio.run(exercise())
+    assert database.read_bytes() == before
+
+
 def test_real_stdio_catalog_query_analysis_evidence_and_refusal(tmp_path):
     database = tmp_path / "fictional.db"
     subprocess.run(
@@ -76,12 +114,21 @@ def test_real_stdio_catalog_query_analysis_evidence_and_refusal(tmp_path):
                 assert initialized.serverInfo.name == "OpenHealthAtlas Local"
                 listed = (await session.list_tools()).tools
                 assert {tool.name for tool in listed} == {
-                    "health_catalog", "health_query", "health_analyze",
+                    "health_catalog", "health_query", "health_analyze", "health_describe",
+                    "health_training_evidence",
                     "health_evidence", "health_task_status",
                 }
                 query_schema = next(t for t in listed if t.name == "health_query").inputSchema
                 assert query_schema["properties"]["range"]["required"] == ["from", "to"]
                 assert all(t.annotations.readOnlyHint for t in listed)
+
+                training, error = await _call(session, "health_training_evidence", {
+                    "range": {"from": "2026-06-24", "to": "2026-06-30"},
+                    "region": "knee",
+                })
+                assert error is False, training
+                assert training["facts"][0]["contract"] == "training-evidence-v1"
+                assert training["findings"] == []
 
                 bad, error = await _call(session, "health_query", {
                     "feature_keys": ["sleep.duration_hours"],
@@ -185,7 +232,7 @@ def test_real_stdio_database_failure_is_sanitized_and_session_survives(tmp_path)
                 assert error and result["status"] == "refused"
                 assert str(tmp_path) not in json.dumps(result)
                 assert "Traceback" not in json.dumps(result)
-                assert len((await session.list_tools()).tools) == 5
+                assert "health_query" in {tool.name for tool in (await session.list_tools()).tools}
 
     asyncio.run(exercise())
     assert database.read_bytes() == b"not-a-database"
@@ -247,7 +294,7 @@ def test_real_stdio_deduplicates_work_and_reaps_worker_on_disconnect(tmp_path):
                     "task_id": first["task_id"], "wait_seconds": 0,
                 })
                 assert not error and status["status"] in {"queued", "running"}
-                assert len((await session.list_tools()).tools) == 5
+                assert "health_query" in {tool.name for tool in (await session.list_tools()).tools}
                 for _ in range(100):
                     if pid_file.exists():
                         break

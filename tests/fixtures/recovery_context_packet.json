@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "display": {"anchor_date": "2026-06-30", "data_class": "fictional", "range_from": "2026-06-24", "range_to": "2026-06-30"},
+  "result": {
+    "contract": "training-evidence-v1",
+    "evidence_id": "fictional-browser-packet",
+    "range": {"from": "2026-06-24", "to": "2026-06-30"},
+    "region": "knee", "side": null,
+    "training_records": [{"id": "hevy_sets:1", "record": {"date": "2026-06-25", "exercise_title": "Fictional leg extension", "weight_kg": 30, "reps": 8}, "reported_context": {}}],
+    "training_exposure": [{"date": "2026-06-25", "exercise_title": "Fictional leg extension", "logged_working_sets": 1, "best_e1rm": 38}],
+    "pain_reports": [{"id": 1, "evidence_id": "pain_log:1", "date": "2026-06-28", "region": "lateral-knee", "side": "left", "intensity": 4, "reported_onset_date": null, "onset_precision": "unknown", "reported_context": {}, "note": "<img src=x onerror=fictional()>"}],
+    "fitness_measurements": [],
+    "recovery": {
+      "daily": [{"id": "daily_metrics:2026-06-28:fictional", "date": "2026-06-28", "source": "fictional", "sleep_hours": 7, "hrv_ms": null, "resting_hr": 60}],
+      "sleep": [], "reported": []
+    },
+    "coverage": [
+      {"date": "2026-06-24", "state": "unknown"}, {"date": "2026-06-25", "state": "logged"},
+      {"date": "2026-06-26", "state": "unknown"}, {"date": "2026-06-27", "state": "unknown"},
+      {"date": "2026-06-28", "state": "unknown"}, {"date": "2026-06-29", "state": "unknown"},
+      {"date": "2026-06-30", "state": "unknown"}
+    ],
+    "training_before_symptoms": [{"windows": [
+      {"from": "2026-06-14", "to": "2026-06-20", "logged_working_sets": 0, "unknown_dates": 7},
+      {"from": "2026-06-21", "to": "2026-06-27", "logged_working_sets": 1, "unknown_dates": 6}
+    ]}],
+    "remembered_context": [{"id": 99, "subject_kind": "history", "context_key": "history_note", "value": "UNRELATED CONTEXT MUST NOT APPEAR"}],
+    "next_questions": [
+      {"id": "fictional-location-question", "subject_kind": "pain", "subject_key": "1", "context_key": "location", "effective_from": "2026-06-28", "question": "Where around the knee do you feel it?", "why_answer_changes_interpretation": "The location adds context to this symptom report.", "parent_ids": ["pain_log:1"]},
+      {"id": "fictional-movement-question", "subject_kind": "pain", "subject_key": "1", "context_key": "provoking_movement", "effective_from": "2026-06-28", "question": "Which movement brings it on?", "why_answer_changes_interpretation": "The movement describes when the symptom was reported.", "parent_ids": ["pain_log:1"]}
+    ]
+  }
+}

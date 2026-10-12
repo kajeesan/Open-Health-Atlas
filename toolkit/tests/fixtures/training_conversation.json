@@ -1,0 +1,21 @@
+{
+  "workouts": [
+    {"id": "fictional-session-a", "title": "Lower body", "start_time": "2026-06-01T12:00:00Z", "end_time": "2026-06-01T13:00:00Z", "exercises": [
+      {"index": 0, "title": "Leg Extension", "exercise_template_id": "fictional-extension", "sets": [
+        {"index": 0, "type": "normal", "weight_kg": 50, "reps": 6, "rpe": 8}
+      ]},
+      {"index": 1, "title": "Seated Leg Curl", "exercise_template_id": "fictional-curl", "sets": [
+        {"index": 0, "type": "normal", "weight_kg": 30, "reps": 6, "rpe": 8}
+      ]}
+    ]},
+    {"id": "fictional-session-b", "title": "Lower body", "start_time": "2026-06-08T12:00:00Z", "exercises": [
+      {"index": 0, "title": "Leg Extension", "exercise_template_id": "fictional-extension", "sets": [
+        {"index": 0, "type": "normal", "weight_kg": 55, "reps": 6, "rpe": 8}
+      ]}
+    ]}
+  ],
+  "exercise_templates": [
+    {"id": "fictional-extension", "title": "Leg Extension", "is_custom": false, "equipment_category": "machine", "primary_muscle_group": "quadriceps", "secondary_muscle_groups": []},
+    {"id": "fictional-curl", "title": "Seated Leg Curl", "is_custom": false, "equipment_category": "machine", "primary_muscle_group": "hamstrings", "secondary_muscle_groups": []}
+  ]
+}

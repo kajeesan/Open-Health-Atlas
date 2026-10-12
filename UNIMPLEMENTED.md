@@ -20,15 +20,19 @@ older references.
 
 - **Intended behavior:** connect recovery/sleep observations with training,
   nutrition, mind, labs, and care evidence in the normal product flow.
-- **Status:** **partial; user-facing cross-links remain unverified**.
-- **Executable evidence:** `app/templates/recovery.html` retains its Cross-links
-  card and `app/static/js/recovery.js` has no cross-domain runtime call. The
-  deterministic records and governed Recovery API remain available.
-- **Missing component:** a bounded deterministic evidence/API path and an
-  exercised display flow for these relationships; any model explanation belongs
-  to genuine external Hermes.
-- **End-user impact:** no live cross-pillar AI synthesis is established by the
-  Recovery screen. Keep the existing card while repairing or verifying its path.
+- **Status:** **partial; bounded training/recovery evidence is implemented**.
+- **Executable evidence:** `toolkit/hermes_insights/training_evidence.py`
+  combines training, fitness, discomfort, sleep and subjective recovery records.
+  `app/routes/recovery.py`
+  exposes its brokered read and reported-context write; `recovery-context.js`
+  displays evidence and answer/skip/correction controls.
+  `tests/test_recovery_training_context.py` covers this workflow's boundaries.
+- **Missing component:** equivalent bounded connections to nutrition, labs and
+  care within this Recovery workflow. External-agent explanation quality and
+  a live cross-pillar synthesis are not established by deterministic retrieval.
+- **End-user impact:** users can inspect the implemented packet and save
+  explicit context. Broader cross-pillar reasoning remains external. See
+  [Training evidence and reported context](docs/SYSTEM_DESIGN.md#training-evidence-and-reported-context).
 
 ## Deterministic intelligence
 
@@ -71,34 +75,28 @@ older references.
 
 ### U-11 — Twelve lateral-knee readiness features
 
-- **Intended behavior:** compute severity, onset, first-positive, and resolution
-  features for central, left, and right lateral-knee pain.
-- **Status:** **not implemented**.
-- **Executable evidence:** `toolkit/hermes_insights/registry.py` marks exactly
-  these 12 entries `logic_not_implemented`;
-  `toolkit/tests/test_feature_frame_readiness.py::test_exact_six_state_predicate_order_including_populated_unconnected`
-  verifies that state independently from implemented-but-never-logged features.
-- **Missing component:** deterministic episode definitions and calculations.
-- **End-user impact:** the registry exposes the intended features but no value
-  can become ready even when relevant records exist.
-- **Minimum future work:** approve episode boundaries and laterality rules,
-  implement calculations, and add onset/resolution/boundary tests.
+- **Status:** **implemented; former gap closed in source**.
+- **Executable evidence:** `toolkit/hermes_insights/registry.py` enables the
+  entries, `toolkit/hermes_insights/adapters/pain.py` computes them, and
+  `toolkit/tests/test_lateral_knee_events.py` covers their boundaries.
+- **Contract:** [Lateral-knee event semantics](docs/SYSTEM_DESIGN.md#lateral-knee-event-semantics)
+  defines onset, resolution, exact laterality and completeness. The historical
+  issue number remains reserved. U-12 is a separate analytical capability.
 
 ### U-12 — Quarterly asymmetry-to-pain episode analysis
 
 - **Intended behavior:** relate quarterly strength/laterality asymmetry to later
   pain episodes using an event-centered, temporally bounded algorithm.
 - **Status:** **not implemented**.
-- **Executable evidence:**
-  `toolkit/tests/fixtures/autonomous_insights/06-quarterly-asymmetry.json` and
-  the `quarterly_asymmetry` branch of
-  `tests/e2e/test_autonomous_insight_traces.py::test_each_trace_replays_exactly`
-  require `logic_not_implemented` and reject a pain hypothesis while retaining
-  the underlying strength/control/mobility measurements.
+- **Executable evidence:** `toolkit/hermes_insights/training_evidence.py`
+  returns descriptive comparisons and pre-symptom logged-set windows. It does
+  not estimate a longitudinal asymmetry-to-pain relationship. The
+  `quarterly_asymmetry` trace in `tests/e2e/test_autonomous_insight_traces.py`
+  preserves distinctions between measurements and training exposure.
 - **Missing component:** episode construction, exposure window, lag policy,
   confounder/coverage checks, and accepted interpretation boundary.
-- **End-user impact:** current muscle/laterality displays work, but Hermes does
-  not make this longitudinal pain connection.
+- **End-user impact:** records and descriptive context are available, but the
+  deterministic engine does not establish this longitudinal pain connection.
 - **Minimum future work:** specify the deterministic event algorithm and test
   null, reversed, missingness, laterality, and boundary cases.
 

@@ -453,7 +453,7 @@ def test_all_phase5_checks_unique_keys_and_foreign_keys_are_frozen(tmp_path):
     connection.close()
 
 
-def test_all_ten_append_only_triggers_reject_update_and_delete(tmp_path):
+def test_all_ten_phase5_append_only_triggers_reject_update_and_delete(tmp_path):
     database = _v4_fresh_database(tmp_path)
     connection = _connect(database)
     _seed_append_only_rows(connection)
@@ -482,7 +482,9 @@ def test_all_ten_append_only_triggers_reject_update_and_delete(tmp_path):
     trigger_names = {
         row["name"]
         for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='trigger'"
+            "SELECT name FROM sqlite_master WHERE type='trigger' "
+            "AND tbl_name IN ('hypotheses','hypothesis_components','hypothesis_evaluations',"
+            "'hypothesis_evidence_items','hypothesis_annotations')"
         )
     }
     assert trigger_names == EXPECTED_TRIGGERS

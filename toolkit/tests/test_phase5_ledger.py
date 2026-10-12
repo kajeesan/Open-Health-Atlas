@@ -3357,7 +3357,10 @@ def test_evidence_and_hypothesis_tables_are_physically_append_only(db):
         row[0]
         for row in db.execute(
             """SELECT name FROM sqlite_master
-               WHERE type='trigger' AND name LIKE '%_no_%'"""
+               WHERE type='trigger' AND name LIKE '%_no_%'
+                 AND tbl_name IN ('hypothesis_annotations', 'hypotheses',
+                                  'hypothesis_components', 'hypothesis_evaluations',
+                                  'hypothesis_evidence_items')"""
         )
     }
     assert len(triggers) == 10

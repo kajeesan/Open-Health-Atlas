@@ -110,6 +110,61 @@ fingerprint changes separately. Retain a repeatable timing workload at the
 corrected revision for later refactor comparisons. Do not turn measurements
 into speculative optimization work.
 
+## Opt-in fictional analysis evaluation
+
+`scripts/analysis_evaluation.py` writes a reproducible evaluation report outside
+the checkout. It does not tune runtime methods or change inference gates.
+The unit suite tests the harness contract; running the full simulation is a
+separate, opt-in check.
+
+Run development scenarios first with the test environment above:
+
+```bash
+oha_evaluation_dir="$(mktemp -d /tmp/oha-evaluation.XXXXXX)"
+"$oha_test_env/bin/python" -B scripts/analysis_evaluation.py \
+  --split development --replicates 200 \
+  --output "$oha_evaluation_dir/development.json"
+```
+
+Freeze methods before inspecting the separate confirmation schedule:
+
+```bash
+"$oha_test_env/bin/python" -B scripts/analysis_evaluation.py \
+  --split held_out --replicates 200 \
+  --output "$oha_evaluation_dir/held-out.json"
+```
+
+Once inspected, `held_out` is a reusable confirmation set, not unseen evidence.
+Repeated seeded runs are not additional independent evidence. The script
+refuses existing output paths and paths inside the checkout. Reports include
+the protocol, seeds, source hashes before/after, Git state, runtime method,
+accelerator status, denominators and elapsed time. A source change during a run
+invalidates that run's source identity.
+
+Use `--suite component` or `--suite descriptive` to select a measurement scope;
+the default runs both. `--scenario` can select named component cases, and
+`--replicates` controls their replication count. Record these choices with any
+result rather than presenting a short diagnostic run as the full protocol.
+
+| Scope | What it measures | What it does not establish |
+|---|---|---|
+| Component simulations | Production single-pair rank permutation and split-half stability under independent, autocorrelated, sparse and selected-missingness scenarios | Whole-engine false-positive rates, feature search, multiple-testing adjustment, readiness, lineage, hypothesis gates or external-agent quality |
+| Descriptive fixture checks | Fictional SQLite records through production registry, adapters, frames, alignment and descriptions; one sparse formal-analysis/projection check | Exhaustive pipeline behavior, a public MCP roundtrip or whole-engine calibration |
+
+The descriptive checks retain actual denominators and counterexamples, reject
+source pooling and preserve shared-parent dependence. They also check that an
+empty unrelated feature or a redundant fallback record does not remove or
+inflate another comparison, and that descriptions do not bypass formal gates.
+These selected boundaries complement the [auditable partitions](#auditable-partitions).
+
+The reported 95% Wilson intervals describe binomial variation across independently
+seeded component replicates. They are not individual prediction intervals or
+clinical calibration. Correlation is a simulator property, not a treatment
+effect. Selected missingness can induce an observed association from independent
+latent series; that case is not an observed-null false-positive estimate.
+No clinical validation, predictive accuracy or improvement in analytical
+accuracy is established by this harness.
+
 ## Clean initialization and demo
 
 ```bash

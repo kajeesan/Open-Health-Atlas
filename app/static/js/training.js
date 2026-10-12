@@ -1,6 +1,6 @@
 /* Body page (design v-body; formerly Training, analysis-only): 7-axis
    muscle-balance radar (Current strengths default, Planned and Logged 7d),
-   athletic radar, cited strength-ratio pyramid, V-taper gauge, weight trend,
+   athletic radar, descriptive strength-ratio pyramid, V-taper gauge, weight trend,
    quarter battery, per-lift progression/PR. Set capture lives in the Telegram
    loop. All numbers come from health.py endpoints — nothing computed here. */
 (function () {
@@ -499,7 +499,7 @@
   const FLAG_COLOR = () => ({
     in_range: cssVar("--good"), out_of_range: cssVar("--bad"),
     asymmetry: cssVar("--bad"), watch: cssVar("--warn"),
-    trend_only: cssVar("--text-dim"), outside_protocol_range: cssVar("--warn"),
+    trend_only: cssVar("--ch-1"), outside_protocol_range: cssVar("--warn"),
     insufficient_data: cssVar("--card-edge"),
   });
   async function loadRatios() {
@@ -523,7 +523,7 @@
     const colors = FLAG_COLOR();
     // Population-pyramid: numerator to the LEFT (negative), denominator RIGHT,
     // each as its share of the pair so a row always spans the same width and the
-    // split reads as balance. Ratio + target + flag ride on the right label.
+    // split shows the recorded values' shares, not an ideal or equal-balance target.
     const left = rows.map(r => ({ value: r.ok ? -r.numShare : 0,
       itemStyle: { color: r.ok ? (colors[r.flag] || cssVar("--ch-1")) : cssVar("--card-edge") } }));
     const right = rows.map(r => ({ value: r.ok ? r.denShare : 0,
@@ -550,34 +550,48 @@
   }
   function ratioRowsTested(rows) {
     const out = [];
+    const safeText = (value) => String(value ?? "").replace(/[&<>"']/g,
+      (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
     (rows || []).forEach(r => {
       // one visual row per side (unilateral pairs give left+right)
       r.sides.forEach(s => {
         // side FIRST so the L/R disambiguator is never truncated off the end
-        const label = r.per_side ? `${s.side[0].toUpperCase()} · ${r.num_label} : ${r.den_label}`
-                                 : `${r.num_label} : ${r.den_label}`;
-        if (s.status === "insufficient_data") {
+        const numSide = s.num_side ?? s.side;
+        const denSide = s.den_side ?? s.side;
+        const label = numSide !== denSide
+          ? `${numSide} ${r.num_label} / ${denSide} ${r.den_label}`
+          : r.per_side ? `${s.side[0].toUpperCase()} · ${r.num_label} : ${r.den_label}`
+                       : `${r.num_label} : ${r.den_label}`;
+        const sharedDenominator = denSide === "bilateral" && numSide !== denSide;
+        const limitations = (s.limitations || []).map((reason) => safeText(reason.replaceAll("_", " ")));
+        if (s.status === "insufficient_data" || s.ratio == null) {
           out.push({ label, ok: false, flag: "insufficient_data",
-            rightLabel: "needs test", tip: `${label}<br>insufficient data` });
+            rightLabel: limitations.length ? "ratio unavailable" : "needs test",
+            tip: `${safeText(label)}<br>ratio unavailable${limitations.length ? " · " + limitations.join(" · ") : " · needs test"}` });
           return;
         }
         const tot = s.num_value + s.den_value;
-        // band/ideal are null on trend-only pairs (hip flex:ext — no defensible target)
         const protocolValid = s.protocol_valid !== false;
         const repTxt = [s.num_reps, s.den_reps].filter(x => x !== null && x !== undefined)
           .join(" / ");
-        const bandTxt = !protocolValid ? "recorded outside preferred 6–8 reps"
-          : (r.band ? `${r.band[0] ?? "–"}–${r.band[1] ?? "∞"}` : "trend only");
-        const gap = (r.per_side && r.side_gap_flag === "asymmetry")
-          ? ` · L/R gap ${Math.round(r.side_gap * 100)}%` : "";
-        out.push({ label, ok: true, flag: s.flag,
+        const gap = r.per_side && r.side_gap != null
+          ? `<br>Largest component L/R gap ${(r.side_gap * 100).toFixed(1)}% (descriptive)` : "";
+        const gapLimitations = (r.side_gap_limitations || []).map((reason) => safeText(reason.replaceAll("_", " ")));
+        out.push({ label, ok: true, flag: "trend_only",
           numShare: s.num_value / tot, denShare: s.den_value / tot,
-          rightLabel: `${s.ratio} (${protocolValid ? (r.ideal ?? "trend") : "baseline*"})`,
-          tip: `${label}<br>ratio ${s.ratio} · target ${bandTxt} · <b>${s.flag}</b>`
-             + (!protocolValid && repTxt
-               ? `<br>e1RM adjusted for reps (${repTxt}); lower-confidence comparison, retest optional`
+          rightLabel: `${s.ratio} (recorded)`,
+          tip: `${safeText(label)}<br>ratio ${s.ratio} · no validated target range`
+             + `<br>Recorded values ${s.num_value} : ${s.den_value}`
+             + (sharedDenominator
+               ? "<br>Denominator is one bilateral measurement shared across side ratios, not independent left/right measurements."
                : "")
-             + `${gap}<br><span class="muted">${r.evidence} — ${r.cite}</span>` });
+             + (!protocolValid && repTxt
+               ? `<br>e1RM adjusted for reps (${safeText(repTxt)}); outside preferred 6–8 reps`
+               : "")
+             + (limitations.length ? `<br>Comparison limited: ${limitations.join(" · ")}` : "")
+             + gap
+             + (gapLimitations.length ? `<br>L/R comparison limited: ${gapLimitations.join(" · ")}` : "")
+             + `<br><span class="muted">${safeText(r.evidence)} — ${safeText(r.cite)}</span>` });
       });
     });
     return out;
@@ -779,7 +793,7 @@
       window.HermesPhysio.renderMobility(data);
       bits.push("color = cited mobility-norm status · last " + data.window_days + "d · grey = untested");
     } else if (data.lens === "strength-balance") {
-      bits.push("cited tested ratios only · grey = untested (quarterly isolation battery)");
+      bits.push("descriptive tested comparisons · no validated target or injury-risk cutoff · shared regions are not independent measurements");
       // honest gaps, engine-worded: e.g. the ER:IR internal rotators are
       // undrawn and can never be colored (design rule: never on the chest)
       (data.unrepresentable || []).forEach((u) => bits.push(u.note));

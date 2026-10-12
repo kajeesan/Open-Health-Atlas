@@ -3,6 +3,8 @@
 import csv
 from datetime import datetime
 
+from .. import migrations, training_context
+from ..provenance import sha256_id
 
 LB_TO_KG = 0.45359237
 MI_TO_KM = 1.609344
@@ -30,6 +32,9 @@ def replace_history(connection, path, *, parse_number):
     """
     # Each export is the full HEVY history -> reload hevy rows only. Sets logged
     # through the panel (source='ui'/'chat-panel') must survive reimports.
+    retain_identity = migrations.recorded_version(connection) >= 8
+    if retain_identity:
+        migrations.require_version(connection, 8)
     connection.execute("DELETE FROM hevy_sets WHERE source='hevy'")
     count = 0
     with open(path, newline="") as handle:
@@ -43,7 +48,7 @@ def replace_history(connection, path, *, parse_number):
             "distance_miles" if "distance_miles" in columns else None
         )
         distance_multiplier = 1.0 if distance_key == "distance_km" else MI_TO_KM
-        for row in reader:
+        for row_index, row in enumerate(reader):
             day = parse_date(row.get("start_time"))
             weight = parse_number(row.get(weight_key)) if weight_key else None
             if weight is not None:
@@ -63,5 +68,13 @@ def replace_history(connection, path, *, parse_number):
                  int(float(row["reps"])) if row.get("reps") else None,
                  distance, parse_number(row.get("duration_seconds")), parse_number(row.get("rpe"))),
             )
+            if retain_identity:
+                payload = {"format": "hevy-csv", "identity_quality": "content_only",
+                           "row_index": row_index, "row": row}
+                source_key = "hevy:csv:" + sha256_id(payload)
+                set_id = connection.execute("SELECT last_insert_rowid()").fetchone()[0]
+                revision_id = training_context.record_source(connection, source_key, payload)
+                connection.execute("INSERT INTO hevy_set_sources(set_id,revision_id) VALUES(?,?)",
+                                   (set_id, revision_id))
             count += 1
     return {"ok": True, "imported_sets": count, "weight_source": weight_key, "converted_to": "kg/km"}

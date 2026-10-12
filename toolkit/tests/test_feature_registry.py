@@ -177,6 +177,8 @@ def test_registry_rejects_malformed_key_segments_and_unavailable_drift(registry)
     lateral = next(
         item for item in registry if item.key == "pain.nrs.lateral-knee.left"
     ).to_dict()
+    lateral["implemented"] = False
+    lateral["temporal_type"] = "unavailable"
     lateral["candidate_enabled"] = True
     with pytest.raises(ContractError, match="cannot be a candidate"):
         FeatureDefinition.from_dict(lateral)
@@ -271,9 +273,9 @@ def test_appendix_b_fixed_inventory_and_b5_outcomes(registry):
 
     assert "pain.nrs.lateral-knee.left" in keys
     lateral = next(item for item in registry if item.key == "pain.nrs.lateral-knee.left")
-    assert lateral.implemented is False
-    assert lateral.temporal_type == "unavailable"
-    assert lateral.candidate_enabled is False
+    assert lateral.implemented is True
+    assert lateral.temporal_type == "outcome"
+    assert lateral.candidate_enabled is True
 
 
 def test_load_profiles_windows_and_no_forbidden_raw_features(registry):
@@ -560,7 +562,7 @@ def test_all_normative_catalog_expansions_and_cross_references_are_exact(conn):
     assert {
         match.group(1) for key in keys
         if (match := re.fullmatch(r"pain\.nrs\.([a-z0-9-]+)\.(?:left|right|central)", key))
-    } == set(toolkit_health.PAIN_CAUSE_MAP) | {"lateral-knee"}
+    } == set(toolkit_health.PAIN_CAUSE_MAP)
     assert {
         match.group(1) for key in keys
         if (match := re.fullmatch(r"pain\.self_test\.([a-z0-9-]+)\.(?:left|right|central)\.result", key))

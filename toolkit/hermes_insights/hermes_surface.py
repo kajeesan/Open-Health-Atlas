@@ -21,7 +21,7 @@ import statistics
 import sys
 from typing import Any, Iterable, Mapping
 
-from . import associations, exact_cache, runtime
+from . import associations, descriptive, exact_cache, runtime, training_context, training_evidence
 from .contracts import DateRange, FeatureDefinition, canonical_json
 from .frame import (
     ADAPTER_MODULE_NAMES,
@@ -36,7 +36,8 @@ from .registry import build_registry, serialize_registry
 SURFACE_CONTRACT = "openhealthatlas-hermes-surface-v1"
 EVIDENCE_REF_CONTRACT = "openhealthatlas-evidence-ref-v1"
 OPERATIONS = frozenset({
-    "health_catalog", "health_query", "health_analyze", "health_evidence",
+    "health_catalog", "health_query", "health_analyze", "health_describe", "health_evidence",
+    "health_training_evidence",
 })
 REPLAYABLE_OPERATIONS = frozenset(OPERATIONS - {"health_evidence"})
 STATUSES = frozenset({"ok", "insufficient_data", "unsupported", "refused"})
@@ -208,6 +209,9 @@ def _engine_manifest() -> list[dict[str, str]]:
         "hermes_insights/native/rank_products.c",
         "hermes_insights/adapters/__init__.py",
         "hermes_insights/hermes_surface.py",
+        "hermes_insights/descriptive.py",
+        "hermes_insights/training_context.py",
+        "hermes_insights/training_evidence.py",
         "hermes_insights/exact_cache.py",
         "hermes_insights/runtime.py",
         "hermes_insights/cli.py",
@@ -1023,6 +1027,91 @@ def _health_analyze(
     )
 
 
+def _normalize_describe(arguments: object) -> tuple[dict[str, Any], DateRange]:
+    raw = _closed_mapping(
+        arguments, allowed={"outcome_key", "exposure_keys", "range", "lag_days"},
+        required={"outcome_key", "range"}, label="health_describe arguments",
+    )
+    outcome_key = _bounded_text(raw["outcome_key"], "outcome_key")
+    if FEATURE_KEY_RE.fullmatch(outcome_key) is None:
+        raise SurfaceError("validation_error", "outcome_key is invalid")
+    exposures = _unique_strings(raw.get("exposure_keys", []), "exposure_keys", maximum=8, pattern=FEATURE_KEY_RE)
+    if outcome_key in exposures:
+        raise SurfaceError("validation_error", "outcome cannot also be an exposure")
+    range_value, requested = _date_range(raw["range"])
+    lag = raw.get("lag_days", 1)
+    if type(lag) is not int or lag not in {0, 1, 2, 3, 7}:
+        raise SurfaceError("validation_error", "lag_days must be 0, 1, 2, 3 or 7")
+    if requested.start.toordinal() <= lag:
+        raise SurfaceError("validation_error", "range has no room for the requested lag")
+    return {"outcome_key": outcome_key, "exposure_keys": exposures,
+            "range": range_value, "lag_days": lag}, requested
+
+
+def _health_describe(
+    arguments, definitions, connection, context, engine_id, *, binding, include_refs=True,
+):
+    normalized, requested = _normalize_describe(arguments)
+    by_key = {item.key: item for item in definitions}
+    requested_keys = [normalized["outcome_key"], *normalized["exposure_keys"]]
+    unsupported = sorted(key for key in requested_keys if key not in by_key
+                         or not by_key[key].implemented
+                         or by_key[key].value_kind in {"categorical", "episode", "config"}
+                         or by_key[key].temporal_type in {"static_config", "unavailable"})
+    if unsupported:
+        return _result_payload(
+            binding=binding, operation="health_describe", status="unsupported",
+            range_value=normalized["range"], registry_id=_registry_id(definitions), engine_id=engine_id,
+            coverage={"requested_features": len(requested_keys)}, facts=[], findings=[],
+            limitations=[{"code": "unsupported_descriptive_features", "feature_keys": unsupported}],
+            normalized_arguments=normalized, include_refs=include_refs,
+        )
+    result = descriptive.describe_outcome(
+        connection, definitions, requested, context, outcome_key=normalized["outcome_key"],
+        exposure_keys=normalized["exposure_keys"], lag_days=normalized["lag_days"],
+    )
+    observed = sum(item["observed_units"] for item in result["features"])
+    partial = sum(item.get("partial_recorded_observation_rows", 0) for item in result["features"])
+    return _result_payload(
+        binding=binding, operation="health_describe", status="ok" if observed or partial else "insufficient_data",
+        range_value=normalized["range"], registry_id=_registry_id(definitions), engine_id=engine_id,
+        coverage={"requested_features": len(requested_keys), "observed_feature_units": observed,
+                  "features_with_observations": sum(item["observed_units"] > 0 for item in result["features"]),
+                  **({"partial_recorded_observation_rows": partial} if partial else {}),
+                  "independent_sample_size": None},
+        facts=[result], findings=[], limitations=result["limitations"],
+        normalized_arguments=normalized, include_refs=include_refs,
+    )
+
+
+def _health_training_evidence(
+    arguments, definitions, connection, context, engine_id, *, binding, include_refs=True,
+):
+    raw = _closed_mapping(
+        arguments, allowed={"range", "region", "side"}, required={"range"},
+        label="health_training_evidence arguments",
+    )
+    range_value, _ = _date_range(raw["range"])
+    region = _bounded_text(raw.get("region", "knee"), "region", maximum=80)
+    side = _bounded_text(raw.get("side"), "side", maximum=16, optional=True)
+    normalized = {"range": range_value, "region": region, "side": side}
+    try:
+        result = training_evidence.build(
+            connection, start=range_value["from"], end=range_value["to"], region=region, side=side,
+            context=context, catalog=context.constants["CATALOG"],
+            ratio_seeds=context.constants["RATIO_SEED"], e1rm=context.functions["e1rm"],
+        )
+    except training_context.TrainingError as exc:
+        raise SurfaceError(exc.code, str(exc)) from exc
+    return _result_payload(
+        binding=binding, operation="health_training_evidence", status="ok",
+        range_value=range_value, registry_id=_registry_id(definitions), engine_id=engine_id,
+        coverage=result.get("coverage", []), facts=[result], findings=[],
+        limitations=[{"code": "descriptive_only", "message": "Training records, estimates and reported context are not diagnosis, causation or independent corroboration."}],
+        normalized_arguments=normalized, include_refs=include_refs,
+    )
+
+
 def _normalize_evidence_ref(value: object) -> dict[str, Any]:
     raw = _closed_mapping(
         value,
@@ -1088,6 +1177,10 @@ def _evidence_work_units(reference: Mapping[str, Any]) -> int:
     if operation == "health_query":
         keys = arguments.get("feature_keys", [])
         return periods * max(1, len(keys))
+    if operation == "health_describe":
+        return periods * (1 + len(arguments.get("exposure_keys", [])))
+    if operation == "health_training_evidence":
+        return 20 + periods * 10
     return _analysis_work_units(
         range_value,
         arguments.get("exposure_keys", []),
@@ -1151,6 +1244,14 @@ def _replay_operation(
         )
     if operation == "health_analyze":
         return _health_analyze(
+            arguments, definitions, connection, context, engine_id, binding=binding, include_refs=False,
+        )
+    if operation == "health_describe":
+        return _health_describe(
+            arguments, definitions, connection, context, engine_id, binding=binding, include_refs=False,
+        )
+    if operation == "health_training_evidence":
+        return _health_training_evidence(
             arguments, definitions, connection, context, engine_id, binding=binding, include_refs=False,
         )
     raise SurfaceError("validation_error", "evidence operation is unsupported")
@@ -1235,6 +1336,16 @@ def _deterministic_delivery_summary(replayed: Mapping[str, Any]) -> dict[str, An
                 if "unit" not in row and section.get("unit") is not None:
                     row["unit"] = section.get("unit")
             rows.append(row)
+    elif operation == "health_describe":
+        rows = [{
+            "contract": item["contract"], "eligible_for_hypothesis": False,
+            "inference_status": item["inference_status"], "features": item["features"],
+            "comparisons": item["comparisons"], "limitations": item["limitations"],
+        } for item in replayed["facts"]]
+    elif operation == "health_training_evidence":
+        rows = [{"contract": item["contract"], "evidence_id": item.get("evidence_id"),
+                 "coverage": item.get("coverage"), "next_questions": item.get("next_questions", [])[:10],
+                 "limitations": replayed["limitations"]} for item in replayed["facts"]]
     else:
         rows = []
         for finding in replayed["findings"]:
@@ -1402,6 +1513,14 @@ def execute_bound(
             )
         elif operation == "health_analyze":
             result = _health_analyze(
+                raw["arguments"], definitions, connection, context, engine_id, binding=binding,
+            )
+        elif operation == "health_describe":
+            result = _health_describe(
+                raw["arguments"], definitions, connection, context, engine_id, binding=binding,
+            )
+        elif operation == "health_training_evidence":
+            result = _health_training_evidence(
                 raw["arguments"], definitions, connection, context, engine_id, binding=binding,
             )
         else:

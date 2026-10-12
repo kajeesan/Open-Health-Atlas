@@ -58,6 +58,47 @@
     </div>
   </section>
 
+  <section class="card" id="descriptive-root" aria-labelledby="descriptive-title">
+    <h2 class="card-title" id="descriptive-title">What do the available records show?</h2>
+    <p class="muted note-txt m0 mt-1">Explore recorded values, gaps and comparisons, even with only a few records. Statistical confidence is not assessed.</p>
+    <form id="descriptive-form" class="vstack mt-3">
+      <div class="grid-2">
+        <label class="field-label">Outcome to explore
+          <select class="select-input" id="descriptive-outcome" required disabled aria-describedby="descriptive-status">
+            <option value="">Loading measurements…</option>
+          </select>
+        </label>
+        <label class="field-label">Compare with (optional, up to 8)
+          <select class="select-input" id="descriptive-exposure" disabled>
+            <option value="">Choose a measurement</option>
+          </select>
+        </label>
+      </div>
+      <div class="row between wrap gap-2">
+        <label class="field-label">Compare outcome with records from
+          <select class="select-input" id="descriptive-lag">
+            <option value="0">The same day</option>
+            <option value="1" selected>1 day earlier</option>
+            <option value="2">2 days earlier</option>
+            <option value="3">3 days earlier</option>
+            <option value="7">7 days earlier</option>
+          </select>
+        </label>
+        <button class="btn quiet" id="descriptive-add" type="button" disabled>Add comparison</button>
+      </div>
+      <div id="descriptive-selected" class="row wrap gap-2" aria-live="polite"></div>
+      <div class="row between wrap gap-2">
+        <p class="muted micro m0" id="descriptive-window">Uses the investigation window above.</p>
+        <div class="row wrap gap-2">
+          <button class="btn quiet" id="descriptive-retry-catalog" type="button" hidden>Retry measurements</button>
+          <button class="btn" id="descriptive-explore" type="submit" disabled>Explore available records</button>
+        </div>
+      </div>
+    </form>
+    <p class="note-txt mt-3" id="descriptive-status" role="status" aria-live="polite">Loading measurements…</p>
+    <div id="descriptive-results" class="vstack mt-3" aria-busy="false" tabindex="-1"></div>
+  </section>
+
   <div class="grid-2 insight-main-grid">
     <section class="card" aria-labelledby="chat-title">
       <div class="row between wrap gap-2">
@@ -167,5 +208,6 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/analysis_jobs.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/descriptions.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/insights.js') }}" defer></script>
 {% endblock %}

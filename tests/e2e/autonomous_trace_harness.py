@@ -65,7 +65,7 @@ MIGRATION_004_CHECKSUM = (
 )
 MIGRATION_005_CHECKSUM = migrations.MIGRATION_BY_VERSION[5].checksum
 EXPECTED_ENGINE_SHA256 = (
-    "sha256:657cd553fe13e1d5feecbd905105cea36d3e2ae2f70e0cfd568ab6facef1fe0d"
+    "sha256:d86ae76d027bc90676556cf0081226fca75e46ebc9f0ebcdc697b14a06c6bbec"
 )
 INSIGHTS_JS_PATH = PANEL_ROOT / "app" / "static" / "js" / "insights.js"
 INSIGHTS_JS_SHA256 = (

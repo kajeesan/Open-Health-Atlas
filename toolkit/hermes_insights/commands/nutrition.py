@@ -7,6 +7,7 @@ from .. import migrations, runtime
 from ..nutrition import (
     ACTIVITY_FALLBACK_VALUES, DIET_PHASES, NUTRITION_TARGET_NAMES,
     OWNER_PROFILE_KEYS, SEX_VALUES, compute_targets, day_score, profile_upsert,
+    validate_nutrition_profile,
 )
 
 
@@ -52,6 +53,26 @@ def profile_set(context, a):
         profile_upsert(c, key, value, clock=context.clock)
         c.commit()
         return {"ok": True, "key": key, "value": value}
+    finally:
+        c.close()
+
+
+def nutrition_profile_set(context, a):
+    """Save all three editable profile values in one validated transaction."""
+    try:
+        profile = validate_nutrition_profile(
+            {"height_cm": a.height_cm, "sex": a.sex, "dob": a.dob},
+            today=runtime.today(clock=context.clock),
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    c = runtime.connect(context.database)
+    try:
+        _ensure_profile_table(c)
+        with c:
+            for key, value in profile.items():
+                profile_upsert(c, key, value, clock=context.clock)
+        return {"ok": True, "profile": profile}
     finally:
         c.close()
 

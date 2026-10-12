@@ -540,6 +540,7 @@
     $("ins-range-prev").disabled = all;
     $("ins-range-next").disabled = all;
     $("ins-range-today").disabled = all;
+    if (window.HermesDescriptions) window.HermesDescriptions.setRange(canonicalControl.range);
   }
 
   async function setCanonicalWindow(granularity, shift, useCurrentAnchor) {
@@ -762,11 +763,15 @@
     const generation = ++contextGeneration;
     markAnalysisIdle(message);
     $("ins-analyze").disabled = true;
+    if (window.HermesDescriptions) window.HermesDescriptions.setPending(true);
     return generation;
   }
 
   function finishContextChange(generation) {
-    if (generation === contextGeneration) $("ins-analyze").disabled = false;
+    if (generation === contextGeneration) {
+      $("ins-analyze").disabled = false;
+      if (window.HermesDescriptions) window.HermesDescriptions.setPending(false);
+    }
   }
 
   function cancelScopedAnalysis() {

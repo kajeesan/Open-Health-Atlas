@@ -79,10 +79,12 @@ defines the separate responsibilities.
 | Daily workflows | `toolkit/hermes_insights/commands/`, `capture_contracts.py`, `followthrough.py`, `schedules.py`, `vault_notes.py` | Governed capture, commitments, schedules, notes and collector coordination |
 | Nutrition and food | `toolkit/hermes_insights/nutrition.py`, `food.py`, `score_contracts.py`, `commands/` | Profile targets, nutrition coverage, recipe scaling, food capture and freezer stock |
 | Training and movement | `toolkit/hermes_insights/fitness.py`, `muscles.py`, `muscle_figure.py`, `figure_contracts.py`, `physio.py`, `body_measurements.py`, `commands/` | Training edits, fitness reports, muscle volume and figure lenses |
+| Training evidence and context | `toolkit/hermes_insights/training_evidence.py`, `training_context.py`, `commands/training_evidence.py` | Bounded evidence reads, imported source revisions and validated reported-context capture |
+| Descriptive observations | `toolkit/hermes_insights/descriptive.py`, `hermes_surface.py` | Source-backed summaries and contrasts under the [descriptive contract](SYSTEM_DESIGN.md#descriptive-observations) |
 | Daily frames, scores, Recovery and labs | `toolkit/hermes_insights/daily_frames.py`, `scores.py`, `recovery.py`, `labs.py`, `commands/` | Legacy daily reports, dashboard scores, verified Recovery and laboratory workflows |
 | Shared analytical runtime | `toolkit/hermes_insights/runtime.py`, `catalogs.py`, `calculations.py` | Database/clock context, configured catalogs and shared formulas used directly by CLI and Hermes tools |
 | Database contracts | `toolkit/SCHEMA.sql`, `app/panel_db.py` | Empty health and panel schemas, append protections, indexes, views |
-| Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v7 upgrades |
+| Schema evolution | `toolkit/hermes_insights/migrations.py` | Exact-shape preflight, checksums, transactional v1-v8 upgrades |
 | Long analysis reads | `toolkit/hermes_insights/analysis_jobs.py`, `exact_cache.py` | Private job/result sidecar, one execution slot, exact snapshot reuse and fresh collection status |
 | Deterministic intelligence | `toolkit/hermes_insights/` | Registry, frames, identities, provenance, readiness, statistics, associations, interactions, goals, ledger, synthesis, orchestration |
 | Generic integrations | `deploy/`, `config/` | Broker, collectors, OAuth helper, scheduler, messaging actions, service/timer examples |
@@ -193,6 +195,13 @@ startup, preserving missing and invalid configuration behavior. It supplies
 target computation receive the same resolved fallback. Coverage applies current
 targets to historical days and omits days without nutrition. Hydration stays separate.
 
+The panel's `GET/POST /api/nutrition/profile` reads and updates height, date of
+birth and the equation's sex input. `nutrition-profile-set` validates all three
+fields before writing them in one transaction. The panel invokes it through
+the existing broker. Activity fallback, diet phase and manual targets retain
+their separate configuration owners. Weight logging uses the existing body-log
+path, outside the profile transaction.
+
 `commands/food.py` owns batch configuration, recipe tags, ingredient sidecars,
 prep, eat, food logging, menu and restock commands. `food.py` owns recipe lookup,
 nutrient scaling, capture validation and restock guards. Recipe import normalization
@@ -208,7 +217,8 @@ consumption. These are preserved behaviors, not new inventory rules.
 Ingredient sidecars use the supplied vault and validated full payload. They replace
 one file through a temporary file and atomic rename, with cleanup on failure.
 They remain distinct from immutable transcript captures. Broker permissions remain
-unchanged. Configuration writers and ingredient sidecars stay outside its allowlist.
+unchanged for food operations. The bounded profile operation above is allowlisted;
+general configuration writers and ingredient sidecars remain outside it.
 
 ### Training and movement ownership
 
@@ -248,10 +258,31 @@ still reverse schedule edits.
 Validation and report asymmetries remain intentional compatibility constraints.
 Fitness accepts extra valid value fields and rejects repeated voids. Physio voids
 can repeat and retain whitespace reasons. Pain has stricter source/capture rules
-than fitness, self-tests and trials. Legacy future-row inclusion, inclusive lower
-bounds, laterality deduplication and intermediate rounding remain unchanged.
+than fitness, self-tests and trials. Other legacy reports retain their existing
+date bounds, laterality deduplication and intermediate rounding.
 The body figure keeps uncertain subregion theory separate from measured tests
-and weighted exposure. Broker permissions and medical content are unchanged.
+and weighted exposure. Tested ratio and body balance semantics are owned by
+[Tested strength comparisons](SYSTEM_DESIGN.md#tested-strength-comparisons).
+
+`commands/training_evidence.py` owns the `training-evidence` read and
+`training-context-log` transaction. Hevy JSON imports preserve source revisions
+and links through `training_context.py` inside their existing import transactions.
+`training_evidence.py` composes records and shared quarterly/pain calculations
+on an injected read snapshot; it does not own conversation or writes.
+
+Recovery exposes `GET /api/recovery/training-evidence` and
+`POST /api/recovery/training-context` through the broker. The panel validates
+the returned packet identity and scope. Context writes retain the authenticated
+panel, CSRF, operation allowlist and CLI validation boundaries. The standalone
+MCP server exposes only the read operation. See
+[Training evidence and reported context](SYSTEM_DESIGN.md#training-evidence-and-reported-context)
+for the dated evidence contract.
+
+Insight Explorer's `GET /api/insights/descriptive-catalog` and
+`POST /api/insights/descriptions` call `LocalSurface` on the configured
+read-only database. The POST computes a read response; it does not write
+findings or hypotheses. The existing analysis and ledger routes retain their
+separate owners.
 
 ### Daily frames, scores, Recovery and labs ownership
 
@@ -372,6 +403,7 @@ test paths are relative to `toolkit/tests/`.
 | Dashboard scores and verified Recovery | `scores.py`, `recovery.py` | `commands/scores.py`, `commands/recovery.py` | `test_scores.py`, `test_readiness.py`, `test_calculation_date_boundaries.py` |
 | Laboratory parsing, validation and latest/trend selection | `labs.py` | `commands/labs.py` | `test_labs.py`, `test_daily_frame_lab_boundaries.py` |
 | Feature definitions, frames and readiness | `registry.py`, `frame.py`, `readiness.py`, `adapters/` | `commands/features.py`, analytical engines and local/Hermes surfaces | `test_feature_registry.py`, `test_phase3_adapters.py`, `test_feature_frame_readiness.py` |
+| Descriptive summaries and training evidence | `descriptive.py`, `training_evidence.py`, `training_context.py`, `adapters/quarterly.py`, `adapters/pain.py` | Local surface, Recovery evidence command and Hevy imports | `test_descriptive.py`, `test_training_evidence.py`, `test_training_context_migration.py`, `test_lateral_knee_events.py` |
 | Statistical inference, associations and interactions | `stats.py`, `associations.py`, `interactions.py` | Association commands, ledger coordination and local/Hermes surfaces | `test_statistical_boundaries.py`, `test_outcome_associations.py`, `test_interactions.py`, `test_native_stats.py` |
 | Evidence identity and durable analytical state | `provenance.py`, `ledger.py`, `synthesis.py`, `orchestrator.py` | [Analytical command owners](#feature-ledger-and-orchestration-command-ownership) | `test_provenance.py`, `test_phase5_ledger.py`, `test_phase5_synthesis.py`, `test_phase6_orchestrator.py`, `test_cli_coordination_boundaries.py` |
 
@@ -380,12 +412,16 @@ defines the complete application, fictional journey and actual MCP suites.
 
 ## Data ownership and writes
 
-`health.db` is the canonical health record. The baseline schema has 68 tables,
-two views, 16 indexes, and ten append-only triggers. Migration v4 adds the
+`health.db` is the canonical health record. Migration v4 adds the
 latest provenance, event, feature, analysis, hypothesis, synthesis, trigger,
 outbox, and notification structures; migration v5 adds persistent recipe
 restock state, v6 makes synthesis provider-neutral, and v7 preserves historical lab-confirmation
-labels alongside the current label. Initialization inserts no user or health observations; it seeds
+labels alongside the current label. Migration v8 adds imported exercise/fitness
+source revisions, their links and reported training-context revisions. Source
+revisions, fitness-parent links and context revisions have append protections.
+Earlier migration identities remain unchanged; upgrade and incompatible-history
+handling belong to [Deployment](DEPLOYMENT.md#training-context-schema-compatibility).
+Initialization inserts no user or health observations; it seeds
 only the bundled cited exercise-to-subregion configuration.
 
 `panel.db` is an application-state database with seven tables and five indexes.

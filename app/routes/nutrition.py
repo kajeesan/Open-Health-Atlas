@@ -13,6 +13,7 @@ import re
 from flask import Blueprint, current_app, jsonify, request
 
 from app import bridge, canon, db_read
+from toolkit.hermes_insights.nutrition import validate_nutrition_profile
 
 bp = Blueprint("nutrition", __name__, url_prefix="/api/nutrition")
 
@@ -79,6 +80,42 @@ def _engine(subcmd, *args, timeout=30.0):
 def targets():
     """T44 `nutrition-targets` engine passthrough — pure compute, zero flags."""
     return _engine("nutrition-targets")
+
+
+@bp.get("/profile")
+def profile():
+    """Read the selected workspace's saved profile and latest eligible weight."""
+    if (resp := _guard()) is not None:
+        return resp
+    today_iso = canon.today_iso()
+    fields = {"height_cm": None, "sex": None, "dob": None}
+    if db_read.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='owner_profile'"):
+        fields.update({row["key"]: row["value"] for row in db_read.query(
+            "SELECT key, value FROM owner_profile WHERE key IN ('height_cm', 'sex', 'dob')"
+        )})
+    weight = db_read.query(
+        "SELECT weight_kg, date FROM body_metrics WHERE weight_kg IS NOT NULL AND date<=?"
+        " ORDER BY date DESC, id DESC LIMIT 1", (today_iso,)
+    )
+    return jsonify(ok=True, result={
+        "profile": fields,
+        "weight": weight[0] if weight else None,
+        "canonical_today": today_iso,
+    })
+
+
+@bp.post("/profile")
+def save_profile():
+    """Submit one closed, complete profile update through the validated broker."""
+    try:
+        values = validate_nutrition_profile(
+            request.get_json(silent=True), today=canon.today_iso())
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc), error_code="invalid_nutrition_profile"), 400
+    return _run(
+        "nutrition-profile-set", "--height-cm", str(values["height_cm"]),
+        "--sex", values["sex"], "--dob", values["dob"],
+    )
 
 
 # T46: nutrition-coverage's own days whitelist — health.py's argparse
