@@ -1,4 +1,4 @@
 # Optional local stdio adapter; the core product does not require MCP.
 # Official Python SDK, MIT, maintained v1 API (Python >=3.10).
 -r requirements.txt
-mcp==1.30.0
+mcp==2.2.0
