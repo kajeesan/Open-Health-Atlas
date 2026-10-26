@@ -1,5 +1,5 @@
 -r requirements.txt
-pytest==9.0.3
+pytest==9.1.1
 # Imported directly by tests/test_passkey_roundtrip.py's software passkey.
 # Both already ship as webauthn transitives — pinned here so the tests have
 # a recorded version even if a future webauthn release drops them.
